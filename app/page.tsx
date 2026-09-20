@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { OBRAS, type Votos } from "@/lib/obras";
+import { useRef, useState } from "react";
+import { OBRAS } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { Deck } from "@/components/Deck";
 import { CabreoMap, Info, Results } from "@/components/Panels";
@@ -18,7 +18,21 @@ const PESTAÑAS: { id: Pestaña; icono: string; etiqueta: string }[] = [
 export default function Home() {
   const { votos } = useStore();
   const [pestaña, setPestaña] = useState<Pestaña>("votar");
-  const votadas = OBRAS.filter((o) => (votos as Votos)[o.id]).length;
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const votadas = OBRAS.filter((o) => votos[o.id]).length;
+
+  const onTablistKey = (e: React.KeyboardEvent) => {
+    const actual = PESTAÑAS.findIndex((p) => p.id === pestaña);
+    let siguiente: number;
+    if (e.key === "ArrowRight") siguiente = (actual + 1) % PESTAÑAS.length;
+    else if (e.key === "ArrowLeft") siguiente = (actual - 1 + PESTAÑAS.length) % PESTAÑAS.length;
+    else if (e.key === "Home") siguiente = 0;
+    else if (e.key === "End") siguiente = PESTAÑAS.length - 1;
+    else return;
+    e.preventDefault();
+    setPestaña(PESTAÑAS[siguiente].id);
+    tabRefs.current[siguiente]?.focus();
+  };
 
   return (
     <main className="app-shell">
@@ -27,17 +41,34 @@ export default function Home() {
         <span className="brand-badge">DEMO · {votadas}/{OBRAS.length}</span>
       </header>
 
-      {pestaña === "votar" && <Deck activo={pestaña === "votar"} />}
-      {pestaña === "cabreo" && <CabreoMap votos={votos} />}
-      {pestaña === "resultados" && <Results />}
-      {pestaña === "info" && <Info />}
+      {PESTAÑAS.map((p) => (
+        <div
+          key={p.id}
+          role="tabpanel"
+          id={`panel-${p.id}`}
+          aria-labelledby={`tab-${p.id}`}
+          hidden={pestaña !== p.id}
+          className="tabpanel-wrap"
+        >
+          {pestaña === "votar" && p.id === "votar" && <Deck />}
+          {pestaña === "cabreo" && p.id === "cabreo" && <CabreoMap votos={votos} />}
+          {pestaña === "resultados" && p.id === "resultados" && <Results />}
+          {pestaña === "info" && p.id === "info" && <Info />}
+        </div>
+      ))}
 
-      <nav className="tabbar" role="tablist" aria-label="Navegación principal">
-        {PESTAÑAS.map((p) => (
+      <nav className="tabbar" role="tablist" aria-label="Navegación principal" onKeyDown={onTablistKey}>
+        {PESTAÑAS.map((p, i) => (
           <button
             key={p.id}
+            ref={(el) => {
+              tabRefs.current[i] = el;
+            }}
+            id={`tab-${p.id}`}
             role="tab"
             aria-selected={pestaña === p.id}
+            aria-controls={`panel-${p.id}`}
+            tabIndex={pestaña === p.id ? 0 : -1}
             className="tab"
             onClick={() => setPestaña(p.id)}
           >

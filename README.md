@@ -20,7 +20,7 @@ del navegador: es mobile-first).
 - Desliza: → valió · ← no valió · ↑ pido explicaciones · ↓ no puedo valorarlo.
 - Alternativa accesible: los 4 botones grandes o las flechas del teclado.
 - `Enter` abre la ficha de la tarjeta superior.
-- Tus votos se guardan solo en tu dispositivo (localStorage).
+- Tus votos (y si ya viste el tutorial) se guardan solo en tu dispositivo (localStorage).
 
 ## Qué hay dentro
 
@@ -39,7 +39,7 @@ del navegador: es mobile-first).
   "pendiente de verificación P0".
 - "Pedir explicaciones" genera un borrador que revisa y envía una persona
   (HITL). La app nunca envía nada.
-- Sin cuentas ni rastreo: votos anónimos en tu dispositivo.
+- Sin cuentas ni rastreo: votos anónimos y ajustes mínimos en tu dispositivo.
 - Valio juzga obras y datos, nunca nombres propios.
 
 ## Stack

@@ -138,7 +138,7 @@ export const OBRAS: Obra[] = [
     categoria: "educacion",
     municipio: "Tu ciudad (demo)",
     resumen:
-      "Ejemplo de compra de equipos que tardó en llegar a las aulas. Los tres gestos verticales también cuentan.",
+      "Ejemplo de compra de equipos que tardó en llegar a las aulas. Los gestos verticales (pedir explicaciones y no puedo valorarlo) también cuentan.",
     importe: "74.500 € (ejemplo)",
     plazos: "6 meses (ejemplo)",
     promesa: "Una pantalla por aula y tabletas de préstamo.",

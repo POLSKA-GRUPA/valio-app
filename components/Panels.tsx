@@ -107,7 +107,7 @@ export function Info() {
         </div>
         <div className="info-block">
           <h3>Privacidad</h3>
-          <p>Tus votos viven solo en tu dispositivo (localStorage). Sin cuentas, sin rastreo.</p>
+          <p>Tus votos y si ya viste el tutorial se guardan solo en tu dispositivo (localStorage). Sin cuentas, sin rastreo.</p>
         </div>
         <div className="info-block">
           <h3>Proyecto</h3>

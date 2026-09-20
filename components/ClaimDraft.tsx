@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { Obra } from "@/lib/obras";
+import { useDialog } from "@/lib/useDialog";
 
 function borrador(obra: Obra): string {
   return `A la atención del organismo competente (Ayuntamiento de ${obra.municipio}):
@@ -31,6 +32,7 @@ Nota: este borrador lo ha generado la aplicación y debe revisarlo y enviarlo un
 }
 
 export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void }) {
+  const dialogRef = useDialog(onClose);
   const inicial = useMemo(() => borrador(obra), [obra]);
   const [texto, setTexto] = useState(inicial);
   const [copiado, setCopiado] = useState(false);
@@ -55,6 +57,8 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Borrador de solicitud de explicaciones"

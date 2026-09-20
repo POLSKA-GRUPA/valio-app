@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { CATEGORIA_LABEL, ESTADO_LABEL, type Obra } from "@/lib/obras";
+import { useDialog } from "@/lib/useDialog";
 
 export function DetailSheet({
   obra,
@@ -12,6 +13,7 @@ export function DetailSheet({
   onClose: () => void;
   onClaim: () => void;
 }) {
+  const dialogRef = useDialog(onClose);
   return (
     <>
       <motion.div
@@ -22,6 +24,8 @@ export function DetailSheet({
         onClick={onClose}
       />
       <motion.div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={`Ficha de ${obra.nombre}`}

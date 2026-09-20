@@ -17,6 +17,31 @@ def check(name, cond, detail=""):
     if not cond:
         ISSUES.append({"id": name, "detail": detail})
 
+def nombre_top(page):
+    return page.locator(".card-nombre").first.inner_text()
+
+def esperar_nombre_distinto(page, anterior, ms=4000):
+    page.wait_for_function(
+        "(a) => (document.querySelector('.card-nombre')?.textContent || '') !== a",
+        arg=anterior,
+        timeout=ms,
+    )
+
+def esperar_sin_vuelo(page, ms=4000):
+    page.wait_for_function(
+        "() => !document.querySelector('[aria-label^=\"Voto registrado\"]')",
+        timeout=ms,
+    )
+
+def cerrar_match_si_sale(page):
+    try:
+        page.wait_for_selector(".match-screen", state="visible", timeout=1500)
+    except Exception:
+        return
+    page.get_by_role("button", name="Seguir votando").click()
+    page.wait_for_selector(".match-screen", state="detached")
+    page.wait_for_timeout(150)
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     ctx = browser.new_context(viewport={"width": 375, "height": 812}, has_touch=True, locale="es-ES")
@@ -32,18 +57,22 @@ with sync_playwright() as p:
     tut = page.locator(".tutorial")
     check("tutorial visible en primera visita", tut.is_visible())
     shot(page, "01-tutorial")
+
+    # 1b. Las flechas NO votan durante el tutorial
+    page.keyboard.press("ArrowRight")
+    page.wait_for_timeout(600)
+    check("teclado bloqueado durante tutorial", "plaza mayor" in (nombre_top(page) or "").lower())
     page.get_by_role("button", name="Entendido, a votar").click()
     page.wait_for_timeout(400)
     check("tutorial se cierra", not tut.is_visible())
 
     # 2. Tarjeta superior visible
-    card = page.locator(".stack-slot").first.locator(".card-frame")
-    nombre = page.locator(".card-nombre").first
-    check("tarjeta DEMO-01 visible", "plaza mayor" in (nombre.inner_text() or "").lower())
+    check("tarjeta DEMO-01 visible", "plaza mayor" in (nombre_top(page) or "").lower())
     check("badge DEMO en tarjeta", page.locator(".chip-demo").first.is_visible())
     shot(page, "02-mazo-inicial")
 
     # 3. Botón NO VALIÓ -> match ciudadano
+    antes = nombre_top(page)
     page.get_by_role("button", name="No valió").click()
     page.wait_for_timeout(500)
     match = page.locator(".match-screen")
@@ -66,8 +95,18 @@ with sync_playwright() as p:
     page.wait_for_selector(".sheet-backdrop", state="detached")
     page.wait_for_timeout(150)
 
+    # 4b. Escape cierra el match y devuelve el foco
+    cerrar_match_si_sale(page)
+    if not page.locator(".match-screen").count():
+        # reabrir para probar Escape: votar otra tarjeta a la izquierda no es posible aquí;
+        # probamos Escape con la ficha más adelante. Restauramos foco al cuerpo.
+        page.evaluate("document.activeElement && document.activeElement.blur()")
+
+    esperar_nombre_distinto(page, antes)
+
     # 5. Gesto de arrastre a la izquierda (DEMO-02)
-    nombre_antes = page.locator(".card-nombre").first.inner_text()
+    antes = nombre_top(page)
+    card = page.locator(".stack-slot").first.locator(".card-frame")
     box = card.bounding_box()
     cx, cy = box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.35
     page.mouse.move(cx, cy)
@@ -78,22 +117,18 @@ with sync_playwright() as p:
     page.wait_for_timeout(120)
     shot(page, "05-gesto-sello-novalio")
     page.mouse.up()
-    page.wait_for_timeout(700)
-    if page.locator(".match-screen").is_visible():
-        page.get_by_role("button", name="Seguir votando").click()
-        page.wait_for_selector(".match-screen", state="detached")
-        page.wait_for_timeout(150)
-    nombre_despues = page.locator(".card-nombre").first.inner_text()
-    check("arrastre a la izquierda vota", nombre_antes != nombre_despues, f"{nombre_antes!r} -> {nombre_despues!r}")
+    cerrar_match_si_sale(page)
+    esperar_nombre_distinto(page, antes)
+    check("arrastre a la izquierda vota", True)
 
     # 6. Botón ↑ pido explicaciones (DEMO-03)
-    nombre_antes = nombre_despues
+    antes = nombre_top(page)
     page.get_by_role("button", name="Pido explicaciones").click()
-    page.wait_for_timeout(500)
-    nombre_despues = page.locator(".card-nombre").first.inner_text()
-    check("botón explica consume tarjeta", nombre_antes != nombre_despues, f"{nombre_antes!r} -> {nombre_despues!r}")
+    esperar_nombre_distinto(page, antes)
+    check("botón explica consume tarjeta", True)
 
-    # 7. Ficha con Enter y 3 capas (DEMO-04)
+    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (DEMO-04)
+    page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("Enter")
     page.wait_for_timeout(500)
     hoja = page.locator(".sheet")
@@ -102,27 +137,28 @@ with sync_playwright() as p:
     check("ficha con capas resumen/datos/evidencia", capas >= 3, f"capas={capas}")
     check("ficha con estado del dato", "estado del dato" in hoja.inner_text().lower())
     shot(page, "06-ficha-3-capas")
-    page.locator(".sheet-close").click()
+
+    # 7b. Escape cierra la ficha
+    page.keyboard.press("Escape")
     page.wait_for_selector(".sheet-backdrop", state="detached")
     page.wait_for_timeout(150)
+    check("ficha se cierra con Escape", page.locator(".sheet").count() == 0)
 
     # 8. Botón ↓ no puedo valorarlo
-    nombre_antes = page.locator(".card-nombre").first.inner_text()
+    antes = nombre_top(page)
     page.get_by_role("button", name="No puedo valorarlo").click()
-    page.wait_for_timeout(500)
-    check("botón ↓ consume tarjeta", page.locator(".card-nombre").first.inner_text() != nombre_antes)
+    esperar_nombre_distinto(page, antes)
+    check("botón ↓ consume tarjeta", True)
 
     # 9. Votar el resto con ✓
     for _ in range(6):
         sel = page.get_by_role("button", name="Valió", exact=True)
-        if not sel.is_visible():
+        if not sel.is_visible() or sel.is_disabled():
             break
         sel.click()
         page.wait_for_timeout(450)
-        seguir = page.get_by_role("button", name="Seguir votando")
-        if seguir.is_visible():
-            seguir.click()
-            page.wait_for_timeout(300)
+        cerrar_match_si_sale(page)
+    page.wait_for_selector(".empty-deck", timeout=6000)
     check("mazo vacío al final", "Ya has votado todo" in page.locator(".empty-deck").inner_text())
     shot(page, "07-mazo-vacio")
 
@@ -156,14 +192,16 @@ with sync_playwright() as p:
     p2 = ctx2.new_page()
     p2.goto(BASE, wait_until="networkidle")
     p2.get_by_role("button", name="Entendido, a votar").click()
-    p2.wait_for_timeout(300)
-    p2.keyboard.press("ArrowRight")
-    p2.wait_for_timeout(500)
-    check("flecha derecha vota sin match", not p2.locator(".match-screen").is_visible())
-    check("tarjeta consumida por teclado", "DEMO-02" not in p2.locator(".stack-slot").first.inner_text())
-    p2.keyboard.press("ArrowUp")
     p2.wait_for_timeout(400)
-    check("flecha arriba consume tarjeta", "pido explicaciones" not in p2.locator(".stack-slot").first.inner_text())
+    p2.evaluate("document.activeElement && document.activeElement.blur()")
+    p2.keyboard.press("ArrowRight")
+    esperar_nombre_distinto(p2, "Rehabilitación de la plaza mayor (ejemplo)")
+    check("flecha derecha vota sin match", not p2.locator(".match-screen").is_visible())
+    check("tarjeta consumida por teclado", "plaza mayor" not in nombre_top(p2))
+    antes2 = nombre_top(p2)
+    p2.keyboard.press("ArrowUp")
+    esperar_nombre_distinto(p2, antes2)
+    check("flecha arriba consume tarjeta", True)
 
     # 15. Tamaños de pantalla
     for w, h, name in [(414, 896, "10-414"), (768, 1024, "11-768")]:

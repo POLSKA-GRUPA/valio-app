@@ -1,18 +1,23 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { Obra } from "@/lib/obras";
+import { useDialog } from "@/lib/useDialog";
 
 export function MatchScreen({
   obra,
   onClose,
   onClaim,
 }: {
-  obra: import("@/lib/obras").Obra;
+  obra: Obra;
   onClose: () => void;
   onClaim: () => void;
 }) {
+  const dialogRef = useDialog(onClose);
   return (
     <motion.div
+      ref={dialogRef}
+      tabIndex={-1}
       className="match-screen"
       role="alertdialog"
       aria-modal="true"
