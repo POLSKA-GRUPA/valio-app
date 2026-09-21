@@ -23,17 +23,25 @@ auditar antes del interruptor.
 | Claves antibrigading, rate limits y lógica que ayude a atacantes | Privado | Puede vivir en un repo privado `valio-guard` |
 | Marca ¿VALIÓ? (nombre y logo) | NO se libera | La licencia de código no es licencia de marca: añadir NOTICE |
 
-## 3. Licencia de código: comparativa honesta
+## 3. Licencia de código: DECIDIDA
+
+**Decisión (Kenyi, 2026-09-21): licencia MIT. Titular del copyright: SOCIEDAD
+ESPAÑOLA DE ASESORAMIENTO Y SISTEMAS INTELIGENTES, S.L. (CIF B05592530).
+Publicación cuando el desarrollo esté terminado.**
 
 | Opción | A favor | En contra |
 |---|---|---|
-| **AGPL-3.0** (recomendada) | Nadie puede montar un clon SaaS cerrado de ¿VALIÓ? sin aportar; permite vender licencias comerciales duales más adelante; estándar en civic tech | Algunos ayuntamientos son conservadores con copyleft |
-| **EUPL-1.2** | Diseñada por la UE, bien vista en sector público europeo, copyleft suave | Menos conocida por developers |
-| **Apache-2.0 / MIT** | Adopción máxima, cero fricción | Un competidor puede cerrar un fork comercial sin devolver nada |
+| **MIT (ELEGIDA)** | Adopción máxima, cero fricción, cualquier ayuntamiento u ONG puede usarlo sin fricción legal | Un competidor puede cerrar un fork comercial sin devolver nada; la protección queda en la marca (NOTICE) y en la velocidad de ejecución |
+| AGPL-3.0 (descartada) | Impediría clones SaaS cerrados | Fricción legal para el sector público |
+| EUPL-1.2 (descartada) | Bien vista en sector público europeo | Menos conocida |
 
-Recomendación: **AGPL-3.0** para el código, **CC BY 4.0** para el dataset,
-**marca reservada** en NOTICE. Si el objetivo número uno es que lo copien los
-ayuntamientos sin miedo, EUPL es el plan B. Pendiente de decisión de Kenyi.
+Con MIT, el foso real es la disciplina de verificación (método P0), la marca
+reservada (NOTICE.md) y la comunidad: no la licencia. El archivo LICENSE ya
+está en el repo; el flip de visibilidad se hace al terminar el desarrollo
+siguiendo el checklist de la sección 5.
+
+Pendiente de decidir más adelante: licencia del dataset verificado
+(recomendación: CC BY 4.0 con atribución a la fuente oficial).
 
 ## 4. Contribuciones: DCO, no CLA
 
@@ -52,7 +60,7 @@ ayuntamientos sin miedo, EUPL es el plan B. Pendiente de decisión de Kenyi.
    (ruta de negocio, clientes, precios) y generalizar PROTOCOLO_TRABAJO.
 4. Añadir `LICENSE` (decisión de la sección 3) y `NOTICE` (marca reservada,
    fuentes de datos, agradecimientos).
-5. `README` bilingüe (es/en) y badges de CI.
+5. `README` bilingüe (es/en) y badges de CI. LICENSE y NOTICE ya presentes.
 6. Activar branch protection para externos (PR obligatorio, CI verde).
 7. Anuncio: artículo validado + posts (skills marketing), enlazando el repo.
 
@@ -61,9 +69,8 @@ ayuntamientos sin miedo, EUPL es el plan B. Pendiente de decisión de Kenyi.
 - **Hoy (P1)**: hábitos ya aplicados: CI en verde, secret-scan en cada PR,
   changelog, sin secretos, sin datos personales. Coste: cero.
 - **P2 (MVP territorial)**: publicar el MÉTODO de verificación.
-- **P3 (beta pública gobernada)**: flip del repo de código. La beta pública del
-  PRD es el momento natural para que el repo sea público y recoja
-  contribuciones externas.
+- **Al terminar el desarrollo (decisión del propietario)**: flip del repo de
+código a público con licencia MIT y titular SEASI, S.L.
 - Regla: nunca publicar por publicar. Se publica cuando abrir añade confianza
   y no expone a usuarios en pruebas.
 

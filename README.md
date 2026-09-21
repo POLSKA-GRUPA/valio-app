@@ -46,3 +46,10 @@ del navegador: es mobile-first).
 
 Next.js 15 · React 18 · TypeScript · Framer Motion · CSS propio (sin Tailwind).
 Instalable como PWA (manifest + iconos; service worker de shell previsto).
+
+## Licencia
+
+Código bajo [MIT](LICENSE) · © 2026 SOCIEDAD ESPAÑOLA DE ASESORAMIENTO Y
+SISTEMAS INTELIGENTES, S.L. (B05592530). La marca ¿VALIÓ? queda reservada (ver
+[NOTICE.md](NOTICE.md)). Publicación pública del repo al terminar el
+desarrollo.

@@ -2,6 +2,7 @@
   "name": "valio-app",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "¿VALIÓ? — Obras públicas, costes y voto ciudadano. PWA de tarjetas con gestos.",
   "scripts": {
     "dev": "next dev",
