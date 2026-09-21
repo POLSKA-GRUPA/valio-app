@@ -32,8 +32,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${archivo.variable} ${publicSans.variable}`}>
-      <body>
+    <html lang="es" className={`${archivo.variable} ${publicSans.variable}`} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <StoreProvider>{children}</StoreProvider>
       </body>
     </html>
