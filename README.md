@@ -42,6 +42,12 @@ del navegador: es mobile-first).
 - Sin cuentas ni rastreo: votos anónimos y ajustes mínimos en tu dispositivo.
 - Valio juzga obras y datos, nunca nombres propios.
 
+## Como se ve
+<img height = "700" src= "docs/uat/capturas/mazo.png">
+<img height = "700" src= "docs/uat/capturas/match.png">
+<img height = "700" src= "docs/uat/capturas/cabreo.png">
+<img height = "700" src= "docs/uat/capturas/explicaciones.png">
+
 ## Stack
 
 Next.js 15 · React 18 · TypeScript · Framer Motion · CSS propio (sin Tailwind).
