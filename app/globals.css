@@ -823,13 +823,6 @@ body {
     font-size: clamp(20px, 6dvh, 28px);
   }
 
-  /* la carta es baja: los chips DEMO/estado en fila dejan de caer sobre
-     el importe */
-  .art-top-right {
-    flex-direction: row;
-    align-items: center;
-  }
-
   .card-body {
     padding: 8px 12px;
     gap: 4px;
