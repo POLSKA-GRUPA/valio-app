@@ -765,16 +765,18 @@ body {
 /* ISSUE-13: móvil en horizontal — el shell es una columna pensada para
    vertical (max-width 480px sobre 100dvh); al girar, el cromo (topbar,
    botones, pestañas) se come la altura y el mazo y las listas quedan en una
-   tira ilegible. En horizontal: los paneles de datos pasan a ancho completo
-   (más info visible) y solo el mazo conserva una columna proporcional
-   centrada. No afecta a escritorio ni tabletas. */
+   tira ilegible. Diseño horizontal: paneles de datos a ancho completo, el
+   mazo conserva proporciones de carta a TODO el alto disponible y los 4
+   botones de voto pasan a los laterales (2 por lado) para pulgares.
+   No afecta a escritorio ni tabletas. */
 @media (orientation: landscape) and (max-height: 500px) {
   .app-shell {
     max-width: 100%;
     padding: 6px 14px 0;
   }
 
-  /* el mazo mantiene proporciones de carta: columna centrada por altura */
+  /* el mazo: proporciones de carta, centrado, y con la fila de botones
+     fuera del flujo ocupa todo el alto entre topbar y tabbar */
   .deck-zone {
     width: 100%;
     max-width: calc(100dvh * 0.92);
@@ -789,24 +791,44 @@ body {
     font-size: 20px;
   }
 
+  /* botones de voto a los laterales de la pantalla, 2 por lado (↓ ✗ | ✓ ↑).
+     La fila sale del flujo (absolute) para liberar todo el alto al mazo; el
+     ancla es .app-shell (position: relative). El contenedor no captura
+     puntero para no bloquear los gestos sobre la carta. */
   .action-row {
-    width: 100%;
-    max-width: calc(100dvh * 0.92);
-    margin-inline: auto;
-    gap: 8px;
-    padding: 6px 6px 8px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    pointer-events: none;
+  }
+
+  .action-row .action-btn {
+    pointer-events: auto;
+  }
+
+  /* el 2º botón empuja al resto: [↓ ✗] ... [✓ ↑] */
+  .action-row .action-btn:nth-child(2) {
+    margin-right: auto;
   }
 
   .action-btn {
-    width: 44px;
-    height: 44px;
-    font-size: 19px;
-  }
-
-  .action-btn.big {
     width: 52px;
     height: 52px;
     font-size: 22px;
+    box-shadow: var(--shadow);
+  }
+
+  .action-btn.big {
+    width: 60px;
+    height: 60px;
+    font-size: 26px;
   }
 
   .tab {
