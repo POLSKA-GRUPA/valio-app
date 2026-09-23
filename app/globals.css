@@ -256,6 +256,13 @@ body {
   min-height: 0;
 }
 
+/* ISSUE-13: display:flex pisa el atributo hidden (el display:none del
+   navegador no gana a estilos de autor): los paneles ocultos seguian en el
+   layout robando altura y clics al panel visible. */
+.tabpanel-wrap[hidden] {
+  display: none;
+}
+
 .card-frame {
   position: absolute;
   inset: 0;
