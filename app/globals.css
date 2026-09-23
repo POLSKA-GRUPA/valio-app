@@ -758,12 +758,20 @@ body {
 /* ISSUE-13: móvil en horizontal — el shell es una columna pensada para
    vertical (max-width 480px sobre 100dvh); al girar, el cromo (topbar,
    botones, pestañas) se come la altura y el mazo y las listas quedan en una
-   tira ilegible. Compactamos el cromo y limitamos la anchura de la columna
-   en proporción a la altura disponible. No afecta a escritorio ni tabletas. */
+   tira ilegible. En horizontal: los paneles de datos pasan a ancho completo
+   (más info visible) y solo el mazo conserva una columna proporcional
+   centrada. No afecta a escritorio ni tabletas. */
 @media (orientation: landscape) and (max-height: 500px) {
   .app-shell {
-    max-width: min(480px, calc(100dvh * 0.92));
+    max-width: 100%;
     padding: 6px 14px 0;
+  }
+
+  /* el mazo mantiene proporciones de carta: columna centrada por altura */
+  .deck-zone {
+    width: 100%;
+    max-width: calc(100dvh * 0.92);
+    margin-inline: auto;
   }
 
   .topbar {
@@ -775,6 +783,9 @@ body {
   }
 
   .action-row {
+    width: 100%;
+    max-width: calc(100dvh * 0.92);
+    margin-inline: auto;
     gap: 8px;
     padding: 6px 6px 8px;
   }
@@ -843,8 +854,12 @@ body {
     font-size: clamp(24px, 9dvh, 34px);
   }
 
+  .panel {
+    padding: 4px 12px 18px;
+  }
+
   .sheet {
-    max-width: min(480px, calc(100dvh * 0.92));
+    max-width: min(640px, 86vw);
   }
 }
 
