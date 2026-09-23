@@ -755,6 +755,99 @@ body {
   border: 0;
 }
 
+/* ISSUE-13: móvil en horizontal — el shell es una columna pensada para
+   vertical (max-width 480px sobre 100dvh); al girar, el cromo (topbar,
+   botones, pestañas) se come la altura y el mazo y las listas quedan en una
+   tira ilegible. Compactamos el cromo y limitamos la anchura de la columna
+   en proporción a la altura disponible. No afecta a escritorio ni tabletas. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .app-shell {
+    max-width: min(480px, calc(100dvh * 0.92));
+    padding: 6px 14px 0;
+  }
+
+  .topbar {
+    padding: 2px 2px 6px;
+  }
+
+  .brand {
+    font-size: 20px;
+  }
+
+  .action-row {
+    gap: 8px;
+    padding: 6px 6px 8px;
+  }
+
+  .action-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 19px;
+  }
+
+  .action-btn.big {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+  }
+
+  .tab {
+    padding: 5px 4px;
+  }
+
+  .tab .tab-icon {
+    width: 28px;
+    height: 18px;
+    font-size: 12px;
+  }
+
+  .art-cost {
+    font-size: clamp(20px, 6dvh, 28px);
+  }
+
+  .card-body {
+    padding: 8px 12px;
+    gap: 4px;
+  }
+
+  .card-nombre {
+    font-size: 16px;
+  }
+
+  .stamp {
+    font-size: 22px;
+    padding: 5px 10px;
+    border-width: 3px;
+  }
+
+  .stamp-explica,
+  .stamp-nose {
+    font-size: 18px;
+  }
+
+  .empty-deck {
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .empty-deck h2 {
+    font-size: 22px;
+  }
+
+  .match-screen {
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .match-screen h2 {
+    font-size: clamp(24px, 9dvh, 34px);
+  }
+
+  .sheet {
+    max-width: min(480px, calc(100dvh * 0.92));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
