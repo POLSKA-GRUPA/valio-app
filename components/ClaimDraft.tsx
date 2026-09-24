@@ -39,7 +39,24 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
 
   const copiar = async () => {
     try {
-      await navigator.clipboard.writeText(texto);
+      if (navigator.clipboard) {
+        // Contexto seguro (https o localhost): API moderna.
+        await navigator.clipboard.writeText(texto);
+      } else {
+        // Contexto no seguro (p. ej. la demo por http en la red local):
+        // navigator.clipboard no existe. Plan B clásico: textarea temporal.
+        const area = document.createElement("textarea");
+        area.value = texto;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        area.setSelectionRange(0, texto.length);
+        const ok = document.execCommand("copy");
+        document.body.removeChild(area);
+        if (!ok) throw new Error("execCommand('copy') falló");
+      }
       setCopiado(true);
       window.setTimeout(() => setCopiado(false), 2500);
     } catch {
