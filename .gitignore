@@ -6,3 +6,7 @@ out/
 npm-debug.log*
 .vercel
 .env*
+
+# Capturas que genera docs/uat/test_valio.py (01-tutorial.png, 12-reg-...).
+# Las del README (mazo, match...) no empiezan por numero y se versionan.
+docs/uat/capturas/[0-9][0-9]-*.png
