@@ -158,7 +158,7 @@ function CardPreview({ obra, indice }: { obra: Obra; indice: number }) {
 }
 
 export function Deck() {
-  const { votos, votar, marcarTutorialVisto, tutorialVisto, listo } = useStore();
+  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo } = useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
   const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
@@ -223,7 +223,7 @@ export function Deck() {
               Este es el resultado de la demo. Con datos reales, tus votos alimentan el mapa del cabreo y los pases de
               explicaciones.
             </p>
-            <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
+            <button type="button" className="btn btn-primary" onClick={reset}>
               Volver a empezar
             </button>
           </div>
