@@ -256,6 +256,13 @@ body {
   min-height: 0;
 }
 
+/* ISSUE-13: display:flex pisa el atributo hidden (el display:none del
+   navegador no gana a estilos de autor): los paneles ocultos seguian en el
+   layout robando altura y clics al panel visible. */
+.tabpanel-wrap[hidden] {
+  display: none;
+}
+
 .card-frame {
   position: absolute;
   inset: 0;
@@ -753,6 +760,136 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ISSUE-13: móvil en horizontal — el shell es una columna pensada para
+   vertical (max-width 480px sobre 100dvh); al girar, el cromo (topbar,
+   botones, pestañas) se come la altura y el mazo y las listas quedan en una
+   tira ilegible. Diseño horizontal: paneles de datos a ancho completo, el
+   mazo conserva proporciones de carta a TODO el alto disponible y los 4
+   botones de voto pasan a los laterales (2 por lado) para pulgares.
+   No afecta a escritorio ni tabletas. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .app-shell {
+    max-width: 100%;
+    padding: 6px 14px 0;
+  }
+
+  /* el mazo: proporciones de carta, centrado, y con la fila de botones
+     fuera del flujo ocupa todo el alto entre topbar y tabbar */
+  .deck-zone {
+    width: 100%;
+    max-width: calc(100dvh * 0.92);
+    margin-inline: auto;
+  }
+
+  .topbar {
+    padding: 2px 2px 6px;
+  }
+
+  .brand {
+    font-size: 20px;
+  }
+
+  /* botones de voto a los laterales de la pantalla, 2 por lado (↓ ✗ | ✓ ↑).
+     La fila sale del flujo (absolute) para liberar todo el alto al mazo; el
+     ancla es .app-shell (position: relative). El contenedor no captura
+     puntero para no bloquear los gestos sobre la carta. */
+  .action-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    pointer-events: none;
+  }
+
+  .action-row .action-btn {
+    pointer-events: auto;
+  }
+
+  /* el 2º botón empuja al resto: [↓ ✗] ... [✓ ↑] */
+  .action-row .action-btn:nth-child(2) {
+    margin-right: auto;
+  }
+
+  .action-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
+    box-shadow: var(--shadow);
+  }
+
+  .action-btn.big {
+    width: 60px;
+    height: 60px;
+    font-size: 26px;
+  }
+
+  .tab {
+    padding: 5px 4px;
+  }
+
+  .tab .tab-icon {
+    width: 28px;
+    height: 18px;
+    font-size: 12px;
+  }
+
+  .art-cost {
+    font-size: clamp(20px, 6dvh, 28px);
+  }
+
+  .card-body {
+    padding: 8px 12px;
+    gap: 4px;
+  }
+
+  .card-nombre {
+    font-size: 16px;
+  }
+
+  .stamp {
+    font-size: 22px;
+    padding: 5px 10px;
+    border-width: 3px;
+  }
+
+  .stamp-explica,
+  .stamp-nose {
+    font-size: 18px;
+  }
+
+  .empty-deck {
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .empty-deck h2 {
+    font-size: 22px;
+  }
+
+  .match-screen {
+    padding: 14px;
+    gap: 8px;
+  }
+
+  .match-screen h2 {
+    font-size: clamp(24px, 9dvh, 34px);
+  }
+
+  .panel {
+    padding: 4px 12px 18px;
+  }
+
+  .sheet {
+    max-width: min(640px, 86vw);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
