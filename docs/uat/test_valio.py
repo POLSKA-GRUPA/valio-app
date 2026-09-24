@@ -320,6 +320,23 @@ with sync_playwright() as p:
     shot(p_r2, "13-reg-issue12-volver")
     ctx_r2.close()
 
+    # R3 — ISSUE-13: paneles ocultos fuera del layout y mazo a pantalla.
+    ctx_r3 = browser.new_context(viewport={"width": 740, "height": 360}, locale="es-ES")
+    p_r3 = ctx_r3.new_page()
+    p_r3.goto(BASE, wait_until="networkidle")
+    check(
+        "R3 ISSUE-13: panel oculto fuera del layout",
+        p_r3.locator("#panel-info").is_hidden(),
+    )
+    caja_mazo = p_r3.locator(".deck-zone").bounding_box()
+    check(
+        "R3 ISSUE-13: el mazo llena la pantalla en horizontal",
+        bool(caja_mazo) and caja_mazo["height"] >= 180,
+        f"alto={caja_mazo and round(caja_mazo['height'])}",
+    )
+    shot(p_r3, "14-reg-issue13-horizontal")
+    ctx_r3.close()
+
     browser.close()
 
 parar_servidor()
