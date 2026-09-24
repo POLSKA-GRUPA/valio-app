@@ -1,12 +1,23 @@
 """Prueba E2E de la demo ¿VALIÓ? — gestos, botones, teclado, ficha, match, resultados."""
 import json
+import os
+import subprocess
 import sys
+import time
+import urllib.request
+
 from playwright.sync_api import sync_playwright
 
 BASE = "http://localhost:3000"
-SHOTS = "/Users/kenyi/valio-app/docs/uat"
+# Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
+SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
+os.makedirs(SHOTS, exist_ok=True)
 ISSUES = []
 console_errors = []
+
+# Windows: la consola puede usar cp1252 y los checks llevan flechas (↓ ↑).
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 def shot(page, name):
     page.screenshot(path=f"{SHOTS}/{name}.png", full_page=False)
@@ -41,6 +52,52 @@ def cerrar_match_si_sale(page):
     page.get_by_role("button", name="Seguir votando").click()
     page.wait_for_selector(".match-screen", state="detached")
     page.wait_for_timeout(150)
+
+def _servidor_listo():
+    try:
+        with urllib.request.urlopen(BASE, timeout=2) as respuesta:
+            return respuesta.status == 200
+    except Exception:
+        return False
+
+def with_server():
+    """Garantiza que hay app servida en BASE.
+
+    Si ya hay un servidor (p. ej. `npm run dev` en otra terminal) lo reutiliza.
+    Si no, arranca uno y devuelve una función `parar()` para terminarlo
+    (mejor esfuerzo: en Windows puede quedar un node suelto en el 3000).
+    """
+    if _servidor_listo():
+        print("[with_server] servidor ya en marcha: se reutiliza")
+        return lambda: None
+
+    print("[with_server] no hay servidor: arrancando npm run dev...")
+    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    proceso = subprocess.Popen(
+        "npm run dev",
+        cwd=raiz,
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    for _ in range(90):
+        if _servidor_listo():
+            print("[with_server] servidor listo")
+            break
+        time.sleep(1)
+    else:
+        proceso.terminate()
+        raise RuntimeError("with_server: el servidor no respondió en 90 s")
+
+    def parar():
+        proceso.terminate()
+        time.sleep(1)
+        if _servidor_listo():
+            print("[with_server] ojo: puede quedar un node vivo en el puerto 3000")
+
+    return parar
+
+parar_servidor = with_server()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -215,7 +272,33 @@ with sync_playwright() as p:
         shot(pg, f"{name}-mazo")
         pg.close()
 
+    # 16. REGRESIONES de los bugs de la UAT semana 1 (#11-#15).
+    # Cada check debe FALLAR si se quita el fix correspondiente.
+
+    # R1 — ISSUE-11: copiar sin contexto seguro (sin navigator.clipboard).
+    ctx_r1 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r1 = ctx_r1.new_page()
+    # simulamos un origen no seguro: sin API moderna de portapapeles
+    p_r1.add_init_script(
+        "Object.defineProperty(navigator, 'clipboard', { get: () => undefined });"
+    )
+    p_r1.goto(BASE, wait_until="networkidle")
+    p_r1.get_by_role("button", name="Entendido, a votar").click()
+    p_r1.get_by_role("button", name="No valió").click()
+    p_r1.get_by_role("button", name="Pedir explicaciones").first.click()
+    check("R1 ISSUE-11: borrador abierto", p_r1.locator("#claim-texto").is_visible())
+    p_r1.get_by_role("button", name="Copiar borrador").click()
+    p_r1.wait_for_timeout(400)
+    check(
+        "R1 ISSUE-11: copia sin navigator.clipboard (fallback)",
+        p_r1.get_by_text("¡Copiado!").is_visible(),
+    )
+    shot(p_r1, "12-reg-issue11-copia")
+    ctx_r1.close()
+
     browser.close()
+
+parar_servidor()
 
 health = {
     "console": 100 if not console_errors else 40,
