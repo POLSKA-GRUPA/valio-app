@@ -296,6 +296,30 @@ with sync_playwright() as p:
     shot(p_r1, "12-reg-issue11-copia")
     ctx_r1.close()
 
+    # R2 — ISSUE-12: Volver a empezar rellena el mazo (recargar no basta:
+    # los votos persisten en localStorage).
+    ctx_r2 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r2 = ctx_r2.new_page()
+    p_r2.goto(BASE, wait_until="networkidle")
+    p_r2.get_by_role("button", name="Entendido, a votar").click()
+    p_r2.wait_for_timeout(300)
+    for _ in range(8):
+        sel = p_r2.get_by_role("button", name="Valió", exact=True)
+        if not sel.is_visible():
+            break
+        sel.click()
+        p_r2.wait_for_timeout(450)
+        cerrar_match_si_sale(p_r2)
+    p_r2.wait_for_selector(".empty-deck", timeout=6000)
+    p_r2.get_by_role("button", name="Volver a empezar").click()
+    p_r2.wait_for_timeout(600)
+    check(
+        "R2 ISSUE-12: volver a empezar rellena el mazo",
+        p_r2.locator(".card-nombre").first.is_visible(),
+    )
+    shot(p_r2, "13-reg-issue12-volver")
+    ctx_r2.close()
+
     browser.close()
 
 parar_servidor()
