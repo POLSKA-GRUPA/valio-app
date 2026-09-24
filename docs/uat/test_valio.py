@@ -337,6 +337,20 @@ with sync_playwright() as p:
     shot(p_r3, "14-reg-issue13-horizontal")
     ctx_r3.close()
 
+    # R4 — ISSUE-14: el tutorial vive dentro del mazo: si el mazo tiene alto,
+    # el tutorial tiene espacio.
+    ctx_r4 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r4 = ctx_r4.new_page()
+    p_r4.goto(BASE, wait_until="networkidle")
+    caja_tut = p_r4.locator(".tutorial").bounding_box()
+    check(
+        "R4 ISSUE-14: tutorial con espacio suficiente",
+        bool(caja_tut) and caja_tut["height"] >= 300,
+        f"alto={caja_tut and round(caja_tut['height'])}",
+    )
+    shot(p_r4, "15-reg-issue14-tutorial")
+    ctx_r4.close()
+
     browser.close()
 
 parar_servidor()
