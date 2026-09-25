@@ -351,6 +351,30 @@ with sync_playwright() as p:
     shot(p_r4, "15-reg-issue14-tutorial")
     ctx_r4.close()
 
+    # R5 — ISSUE-15: el enlace a la ficha es visible y dentro de la carta.
+    ctx_r5 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r5 = ctx_r5.new_page()
+    p_r5.goto(BASE, wait_until="networkidle")
+    p_r5.get_by_role("button", name="Entendido, a votar").click()
+    p_r5.wait_for_timeout(300)
+    enlace = p_r5.locator(".card-ficha-link").first
+    caja_enlace = enlace.bounding_box()
+    caja_carta = p_r5.locator(".card-frame").first.bounding_box()
+    dentro = (
+        bool(caja_enlace)
+        and bool(caja_carta)
+        and caja_enlace["y"] >= caja_carta["y"]
+        and caja_enlace["y"] + caja_enlace["height"]
+        <= caja_carta["y"] + caja_carta["height"]
+    )
+    check(
+        "R5 ISSUE-15: enlace de ficha visible dentro de la carta",
+        dentro,
+        f"enlace_y={caja_enlace and round(caja_enlace['y'])} carta_alto={caja_carta and round(caja_carta['height'])}",
+    )
+    shot(p_r5, "16-reg-issue15-enlace")
+    ctx_r5.close()
+
     browser.close()
 
 parar_servidor()
