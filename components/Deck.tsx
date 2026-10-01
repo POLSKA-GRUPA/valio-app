@@ -244,6 +244,9 @@ export function Deck() {
             <motion.div
               key="tutorial"
               className="tutorial"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Tutorial: desliza y decide"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -277,6 +280,7 @@ export function Deck() {
           <div
             key={obra.id}
             className="stack-slot"
+            aria-hidden={!tutorialVisto}
             style={{
               zIndex: 10 - i,
               transform: `translateY(${i * 10}px) scale(${1 - i * 0.04})`,
