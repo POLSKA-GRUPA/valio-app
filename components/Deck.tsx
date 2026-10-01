@@ -203,12 +203,16 @@ export function Deck() {
   const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
   const [claimObra, setClaimObra] = useState<Obra | null>(null);
+  // Texto de la región live. Lleva el nombre de la obra para que dos votos
+  // iguales seguidos cambien el texto y el lector los anuncie los dos.
+  const [anuncio, setAnuncio] = useState("");
 
   const decidir = useCallback(
     (obra: Obra, voto: Voto) => {
       votar(obra.id, voto);
       if (voto === "no_valio") setMatchObra(obra);
       setVuelo({ id: obra.id, voto });
+      setAnuncio(`Voto registrado: ${VOTO_LABEL[voto]}. ${obra.nombre}`);
     },
     [votar],
   );
@@ -311,11 +315,11 @@ export function Deck() {
           </div>
         ))}
 
-        {volando && vuelo && (
-          <div className="sr-only" role="status">
-            {`Voto registrado: ${VOTO_LABEL[vuelo.voto]}`}
-          </div>
-        )}
+        {/* Siempre montada: el lector solo anuncia cambios en una región live
+            que ya existía, no una que aparece con el texto ya dentro. */}
+        <div className="sr-only" role="status">
+          {anuncio}
+        </div>
       </div>
 
       <div className="action-row">
