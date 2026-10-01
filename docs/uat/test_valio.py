@@ -375,6 +375,28 @@ with sync_playwright() as p:
     shot(p_r5, "16-reg-issue15-enlace")
     ctx_r5.close()
 
+    # R6 — ISSUE-21: el tutorial es modal para lectores de pantalla: recibe el
+    # foco al abrirse y la pila de cartas queda fuera del árbol de accesibilidad.
+    ctx_r6 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r6 = ctx_r6.new_page()
+    p_r6.goto(BASE, wait_until="networkidle")
+    p_r6.wait_for_selector(".tutorial", timeout=4000)
+    p_r6.wait_for_timeout(300)
+    check(
+        "R6 ISSUE-21: el foco está dentro del tutorial",
+        p_r6.evaluate("() => !!document.activeElement?.closest('.tutorial')"),
+        f"foco en: {p_r6.evaluate('() => document.activeElement?.outerHTML.slice(0, 60)')}",
+    )
+    check(
+        "R6 ISSUE-21: la pila de cartas está oculta al lector",
+        p_r6.evaluate(
+            "() => { const s = [...document.querySelectorAll('.stack-slot')];"
+            " return s.length > 0 && s.every((e) => e.getAttribute('aria-hidden') === 'true'); }"
+        ),
+    )
+    shot(p_r6, "17-reg-issue21-tutorial-modal")
+    ctx_r6.close()
+
     browser.close()
 
 parar_servidor()
