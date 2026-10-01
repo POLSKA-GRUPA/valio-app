@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-mo
 import { useCallback, useEffect, useState } from "react";
 import { CATEGORIA_LABEL, ESTADO_LABEL, OBRAS, VOTO_LABEL, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
+import { useDialog } from "@/lib/useDialog";
 import { DetailSheet } from "./DetailSheet";
 import { MatchScreen } from "./MatchScreen";
 import { ClaimDraft } from "./ClaimDraft";
@@ -157,6 +158,45 @@ function CardPreview({ obra, indice }: { obra: Obra; indice: number }) {
   );
 }
 
+function Tutorial({ onCerrar }: { onCerrar: () => void }) {
+  const dialogRef = useDialog(onCerrar);
+  return (
+    <motion.div
+      ref={dialogRef}
+      tabIndex={-1}
+      className="tutorial"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Tutorial: desliza y decide"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <h2 className="display">Desliza y decide</h2>
+      <ol>
+        <li className="gesto">
+          <span className="flecha" aria-hidden="true">→</span> Derecha: valió
+        </li>
+        <li className="gesto">
+          <span className="flecha" aria-hidden="true">←</span> Izquierda: no valió
+        </li>
+        <li className="gesto">
+          <span className="flecha" aria-hidden="true">↑</span> Arriba: pido explicaciones
+        </li>
+        <li className="gesto">
+          <span className="flecha" aria-hidden="true">↓</span> Abajo: no puedo valorarlo
+        </li>
+      </ol>
+      <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
+        También puedes usar los botones de abajo o las flechas del teclado.
+      </p>
+      <button type="button" className="btn btn-primary" onClick={onCerrar}>
+        Entendido, a votar
+      </button>
+    </motion.div>
+  );
+}
+
 export function Deck() {
   const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo } = useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
@@ -240,40 +280,7 @@ export function Deck() {
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div className="deck-zone" aria-label={`Quedan ${restantes} tarjetas`}>
         <AnimatePresence>
-          {tutorialVisto ? null : (
-            <motion.div
-              key="tutorial"
-              className="tutorial"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Tutorial: desliza y decide"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <h2 className="display">Desliza y decide</h2>
-              <ol>
-                <li className="gesto">
-                  <span className="flecha" aria-hidden="true">→</span> Derecha: valió
-                </li>
-                <li className="gesto">
-                  <span className="flecha" aria-hidden="true">←</span> Izquierda: no valió
-                </li>
-                <li className="gesto">
-                  <span className="flecha" aria-hidden="true">↑</span> Arriba: pido explicaciones
-                </li>
-                <li className="gesto">
-                  <span className="flecha" aria-hidden="true">↓</span> Abajo: no puedo valorarlo
-                </li>
-              </ol>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
-                También puedes usar los botones de abajo o las flechas del teclado.
-              </p>
-              <button type="button" className="btn btn-primary" onClick={marcarTutorialVisto}>
-                Entendido, a votar
-              </button>
-            </motion.div>
-          )}
+          {tutorialVisto ? null : <Tutorial key="tutorial" onCerrar={marcarTutorialVisto} />}
         </AnimatePresence>
 
         {visibles.map((obra, i) => (
