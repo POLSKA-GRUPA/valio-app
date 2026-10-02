@@ -397,6 +397,39 @@ with sync_playwright() as p:
     shot(p_r6, "17-reg-issue21-tutorial-modal")
     ctx_r6.close()
 
+    # R7 — ISSUE-30: el voto se anuncia al lector. La región live debe existir
+    # ANTES de votar (si nace con el texto, TalkBack no la anuncia) y dos votos
+    # iguales seguidos deben cambiar su texto.
+    ctx_r7 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r7 = ctx_r7.new_page()
+    p_r7.goto(BASE, wait_until="networkidle")
+    p_r7.get_by_role("button", name="Entendido, a votar").click()
+    p_r7.wait_for_timeout(300)
+    estado = p_r7.locator('.deck-zone [role="status"]')
+    check("R7 ISSUE-30: región live montada antes de votar", estado.count() == 1)
+    valio = p_r7.get_by_role("button", name="Valió", exact=True)
+    primera = nombre_top(p_r7)
+    valio.click()
+    p_r7.wait_for_timeout(300)
+    texto_1 = estado.inner_text() if estado.count() == 1 else ""
+    check(
+        "R7 ISSUE-30: anuncia el primer voto",
+        texto_1 == f"Voto registrado: Valió. {primera}",
+        f"texto={texto_1!r}",
+    )
+    esperar_nombre_distinto(p_r7, primera)
+    segunda = nombre_top(p_r7)
+    valio.click()
+    p_r7.wait_for_timeout(300)
+    texto_2 = estado.inner_text() if estado.count() == 1 else ""
+    check(
+        "R7 ISSUE-30: anuncia un segundo voto igual",
+        texto_2 == f"Voto registrado: Valió. {segunda}" and texto_2 != texto_1,
+        f"texto={texto_2!r}",
+    )
+    shot(p_r7, "18-reg-issue30-anuncio-voto")
+    ctx_r7.close()
+
     browser.close()
 
 parar_servidor()
