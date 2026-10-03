@@ -1,8 +1,13 @@
 # Plan de apertura de código (open source) — ¿VALIÓ?
 
-Estado: privado. Destino: público cuando el producto esté presentable (ver
-Timing). Este documento fija QUÉ se abrirá, CON QUÉ licencia y QUÉ hay que
-auditar antes del interruptor.
+Estado: **público desde el 2026-10-03** (decisión de Kenyi; se adelanta el
+timing de la sección 6). Este documento fija QUÉ se abre, CON QUÉ licencia y
+QUÉ se auditó antes del interruptor.
+
+Hecho el día del flip: gitleaks sobre toda la historia (0 hallazgos), revisión
+de datos personales en docs, issues y PRs, protección de rama en `main` (PR
+con 1 aprobación + checks `build` y `secretos`), reporte privado de
+vulnerabilidades y alertas de Dependabot. `valio-datos` sigue privado.
 
 ## 1. Principios (ya escritos en el PRD)
 
