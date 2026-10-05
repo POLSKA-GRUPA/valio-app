@@ -1,4 +1,4 @@
-"""Prueba E2E de la demo ¿VALIÓ? — gestos, botones, teclado, ficha, match, resultados."""
+"""Prueba E2E de la demo ¿VALIÓ? — gestos, botones, teclado, ficha, borrador, persistencia."""
 import json
 import os
 import subprocess
@@ -44,14 +44,23 @@ def esperar_sin_vuelo(page, ms=4000):
         timeout=ms,
     )
 
-def cerrar_match_si_sale(page):
-    try:
-        page.wait_for_selector(".match-screen", state="visible", timeout=1500)
-    except Exception:
-        return
-    page.get_by_role("button", name="Seguir votando").click()
-    page.wait_for_selector(".match-screen", state="detached")
-    page.wait_for_timeout(150)
+def votar_valio_hasta_vaciar(page, maximo=8):
+    """Pulsa ✓ hasta vaciar el mazo, esperando a que acabe cada vuelo
+    (mientras la carta vuela, los botones están desactivados)."""
+    for _ in range(maximo):
+        if page.locator(".empty-deck").count():
+            break
+        page.get_by_role("button", name="Valió", exact=True).click()
+        page.wait_for_function(
+            "() => document.querySelector('.empty-deck')"
+            " || !document.querySelector('.action-btn[disabled]')",
+            timeout=4000,
+        )
+    page.wait_for_selector(".empty-deck", timeout=6000)
+
+def nombres_pestañas(page):
+    # Cada pestaña es «icono\netiqueta»: nos quedamos con la etiqueta.
+    return [t.strip().split("\n")[-1] for t in page.get_by_role("tab").all_inner_texts()]
 
 def _servidor_listo():
     try:
@@ -128,17 +137,19 @@ with sync_playwright() as p:
     check("badge DEMO en tarjeta", page.locator(".chip-demo").first.is_visible())
     shot(page, "02-mazo-inicial")
 
-    # 3. Botón NO VALIÓ -> match ciudadano
+    # 3. Botón NO VALIÓ -> sin match (#38), solo el aviso de voto guardado
     antes = nombre_top(page)
     page.get_by_role("button", name="No valió").click()
     page.wait_for_timeout(500)
-    match = page.locator(".match-screen")
-    check("match ciudadano tras NO VALIÓ", match.is_visible())
-    check("checklist de 5 señales", page.locator(".match-checklist span").count() == 5)
-    shot(page, "03-match-ciudadano")
+    check("sin match tras NO VALIÓ", page.locator(".match-screen").count() == 0)
+    check("aviso de voto guardado", page.locator(".voto-guardado").is_visible())
+    shot(page, "03-voto-guardado")
+    esperar_nombre_distinto(page, antes)
 
-    # 4. Pedir explicaciones desde el match
-    page.get_by_role("button", name="Pedir explicaciones").first.click()
+    # 4. Pedir explicaciones desde la ficha
+    page.get_by_role("button", name="Ver ficha y evidencia").click()
+    page.wait_for_timeout(500)
+    page.get_by_role("button", name="Pedir explicaciones").click()
     page.wait_for_timeout(500)
     ta = page.locator("#claim-texto")
     check("borrador HITL visible", ta.is_visible())
@@ -151,15 +162,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Cerrar", exact=True).last.click()
     page.wait_for_selector(".sheet-backdrop", state="detached")
     page.wait_for_timeout(150)
-
-    # 4b. Escape cierra el match y devuelve el foco
-    cerrar_match_si_sale(page)
-    if not page.locator(".match-screen").count():
-        # reabrir para probar Escape: votar otra tarjeta a la izquierda no es posible aquí;
-        # probamos Escape con la ficha más adelante. Restauramos foco al cuerpo.
-        page.evaluate("document.activeElement && document.activeElement.blur()")
-
-    esperar_nombre_distinto(page, antes)
+    page.evaluate("document.activeElement && document.activeElement.blur()")
 
     # 5. Gesto de arrastre a la izquierda (DEMO-02)
     antes = nombre_top(page)
@@ -174,7 +177,6 @@ with sync_playwright() as p:
     page.wait_for_timeout(120)
     shot(page, "05-gesto-sello-novalio")
     page.mouse.up()
-    cerrar_match_si_sale(page)
     esperar_nombre_distinto(page, antes)
     check("arrastre a la izquierda vota", True)
 
@@ -183,6 +185,10 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Pido explicaciones").click()
     esperar_nombre_distinto(page, antes)
     check("botón explica consume tarjeta", True)
+    check("botón explica abre el borrador", page.locator("#claim-texto").is_visible())
+    page.keyboard.press("Escape")
+    page.wait_for_selector(".sheet-backdrop", state="detached")
+    page.wait_for_timeout(150)
 
     # 7. Ficha con Enter (foco al cuerpo) y 3 capas (DEMO-04)
     page.evaluate("document.activeElement && document.activeElement.blur()")
@@ -208,41 +214,23 @@ with sync_playwright() as p:
     check("botón ↓ consume tarjeta", True)
 
     # 9. Votar el resto con ✓
-    for _ in range(6):
-        sel = page.get_by_role("button", name="Valió", exact=True)
-        if not sel.is_visible() or sel.is_disabled():
-            break
-        sel.click()
-        page.wait_for_timeout(450)
-        cerrar_match_si_sale(page)
-    page.wait_for_selector(".empty-deck", timeout=6000)
+    votar_valio_hasta_vaciar(page)
     check("mazo vacío al final", "Ya has votado todo" in page.locator(".empty-deck").inner_text())
+    check("contador con 8 votos", "8/8" in page.locator(".brand-badge").inner_text())
     shot(page, "07-mazo-vacio")
 
-    # 10. Resultados: 8 votos
-    page.get_by_role("tab", name="Resultados").click()
-    page.wait_for_timeout(400)
-    items = page.locator(".result-item").count()
-    check("resultados con 8 votos", items == 8, f"items={items}")
-    shot(page, "08-resultados")
-
-    # 11. Cabreo
-    page.get_by_role("tab", name="Cabreo").click()
-    page.wait_for_timeout(400)
-    check("mapa del cabreo con 8 filas", page.locator(".cabreo-item").count() == 8)
-    shot(page, "09-cabreo")
+    # 10-11. Cabreo y Resultados ocultas en P1 (#38): solo Votar e Info
+    check("pestañas solo Votar e Info", nombres_pestañas(page) == ["Votar", "Info"], f"{nombres_pestañas(page)}")
 
     # 12. Info
     page.get_by_role("tab", name="Info").click()
     page.wait_for_timeout(300)
     check("info con aviso demo", "ninguna cifra es real" in page.locator(".panel").inner_text().lower())
 
-    # 13. Persistencia tras recarga
-    page.get_by_role("tab", name="Resultados").click()
+    # 13. Persistencia tras recarga (el contador lee los votos guardados)
     page.reload(wait_until="networkidle")
-    page.get_by_role("tab", name="Resultados").click()
     page.wait_for_timeout(400)
-    check("votos persisten tras recarga", page.locator(".result-item").count() == 8)
+    check("votos persisten tras recarga", "8/8" in page.locator(".brand-badge").inner_text())
 
     # 14. Teclado en estado limpio (otro contexto sin votos)
     ctx2 = browser.new_context(viewport={"width": 375, "height": 812})
@@ -284,8 +272,8 @@ with sync_playwright() as p:
     )
     p_r1.goto(BASE, wait_until="networkidle")
     p_r1.get_by_role("button", name="Entendido, a votar").click()
-    p_r1.get_by_role("button", name="No valió").click()
-    p_r1.get_by_role("button", name="Pedir explicaciones").first.click()
+    p_r1.get_by_role("button", name="Ver ficha y evidencia").click()
+    p_r1.get_by_role("button", name="Pedir explicaciones").click()
     check("R1 ISSUE-11: borrador abierto", p_r1.locator("#claim-texto").is_visible())
     p_r1.get_by_role("button", name="Copiar borrador").click()
     p_r1.wait_for_timeout(400)
@@ -303,14 +291,7 @@ with sync_playwright() as p:
     p_r2.goto(BASE, wait_until="networkidle")
     p_r2.get_by_role("button", name="Entendido, a votar").click()
     p_r2.wait_for_timeout(300)
-    for _ in range(8):
-        sel = p_r2.get_by_role("button", name="Valió", exact=True)
-        if not sel.is_visible():
-            break
-        sel.click()
-        p_r2.wait_for_timeout(450)
-        cerrar_match_si_sale(p_r2)
-    p_r2.wait_for_selector(".empty-deck", timeout=6000)
+    votar_valio_hasta_vaciar(p_r2)
     p_r2.get_by_role("button", name="Volver a empezar").click()
     p_r2.wait_for_timeout(600)
     check(
@@ -429,6 +410,60 @@ with sync_playwright() as p:
     )
     shot(p_r7, "18-reg-issue30-anuncio-voto")
     ctx_r7.close()
+
+    # R8 — ISSUE-38: un voto «no valió» no dispara el match ciudadano (es un
+    # estado colectivo); sale un aviso sobrio que se va solo. Solo Votar e Info.
+    ctx_r8 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r8 = ctx_r8.new_page()
+    p_r8.goto(BASE, wait_until="networkidle")
+    p_r8.get_by_role("button", name="Entendido, a votar").click()
+    p_r8.wait_for_timeout(300)
+    p_r8.get_by_role("button", name="No valió").click()
+    p_r8.wait_for_timeout(600)
+    check(
+        "R8 ISSUE-38: sin «¡MATCH CIUDADANO!» por un voto",
+        p_r8.locator(".match-screen").count() == 0
+        and "match ciudadano" not in p_r8.locator("body").inner_text().lower(),
+    )
+    aviso = p_r8.locator(".voto-guardado")
+    check(
+        "R8 ISSUE-38: aviso «Tu voto se ha guardado en este dispositivo»",
+        aviso.is_visible() and aviso.inner_text() == "Tu voto se ha guardado en este dispositivo",
+    )
+    shot(p_r8, "19-reg-issue38-voto-guardado")
+    p_r8.wait_for_timeout(3000)
+    check("R8 ISSUE-38: el aviso desaparece solo", aviso.count() == 0)
+    check(
+        "R8 ISSUE-38: navegación solo con Votar e Info",
+        nombres_pestañas(p_r8) == ["Votar", "Info"],
+        f"{nombres_pestañas(p_r8)}",
+    )
+    ctx_r8.close()
+
+    # R9 — ISSUE-38: arrastrar la carta hacia arriba vota «Pido explicaciones»
+    # y abre el borrador (antes solo se llegaba desde el match o la ficha).
+    ctx_r9 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r9 = ctx_r9.new_page()
+    p_r9.goto(BASE, wait_until="networkidle")
+    p_r9.get_by_role("button", name="Entendido, a votar").click()
+    p_r9.wait_for_timeout(300)
+    primera = nombre_top(p_r9)
+    caja = p_r9.locator(".stack-slot").first.locator(".card-frame").bounding_box()
+    cx, cy = caja["x"] + caja["width"] / 2, caja["y"] + caja["height"] * 0.5
+    p_r9.mouse.move(cx, cy)
+    p_r9.mouse.down()
+    for i in range(1, 21):
+        p_r9.mouse.move(cx, cy - i * 12, steps=3)
+        p_r9.wait_for_timeout(16)
+    p_r9.mouse.up()
+    p_r9.wait_for_timeout(600)
+    check("R9 ISSUE-38: gesto arriba abre el borrador", p_r9.locator("#claim-texto").is_visible())
+    check(
+        "R9 ISSUE-38: el borrador es de la obra votada",
+        primera in p_r9.locator("#claim-texto").input_value(),
+    )
+    shot(p_r9, "20-reg-issue38-gesto-arriba")
+    ctx_r9.close()
 
     browser.close()
 
