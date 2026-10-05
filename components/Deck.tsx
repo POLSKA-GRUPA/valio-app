@@ -214,6 +214,8 @@ export function Deck() {
       setVuelo({ id: obra.id, voto });
       setAnuncio(`Voto registrado: ${VOTO_LABEL[voto]}. ${obra.nombre}`);
       setAvisoGuardado((n) => n + 1);
+      // Gesto arriba, botón ↑ o flecha ↑: además del voto, abre el borrador.
+      if (voto === "explica") setClaimObra(obra);
     },
     [votar],
   );
