@@ -1,6 +1,6 @@
 "use client";
 
-import { CATEGORIA_LABEL, ESTADO_LABEL, OBRAS, VOTO_LABEL, type Votos } from "@/lib/obras";
+import { CATEGORIA_LABEL, OBRAS, VOTO_LABEL, type Votos } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 
 export function Results() {
@@ -22,8 +22,7 @@ export function Results() {
     <div className="panel">
       <h2 className="panel-title display">Tus {votadas.length} votos</h2>
       <p className="panel-intro">
-        Recuento local de la demo. En producción, el voto anónimo alimenta el mapa del cabreo y las peticiones
-        colectivas.
+        Recuento local de tus votos en este dispositivo. Todavía no se envían a ningún sitio.
       </p>
       <div className="results-list">
         {votadas.map((obra) => {
@@ -32,7 +31,7 @@ export function Results() {
             <div key={obra.id} className="result-item">
               <span className="nombre display">{obra.nombre}</span>
               <span className="card-meta">
-                {CATEGORIA_LABEL[obra.categoria]} · {ESTADO_LABEL[obra.estadoDato]}
+                {CATEGORIA_LABEL[obra.categoria]} · {obra.anyo}
               </span>
               <span className={`result-voto voto-${voto}`}>{VOTO_LABEL[voto]}</span>
             </div>
@@ -58,7 +57,8 @@ export function CabreoMap({ votos }: { votos: Votos }) {
     <div className="panel">
       <h2 className="panel-title display">Mapa del cabreo</h2>
       <p className="panel-intro">
-        Versión demo por lista: el mapa territorial real se construye con datos verificados y metodología publicada.
+        Recuento local por lista. El mapa territorial real se construye con datos verificados y metodología
+        publicada.
       </p>
       <div className="cabreo-list">
         {conteo.map(({ obra, cabreo }) => (
@@ -84,8 +84,9 @@ export function Info() {
       <p className="panel-intro">Lo que costó. Lo que consiguió. Tú decides.</p>
       <div style={{ display: "grid", gap: 12 }}>
         <div className="info-note">
-          Demo interactiva. Todas las tarjetas son ejemplos marcados como DEMO: ninguna cifra es real. La verificación
-          de datos reales es el gate P0 del PRD (repo valio-datos).
+          Piloto real de {OBRAS[0].municipio}: {OBRAS.length} obras con datos oficiales de la Plataforma de
+          Contratación del Sector Público (PLACE), verificadas con el método P0 del repo valio-datos. El estado
+          de ejecución no lo publica el ayuntamiento: se muestra como dato faltante.
         </div>
         <div className="info-block">
           <h3>Cómo funciona</h3>
