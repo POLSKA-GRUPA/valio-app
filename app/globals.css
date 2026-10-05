@@ -762,6 +762,27 @@ body {
   border: 0;
 }
 
+/* #38: aviso sobrio tras votar. Arriba del mazo para no tapar el nombre ni
+   el importe de la carta siguiente. */
+.voto-guardado {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  z-index: 20;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+}
+
 /* ISSUE-13: móvil en horizontal — el shell es una columna pensada para
    vertical (max-width 480px sobre 100dvh); al girar, el cromo (topbar,
    botones, pestañas) se come la altura y el mazo y las listas quedan en una
