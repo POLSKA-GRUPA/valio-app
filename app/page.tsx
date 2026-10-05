@@ -38,7 +38,7 @@ export default function Home() {
     <main className="app-shell">
       <header className="topbar">
         <h1 className="brand display">¿VALIÓ?</h1>
-        <span className="brand-badge">DEMO · {votadas}/{OBRAS.length}</span>
+        <span className="brand-badge">PILOTO · {OBRAS[0].municipio} · {votadas}/{OBRAS.length}</span>
       </header>
 
       {PESTAÑAS.map((p) => (
