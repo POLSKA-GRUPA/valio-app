@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CATEGORIA_LABEL, ESTADO_LABEL, type Obra } from "@/lib/obras";
+import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
+import { costeVecino, euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
 
 export function DetailSheet({
@@ -14,6 +15,7 @@ export function DetailSheet({
   onClaim: () => void;
 }) {
   const dialogRef = useDialog(onClose);
+  const adjudicacion = obra.adjudicacion;
   return (
     <>
       <motion.div
@@ -44,29 +46,91 @@ export function DetailSheet({
         <div className="sheet-body">
           <section className="capa">
             <h3>Capa 1 · Resumen</h3>
-            <p style={{ margin: 0, fontWeight: 600 }}>{obra.resumen}</p>
-          </section>
-
-          <section className="capa">
-            <h3>Capa 2 · Datos</h3>
             <dl>
               <div>
-                <dt>Coste</dt>
-                <dd>{obra.importe}</dd>
-              </div>
-              <div>
-                <dt>Plazo</dt>
-                <dd>{obra.plazos}</dd>
-              </div>
-              <div>
-                <dt>Promesa</dt>
-                <dd>{obra.promesa}</dd>
+                <dt>Administración</dt>
+                <dd>{obra.organismo}</dd>
               </div>
               <div>
                 <dt>Ámbito</dt>
                 <dd>
-                  {CATEGORIA_LABEL[obra.categoria]} · {obra.municipio}
+                  {obra.municipio} ({obra.provincia}) · {CATEGORIA_LABEL[obra.categoria]}
                 </dd>
+              </div>
+              <div>
+                <dt>Año</dt>
+                <dd>{obra.anyo}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="capa">
+            <h3>Capa 2 · Los documentos dicen</h3>
+            <dl>
+              <div>
+                <dt>Presupuesto de licitación</dt>
+                <dd>
+                  {euros(obra.importeLicitacion)} · IVA{" "}
+                  {obra.ivaLicitacionIncluido ? "incluido" : "no incluido"}
+                </dd>
+              </div>
+              {adjudicacion ? (
+                <>
+                  <div>
+                    <dt>Adjudicataria</dt>
+                    <dd>
+                      {adjudicacion.adjudicataria}
+                      {adjudicacion.cif ? ` · ${adjudicacion.cif}` : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Importe de adjudicación</dt>
+                    <dd>
+                      {euros(adjudicacion.importeSinIva)} sin IVA
+                      {adjudicacion.importeConIva != null
+                        ? ` (${euros(adjudicacion.importeConIva)} con IVA)`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Fecha del acuerdo</dt>
+                    <dd>
+                      {adjudicacion.fechaAcuerdo}
+                      {adjudicacion.fechaPublicacion
+                        ? ` · anuncio publicado el ${adjudicacion.fechaPublicacion.replaceAll("-", "/")}`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Plazo de ejecución</dt>
+                    <dd>{adjudicacion.plazo}</dd>
+                  </div>
+                  {adjudicacion.numExpediente && (
+                    <div>
+                      <dt>Expediente</dt>
+                      <dd>{adjudicacion.numExpediente}</dd>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div>
+                  <dt>Adjudicación</dt>
+                  <dd>No consta: expediente no accesible en la fuente consultada</dd>
+                </div>
+              )}
+              <div>
+                <dt>Coste por vecino</dt>
+                <dd>
+                  ≈ {costeVecino(obra.costePorHabitante)} ·{" "}
+                  <a href={POBLACION.fuenteUrl} target="_blank" rel="noreferrer">
+                    población INE a {POBLACION.referencia}: {POBLACION.habitantes.toLocaleString("es-ES")} hab.
+                  </a>{" "}
+                  ({POBLACION.fuenteNombre})
+                </dd>
+              </div>
+              <div>
+                <dt>Estado de ejecución</dt>
+                <dd>Faltante: no localizado en la fuente oficial</dd>
               </div>
             </dl>
           </section>
@@ -76,36 +140,21 @@ export function DetailSheet({
             <dl>
               <div>
                 <dt>Estado del dato</dt>
-                <dd>{ESTADO_LABEL[obra.estadoDato]}</dd>
+                <dd>{ESTADO_LABEL.NO_VERIFICADO} · {obra.id}</dd>
               </div>
               <div>
                 <dt>Fuente</dt>
                 <dd>
-                  {obra.fuente ? (
-                    <>
-                      {obra.fuente.nombre}
-                      {obra.fuente.fecha ? ` · consulta: ${obra.fuente.fecha}` : ""}
-                    </>
-                  ) : (
-                    "Pendiente de verificación con el método P0 (valio-datos)."
-                  )}
+                  <a href={obra.fuente.url} target="_blank" rel="noreferrer">
+                    {obra.fuente.nombre}
+                  </a>{" "}
+                  · consulta: {obra.fuente.fechaConsulta}
                 </dd>
               </div>
             </dl>
-          </section>
-
-          <section className="capa">
-            <h3>Match ciudadano · 5 requisitos</h3>
-            <ul className="senales">
-              {obra.senales.map((s) => (
-                <li key={s}>
-                  <span className="ok" aria-hidden="true">
-                    ✓
-                  </span>
-                  {s}
-                </li>
-              ))}
-            </ul>
+            <p style={{ margin: 0, fontSize: 13 }}>
+              Cada dato es rastreable hasta la ficha {obra.id} del repositorio valio-datos (método P0).
+            </p>
           </section>
 
           <button type="button" className="btn btn-primary" onClick={onClaim}>

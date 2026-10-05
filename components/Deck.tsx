@@ -2,15 +2,27 @@
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
-import { CATEGORIA_LABEL, ESTADO_LABEL, OBRAS, VOTO_LABEL, type Obra, type Voto } from "@/lib/obras";
+import { CATEGORIA_LABEL, OBRAS, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
+import { costeVecino, eurosCompactos } from "@/lib/formato";
 import { DetailSheet } from "./DetailSheet";
 import { MatchScreen } from "./MatchScreen";
 import { ClaimDraft } from "./ClaimDraft";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
+
+// Color de tarjeta por categoría: codifica el tipo de gasto (dato), no decoración.
+const CATEGORIA_COLOR: Record<Categoria, string> = {
+  urbanismo: "#2F6BFF",
+  deporte: "#0E9F6E",
+  parques: "#059669",
+  educacion: "#E11D48",
+  seguridad: "#7C3AED",
+  patrimonio: "#B45309",
+  "medio ambiente": "#65A30D",
+};
 
 function destinoDe(voto: Voto): { x: number; y: number } {
   switch (voto) {
@@ -26,7 +38,10 @@ function destinoDe(voto: Voto): { x: number; y: number } {
 }
 
 function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
-  const c = obra.color;
+  const c = CATEGORIA_COLOR[obra.categoria];
+  // Importe protagonista: el de adjudicación si consta; si no, el de licitación.
+  const importe = obra.adjudicacion?.importeSinIva ?? obra.importeLicitacion;
+  const tipoImporte = obra.adjudicacion ? "Adjudicado · sin IVA" : "Licitación · sin IVA";
   return (
     <>
       <svg viewBox="0 0 360 460" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -38,12 +53,6 @@ function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
         </g>
         <circle cx="292" cy="76" r="64" fill="#102a43" opacity="0.9" />
         <circle cx="292" cy="76" r="40" fill={c} />
-        {obra.categoria === "obra" && <rect x="24" y="300" width="120" height="120" fill="#102a43" opacity="0.85" />}
-        {obra.categoria === "contrato" && <path d="M60 380h180v60H60z M60 340h120v28H60z" fill="#102a43" opacity="0.85" />}
-        {obra.categoria === "sanidad" && <rect x="252" y="330" width="80" height="80" fill="#102a43" opacity="0.85" />}
-        {obra.categoria === "transporte" && <path d="M40 420l90-90 90 90z" fill="#102a43" opacity="0.85" />}
-        {obra.categoria === "educacion" && <circle cx="80" cy="390" r="52" fill="#102a43" opacity="0.85" />}
-        {obra.categoria === "servicio" && <path d="M40 440v-70a50 50 0 0 1 100 0v70z" fill="#102a43" opacity="0.85" />}
         <text x="18" y="72" fontFamily="var(--font-display)" fontSize="64" fill="#fffdf7" opacity="0.9">
           {String(indice).padStart(2, "0")}
         </text>
@@ -51,11 +60,11 @@ function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
       <div className="art-top">
         <span className="chip chip-cat">{CATEGORIA_LABEL[obra.categoria]}</span>
         <span className="art-top-right">
-          <span className="chip chip-demo">Demo</span>
-          <span className={`chip estado-${obra.estadoDato}`}>{ESTADO_LABEL[obra.estadoDato]}</span>
+          <span className="chip estado-faltante">Ejecución: dato faltante</span>
         </span>
       </div>
-      <p className="art-cost display">{obra.importe}</p>
+      <p className="art-cost display">{eurosCompactos(importe)}</p>
+      <p className="art-tipo-importe">{tipoImporte} · ≈ {costeVecino(obra.costePorHabitante)}</p>
     </>
   );
 }
@@ -122,8 +131,10 @@ function WorkCard({
       <div className="card-body">
         <h2 className="card-nombre display">{obra.nombre}</h2>
         <div className="card-meta">
-          <span>{obra.municipio}</span>
-          <span>{obra.plazos}</span>
+          <span>
+            {obra.municipio} · {obra.anyo}
+          </span>
+          <span>{obra.adjudicacion?.plazo ?? "plazo sin dato"}</span>
         </div>
         <button type="button" className="card-ficha-link" onClick={onFicha}>
           Ver ficha y evidencia
@@ -264,8 +275,8 @@ export function Deck() {
           <div className="empty-deck">
             <h2 className="display">Ya has votado todo</h2>
             <p>
-              Este es el resultado de la demo. Con datos reales, tus votos alimentan el mapa del cabreo y los pases de
-              explicaciones.
+              Has recorrido las {OBRAS.length} obras del piloto de {OBRAS[0].municipio}. Tus votos se
+              guardan en este dispositivo; desde cada ficha puedes pedir explicaciones al organismo.
             </p>
             <button type="button" className="btn btn-primary" onClick={reset}>
               Volver a empezar
