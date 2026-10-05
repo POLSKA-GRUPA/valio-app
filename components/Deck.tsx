@@ -6,7 +6,6 @@ import { CATEGORIA_LABEL, ESTADO_LABEL, OBRAS, VOTO_LABEL, type Obra, type Voto 
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { DetailSheet } from "./DetailSheet";
-import { MatchScreen } from "./MatchScreen";
 import { ClaimDraft } from "./ClaimDraft";
 
 const UMBRAL_X = 110;
@@ -200,22 +199,30 @@ function Tutorial({ onCerrar }: { onCerrar: () => void }) {
 export function Deck() {
   const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo } = useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
-  const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
   const [claimObra, setClaimObra] = useState<Obra | null>(null);
   // Texto de la región live. Lleva el nombre de la obra para que dos votos
   // iguales seguidos cambien el texto y el lector los anuncie los dos.
   const [anuncio, setAnuncio] = useState("");
+  // #38: tras votar, aviso visible y sobrio (sin match: un voto no es un
+  // estado colectivo). Cuenta los votos para reiniciar el temporizador.
+  const [avisoGuardado, setAvisoGuardado] = useState(0);
 
   const decidir = useCallback(
     (obra: Obra, voto: Voto) => {
       votar(obra.id, voto);
-      if (voto === "no_valio") setMatchObra(obra);
       setVuelo({ id: obra.id, voto });
       setAnuncio(`Voto registrado: ${VOTO_LABEL[voto]}. ${obra.nombre}`);
+      setAvisoGuardado((n) => n + 1);
     },
     [votar],
   );
+
+  useEffect(() => {
+    if (!avisoGuardado) return;
+    const t = window.setTimeout(() => setAvisoGuardado(0), 2500);
+    return () => window.clearTimeout(t);
+  }, [avisoGuardado]);
 
   const onVueloCompleto = useCallback(() => setVuelo(null), []);
 
@@ -223,7 +230,7 @@ export function Deck() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!tutorialVisto || vuelo || matchObra || fichaObra || claimObra) return;
+      if (!tutorialVisto || vuelo || fichaObra || claimObra) return;
       const top = pendientes[0];
       if (!top) return;
       const objetivo = e.target instanceof HTMLElement ? e.target : null;
@@ -247,7 +254,7 @@ export function Deck() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tutorialVisto, vuelo, matchObra, fichaObra, claimObra, pendientes, decidir]);
+  }, [tutorialVisto, vuelo, fichaObra, claimObra, pendientes, decidir]);
 
   if (!listo) {
     return (
@@ -320,6 +327,13 @@ export function Deck() {
         <div className="sr-only" role="status">
           {anuncio}
         </div>
+
+        {/* aria-hidden: al lector ya se lo dice la región live de arriba. */}
+        {avisoGuardado > 0 && (
+          <p className="voto-guardado" aria-hidden="true">
+            Tu voto se ha guardado en este dispositivo
+          </p>
+        )}
       </div>
 
       <div className="action-row">
@@ -336,19 +350,6 @@ export function Deck() {
           ↑
         </button>
       </div>
-
-      <AnimatePresence>
-        {matchObra && (
-          <MatchScreen
-            obra={matchObra}
-            onClose={() => setMatchObra(null)}
-            onClaim={() => {
-              setClaimObra(matchObra);
-              setMatchObra(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {fichaObra && (
