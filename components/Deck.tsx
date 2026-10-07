@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
-import { CATEGORIA_LABEL, OBRAS, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
+import { CATEGORIA_LABEL, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { costeVecino, eurosCompactos } from "@/lib/formato";
@@ -209,7 +209,7 @@ function Tutorial({ onCerrar }: { onCerrar: () => void }) {
 }
 
 export function Deck() {
-  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo } = useStore();
+  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo, municipio, obras } = useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
   const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
@@ -230,7 +230,7 @@ export function Deck() {
 
   const onVueloCompleto = useCallback(() => setVuelo(null), []);
 
-  const pendientes = listo ? OBRAS.filter((o) => !votos[o.id]) : [];
+  const pendientes = listo ? obras.filter((o) => !votos[o.id]) : [];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -275,7 +275,7 @@ export function Deck() {
           <div className="empty-deck">
             <h2 className="display">Ya has votado todo</h2>
             <p>
-              Has recorrido las {OBRAS.length} obras del piloto de {OBRAS[0].municipio}. Tus votos se
+              Has recorrido las {obras.length} obras del piloto de {municipio}. Tus votos se
               guardan en este dispositivo; desde cada ficha puedes pedir explicaciones al organismo.
             </p>
             <button type="button" className="btn btn-primary" onClick={reset}>
@@ -287,7 +287,7 @@ export function Deck() {
     );
   }
 
-  const volando = vuelo ? OBRAS.find((o) => o.id === vuelo.id) ?? null : null;
+  const volando = vuelo ? obras.find((o) => o.id === vuelo.id) ?? null : null;
   const visibles = volando ? [volando, ...pendientes.slice(0, 2)] : pendientes.slice(0, 3);
   const restantes = pendientes.length;
 
@@ -313,15 +313,15 @@ export function Deck() {
             {i === 0 ? (
               <WorkCard
                 obra={obra}
-                indice={OBRAS.findIndex((o) => o.id === obra.id) + 1}
-                total={OBRAS.length}
+                indice={obras.findIndex((o) => o.id === obra.id) + 1}
+                total={obras.length}
                 vuelo={vuelo}
                 onVueloCompleto={onVueloCompleto}
                 onDecide={(voto) => decidir(obra, voto)}
                 onFicha={() => setFichaObra(obra)}
               />
             ) : (
-              <CardPreview obra={obra} indice={OBRAS.findIndex((o) => o.id === obra.id) + 1} />
+              <CardPreview obra={obra} indice={obras.findIndex((o) => o.id === obra.id) + 1} />
             )}
           </div>
         ))}
