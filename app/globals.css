@@ -743,6 +743,42 @@ body {
 
 .municipio-nombre { font-size: 18px; }
 
+/* Chips de tipo encima del mazo (issue #37). Una fila con scroll lateral:
+   el mazo conserva su alto también a 320 px. */
+.filtro-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 6px 10px; /* hueco para el contorno de foco */
+  scrollbar-width: none;
+}
+
+.filtro-chips::-webkit-scrollbar { display: none; }
+
+.filtro-chip {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.filtro-chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper-2);
+}
+
+.filtro-chip:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
 .municipio-detalle {
   font-size: 13px;
   font-weight: 700;

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { Obra, Voto, Votos } from "./obras";
+import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { existeMunicipio, obrasDe } from "./municipios";
 
 const KEY = "valio.votos.v1";
@@ -50,6 +50,10 @@ interface StoreValue {
   cambiarMunicipio: () => void;
   /** Obras del municipio elegido: lo único que ven el mazo y los paneles. */
   obras: Obra[];
+  /** Tipos marcados en los chips del mazo. Vacío = todas. Solo en memoria. */
+  tipos: Categoria[];
+  alternarTipo: (tipo: Categoria) => void;
+  verTodosLosTipos: () => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -59,6 +63,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [tutorialVisto, setTutorialVisto] = useState(true);
   const [listo, setListo] = useState(false);
   const [municipio, setMunicipio] = useState<string | null>(null);
+  const [tipos, setTipos] = useState<Categoria[]>([]);
 
   useEffect(() => {
     setVotos(leerVotos());
@@ -111,6 +116,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Los votos se quedan: si vuelves a tu municipio, siguen ahí.
   const cambiarMunicipio = useCallback(() => {
     setMunicipio(null);
+    setTipos([]); // los tipos de otro municipio pueden no existir
     try {
       window.localStorage.removeItem(MUNICIPIO_KEY);
     } catch {
@@ -119,6 +125,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const obras = useMemo(() => obrasDe(municipio), [municipio]);
+
+  const alternarTipo = useCallback((tipo: Categoria) => {
+    setTipos((actual) => (actual.includes(tipo) ? actual.filter((t) => t !== tipo) : [...actual, tipo]));
+  }, []);
+
+  const verTodosLosTipos = useCallback(() => setTipos([]), []);
 
   const value = useMemo(
     () => ({
@@ -132,8 +144,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       elegirMunicipio,
       cambiarMunicipio,
       obras,
+      tipos,
+      alternarTipo,
+      verTodosLosTipos,
     }),
-    [votos, votar, reset, tutorialVisto, marcarTutorialVisto, listo, municipio, elegirMunicipio, cambiarMunicipio, obras],
+    [
+      votos,
+      votar,
+      reset,
+      tutorialVisto,
+      marcarTutorialVisto,
+      listo,
+      municipio,
+      elegirMunicipio,
+      cambiarMunicipio,
+      obras,
+      tipos,
+      alternarTipo,
+      verTodosLosTipos,
+    ],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

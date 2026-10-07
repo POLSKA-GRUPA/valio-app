@@ -9,6 +9,7 @@ import { costeVecino, eurosCompactos } from "@/lib/formato";
 import { DetailSheet } from "./DetailSheet";
 import { MatchScreen } from "./MatchScreen";
 import { ClaimDraft } from "./ClaimDraft";
+import { FiltroTipos } from "./FiltroTipos";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
@@ -209,7 +210,8 @@ function Tutorial({ onCerrar }: { onCerrar: () => void }) {
 }
 
 export function Deck() {
-  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo, municipio, obras } = useStore();
+  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo, municipio, obras, tipos, verTodosLosTipos } =
+    useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
   const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
@@ -230,7 +232,8 @@ export function Deck() {
 
   const onVueloCompleto = useCallback(() => setVuelo(null), []);
 
-  const pendientes = listo ? obras.filter((o) => !votos[o.id]) : [];
+  const sinVotar = listo ? obras.filter((o) => !votos[o.id]) : [];
+  const pendientes = tipos.length === 0 ? sinVotar : sinVotar.filter((o) => tipos.includes(o.categoria));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -268,6 +271,26 @@ export function Deck() {
     );
   }
 
+  // El filtro deja el mazo vacío, pero quedan obras de otros tipos.
+  if (pendientes.length === 0 && sinVotar.length > 0 && !vuelo) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+        <FiltroTipos />
+        <div className="deck-zone" aria-label="Sin obras de este tipo">
+          <div className="empty-deck">
+            <h2 className="display">Nada pendiente de este tipo</h2>
+            <p>
+              Te quedan {sinVotar.length} {sinVotar.length === 1 ? "obra" : "obras"} de otros tipos en {municipio}.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={verTodosLosTipos}>
+              Ver todas
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (pendientes.length === 0 && !vuelo) {
     return (
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -293,6 +316,8 @@ export function Deck() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* Con el tutorial abierto no hay chips: el tutorial es modal. */}
+      {tutorialVisto && <FiltroTipos />}
       <div className="deck-zone" aria-label={`Quedan ${restantes} tarjetas`}>
         <AnimatePresence>
           {tutorialVisto ? null : <Tutorial key="tutorial" onCerrar={marcarTutorialVisto} />}
