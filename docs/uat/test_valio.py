@@ -123,7 +123,12 @@ with sync_playwright() as p:
     page.goto(BASE, wait_until="networkidle")
     check("carga inicial", page.locator(".brand").count() == 1)
 
-    # 0. Primera visita: «¿Dónde vives?» antes que el mazo (issue #37)
+    # 0. Primera visita: «¿Dónde vives?» antes que el mazo (issue #37).
+    # Esperamos: con el servidor recién arrancado, la app tarda en leer el dispositivo.
+    try:
+        page.wait_for_selector("#municipio-titulo", timeout=10000)
+    except Exception:
+        pass
     check("pregunta el municipio en la primera visita", page.get_by_role("heading", name="¿Dónde vives?").is_visible())
     page.get_by_role("button", name="Teulada").click()
     page.wait_for_selector(".tutorial", timeout=4000)
@@ -683,6 +688,122 @@ with sync_playwright() as p:
     )
     shot(p_r13, "24-reg-issue37-orden-375")
     ctx_r13.close()
+
+    # R14 — ISSUE-37: accesibilidad del flujo nuevo solo con teclado, desde
+    # cero (sin municipio). Sin librerías nuevas: solo Playwright.
+    NOMBRE_FOCO = (
+        "() => { const e = document.activeElement; if (!e || e === document.body) return '';"
+        " return (e.getAttribute('aria-label') || e.textContent || '').trim(); }"
+    )
+    ctx_r14 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r14 = ctx_r14.new_page()
+    p_r14.goto(BASE, wait_until="networkidle")
+
+    # «¿Dónde vives?» se elige solo con teclado.
+    p_r14.keyboard.press("Tab")
+    check(
+        "R14 ISSUE-37: Tab desde la pregunta llega al municipio",
+        p_r14.evaluate(NOMBRE_FOCO).startswith("Teulada"),
+        f"foco={p_r14.evaluate(NOMBRE_FOCO)!r}",
+    )
+    check(
+        "R14 ISSUE-37: foco visible en el botón del municipio",
+        p_r14.evaluate("() => getComputedStyle(document.activeElement).outlineStyle !== 'none'"),
+    )
+    p_r14.keyboard.press("Enter")
+    p_r14.wait_for_selector(".tutorial", timeout=4000)
+    p_r14.wait_for_timeout(300)
+    p_r14.get_by_role("button", name="Entendido, a votar").focus()
+    p_r14.keyboard.press("Enter")
+    p_r14.wait_for_timeout(400)
+
+    # Recorrido con Tab: todo lo nuevo es alcanzable, y el orden ocupa un solo Tab.
+    recorrido = []
+    for _ in range(40):
+        p_r14.keyboard.press("Tab")
+        recorrido.append(p_r14.evaluate(NOMBRE_FOCO))
+    for esperado in ["Más recientes", "Todas", "Deporte, 3 obras", "Valió"]:
+        check(
+            f"R14 ISSUE-37: «{esperado}» alcanzable con Tab",
+            esperado in recorrido,
+            f"recorrido={recorrido[:14]}",
+        )
+    check(
+        "R14 ISSUE-37: «Mayor importe» no gasta un Tab (se llega con flechas)",
+        "Mayor importe" not in recorrido,
+    )
+    # El orden de Tab lo marca el DOM. (El recorrido de arriba no sirve para
+    # esto: al cerrar el tutorial el navegador sigue desde donde estaba él.)
+    check(
+        "R14 ISSUE-37: los chips van antes que el mazo en el orden de Tab",
+        p_r14.evaluate(
+            "() => { const c = document.querySelector('.filtros-barra');"
+            " const v = document.querySelector('.action-row');"
+            " return !!c && !!v && !!(c.compareDocumentPosition(v) & Node.DOCUMENT_POSITION_FOLLOWING); }"
+        ),
+    )
+
+    # Un chip se activa con Espacio y se ve el foco.
+    chip_deporte = p_r14.get_by_role("button", name="Deporte, 3 obras")
+    chip_deporte.focus()
+    check(
+        "R14 ISSUE-37: foco visible en los chips",
+        p_r14.evaluate("() => getComputedStyle(document.activeElement).outlineStyle !== 'none'"),
+    )
+    p_r14.keyboard.press("Space")
+    p_r14.wait_for_timeout(300)
+    check("R14 ISSUE-37: Espacio activa un chip", chip_deporte.get_attribute("aria-pressed") == "true")
+
+    # Todos los controles nuevos tienen nombre y tamaño táctil suficiente
+    # (WCAG 2.5.8 pide 24 px; nosotros apuntamos a 40).
+    controles = p_r14.evaluate(
+        "() => [...document.querySelectorAll('.filtros-barra button')].map((b) => {"
+        " const r = b.getBoundingClientRect();"
+        " return { nombre: (b.getAttribute('aria-label') || b.textContent || '').trim(), alto: r.height, ancho: r.width }; })"
+    )
+    sin_nombre = [c for c in controles if not c["nombre"]]
+    pequenos = [c["nombre"] for c in controles if c["alto"] < 40 or c["ancho"] < 40]
+    check("R14 ISSUE-37: todos los chips tienen nombre accesible", controles and not sin_nombre)
+    check("R14 ISSUE-37: chips de al menos 40×40 px", controles and not pequenos, f"pequeños={pequenos}")
+
+    # Contraste AA (4,5:1) del texto de los chips, marcados y sin marcar.
+    CONTRASTE = """(sel) => {
+      const lum = (c) => {
+        const [r, g, b] = c.match(/\\d+(\\.\\d+)?/g).slice(0, 3).map((v) => {
+          const s = Number(v) / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      // Fondo real: sube por los padres mientras sea transparente.
+      const fondo = (e) => {
+        for (let n = e; n; n = n.parentElement) {
+          const c = getComputedStyle(n).backgroundColor;
+          const alfa = c.match(/\\d+(\\.\\d+)?/g)[3];
+          if (alfa === undefined || Number(alfa) > 0) return c;
+        }
+        return "rgb(255, 255, 255)";
+      };
+      return [...document.querySelectorAll(sel)].map((e) => {
+        const [a, b] = [lum(getComputedStyle(e).color), lum(fondo(e))].sort((x, y) => y - x);
+        return Math.round(((a + 0.05) / (b + 0.05)) * 100) / 100;
+      });
+    }"""
+    ratios = p_r14.evaluate(CONTRASTE, ".filtros-barra .filtro-chip")
+    check(
+        "R14 ISSUE-37: contraste AA en chips marcados y sin marcar",
+        ratios and min(ratios) >= 4.5,
+        f"mínimo={min(ratios) if ratios else None}",
+    )
+    p_r14.get_by_role("tab", name="Info").click()
+    p_r14.get_by_role("button", name="Cambiar de municipio").click()
+    ratios_mun = p_r14.evaluate(CONTRASTE, ".municipio-nombre, .municipio-detalle")
+    check(
+        "R14 ISSUE-37: contraste AA en «¿Dónde vives?»",
+        ratios_mun and min(ratios_mun) >= 4.5,
+        f"mínimo={min(ratios_mun) if ratios_mun else None}",
+    )
+    ctx_r14.close()
 
     browser.close()
 
