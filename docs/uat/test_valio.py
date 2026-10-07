@@ -1,4 +1,4 @@
-"""Prueba E2E de la demo ¿VALIÓ? — gestos, botones, teclado, ficha, match, resultados."""
+"""Prueba E2E de ¿VALIÓ? — piloto real de Teulada: gestos, botones, teclado, ficha, match, resultados."""
 import json
 import os
 import subprocess
@@ -52,6 +52,19 @@ def cerrar_match_si_sale(page):
     page.get_by_role("button", name="Seguir votando").click()
     page.wait_for_selector(".match-screen", state="detached")
     page.wait_for_timeout(150)
+
+# Desde el #37 la app empieza por «¿Dónde vives?». Los contextos que prueban
+# otras cosas entran con el municipio ya recordado, como un usuario que vuelve.
+MUNICIPIO_KEY = "valio.municipio.v1"
+RECORDAR_TEULADA = (
+    "try { if (!localStorage.getItem('%s')) localStorage.setItem('%s', 'Teulada'); } catch (e) {}"
+    % (MUNICIPIO_KEY, MUNICIPIO_KEY)
+)
+
+def nuevo_contexto(browser, **kw):
+    contexto = browser.new_context(**kw)
+    contexto.add_init_script(RECORDAR_TEULADA)
+    return contexto
 
 def _servidor_listo():
     try:
@@ -110,6 +123,16 @@ with sync_playwright() as p:
     page.goto(BASE, wait_until="networkidle")
     check("carga inicial", page.locator(".brand").count() == 1)
 
+    # 0. Primera visita: «¿Dónde vives?» antes que el mazo (issue #37).
+    # Esperamos: con el servidor recién arrancado, la app tarda en leer el dispositivo.
+    try:
+        page.wait_for_selector("#municipio-titulo", timeout=10000)
+    except Exception:
+        pass
+    check("pregunta el municipio en la primera visita", page.get_by_role("heading", name="¿Dónde vives?").is_visible())
+    page.get_by_role("button", name="Teulada").click()
+    page.wait_for_selector(".tutorial", timeout=4000)
+
     # 1. Tutorial
     tut = page.locator(".tutorial")
     check("tutorial visible en primera visita", tut.is_visible())
@@ -118,14 +141,14 @@ with sync_playwright() as p:
     # 1b. Las flechas NO votan durante el tutorial
     page.keyboard.press("ArrowRight")
     page.wait_for_timeout(600)
-    check("teclado bloqueado durante tutorial", "plaza mayor" in (nombre_top(page) or "").lower())
+    check("teclado bloqueado durante tutorial", "asfaltado" in (nombre_top(page) or "").lower())
     page.get_by_role("button", name="Entendido, a votar").click()
     page.wait_for_timeout(400)
     check("tutorial se cierra", not tut.is_visible())
 
-    # 2. Tarjeta superior visible
-    check("tarjeta DEMO-01 visible", "plaza mayor" in (nombre_top(page) or "").lower())
-    check("badge DEMO en tarjeta", page.locator(".chip-demo").first.is_visible())
+    # 2. Tarjeta superior visible (OBRA-01: asfaltado de calles)
+    check("tarjeta OBRA-01 visible", "asfaltado" in (nombre_top(page) or "").lower())
+    check("chip ejecución faltante en tarjeta", page.locator(".chip.estado-faltante").first.is_visible())
     shot(page, "02-mazo-inicial")
 
     # 3. Botón NO VALIÓ -> match ciudadano
@@ -161,7 +184,7 @@ with sync_playwright() as p:
 
     esperar_nombre_distinto(page, antes)
 
-    # 5. Gesto de arrastre a la izquierda (DEMO-02)
+    # 5. Gesto de arrastre a la izquierda (siguiente obra)
     antes = nombre_top(page)
     card = page.locator(".stack-slot").first.locator(".card-frame")
     box = card.bounding_box()
@@ -178,13 +201,13 @@ with sync_playwright() as p:
     esperar_nombre_distinto(page, antes)
     check("arrastre a la izquierda vota", True)
 
-    # 6. Botón ↑ pido explicaciones (DEMO-03)
+    # 6. Botón ↑ pido explicaciones (siguiente obra)
     antes = nombre_top(page)
     page.get_by_role("button", name="Pido explicaciones").click()
     esperar_nombre_distinto(page, antes)
     check("botón explica consume tarjeta", True)
 
-    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (DEMO-04)
+    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (siguiente obra)
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("Enter")
     page.wait_for_timeout(500)
@@ -207,8 +230,8 @@ with sync_playwright() as p:
     esperar_nombre_distinto(page, antes)
     check("botón ↓ consume tarjeta", True)
 
-    # 9. Votar el resto con ✓
-    for _ in range(6):
+    # 9. Votar el resto con ✓ (21 obras en el piloto)
+    for _ in range(21):
         sel = page.get_by_role("button", name="Valió", exact=True)
         if not sel.is_visible() or sel.is_disabled():
             break
@@ -219,42 +242,42 @@ with sync_playwright() as p:
     check("mazo vacío al final", "Ya has votado todo" in page.locator(".empty-deck").inner_text())
     shot(page, "07-mazo-vacio")
 
-    # 10. Resultados: 8 votos
+    # 10. Resultados: 21 votos
     page.get_by_role("tab", name="Resultados").click()
     page.wait_for_timeout(400)
     items = page.locator(".result-item").count()
-    check("resultados con 8 votos", items == 8, f"items={items}")
+    check("resultados con 21 votos", items == 21, f"items={items}")
     shot(page, "08-resultados")
 
     # 11. Cabreo
     page.get_by_role("tab", name="Cabreo").click()
     page.wait_for_timeout(400)
-    check("mapa del cabreo con 8 filas", page.locator(".cabreo-item").count() == 8)
+    check("mapa del cabreo con 21 filas", page.locator(".cabreo-item").count() == 21)
     shot(page, "09-cabreo")
 
     # 12. Info
     page.get_by_role("tab", name="Info").click()
     page.wait_for_timeout(300)
-    check("info con aviso demo", "ninguna cifra es real" in page.locator(".panel").inner_text().lower())
+    check("info con aviso de piloto real (PLACE)", "place" in page.locator(".panel").inner_text().lower())
 
     # 13. Persistencia tras recarga
     page.get_by_role("tab", name="Resultados").click()
     page.reload(wait_until="networkidle")
     page.get_by_role("tab", name="Resultados").click()
     page.wait_for_timeout(400)
-    check("votos persisten tras recarga", page.locator(".result-item").count() == 8)
+    check("votos persisten tras recarga", page.locator(".result-item").count() == 21)
 
     # 14. Teclado en estado limpio (otro contexto sin votos)
-    ctx2 = browser.new_context(viewport={"width": 375, "height": 812})
+    ctx2 = nuevo_contexto(browser, viewport={"width": 375, "height": 812})
     p2 = ctx2.new_page()
     p2.goto(BASE, wait_until="networkidle")
     p2.get_by_role("button", name="Entendido, a votar").click()
     p2.wait_for_timeout(400)
     p2.evaluate("document.activeElement && document.activeElement.blur()")
     p2.keyboard.press("ArrowRight")
-    esperar_nombre_distinto(p2, "Rehabilitación de la plaza mayor (ejemplo)")
+    esperar_nombre_distinto(p2, "Obras de asfaltado e inversiones para mejora de calles municipales")
     check("flecha derecha vota sin match", not p2.locator(".match-screen").is_visible())
-    check("tarjeta consumida por teclado", "plaza mayor" not in nombre_top(p2))
+    check("tarjeta consumida por teclado", "asfaltado" not in nombre_top(p2))
     antes2 = nombre_top(p2)
     p2.keyboard.press("ArrowUp")
     esperar_nombre_distinto(p2, antes2)
@@ -262,7 +285,7 @@ with sync_playwright() as p:
 
     # 15. Tamaños de pantalla
     for w, h, name in [(414, 896, "10-414"), (768, 1024, "11-768")]:
-        pg = browser.new_context(viewport={"width": w, "height": h}, locale="es-ES").new_page()
+        pg = nuevo_contexto(browser, viewport={"width": w, "height": h}, locale="es-ES").new_page()
         pg.goto(BASE, wait_until="networkidle")
         pg.get_by_role("button", name="Entendido, a votar").click()
         pg.wait_for_timeout(300)
@@ -276,7 +299,7 @@ with sync_playwright() as p:
     # Cada check debe FALLAR si se quita el fix correspondiente.
 
     # R1 — ISSUE-11: copiar sin contexto seguro (sin navigator.clipboard).
-    ctx_r1 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r1 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r1 = ctx_r1.new_page()
     # simulamos un origen no seguro: sin API moderna de portapapeles
     p_r1.add_init_script(
@@ -298,12 +321,12 @@ with sync_playwright() as p:
 
     # R2 — ISSUE-12: Volver a empezar rellena el mazo (recargar no basta:
     # los votos persisten en localStorage).
-    ctx_r2 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r2 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r2 = ctx_r2.new_page()
     p_r2.goto(BASE, wait_until="networkidle")
     p_r2.get_by_role("button", name="Entendido, a votar").click()
     p_r2.wait_for_timeout(300)
-    for _ in range(8):
+    for _ in range(21):
         sel = p_r2.get_by_role("button", name="Valió", exact=True)
         if not sel.is_visible():
             break
@@ -321,7 +344,7 @@ with sync_playwright() as p:
     ctx_r2.close()
 
     # R3 — ISSUE-13: paneles ocultos fuera del layout y mazo a pantalla.
-    ctx_r3 = browser.new_context(viewport={"width": 740, "height": 360}, locale="es-ES")
+    ctx_r3 = nuevo_contexto(browser, viewport={"width": 740, "height": 360}, locale="es-ES")
     p_r3 = ctx_r3.new_page()
     p_r3.goto(BASE, wait_until="networkidle")
     check(
@@ -339,7 +362,7 @@ with sync_playwright() as p:
 
     # R4 — ISSUE-14: el tutorial vive dentro del mazo: si el mazo tiene alto,
     # el tutorial tiene espacio.
-    ctx_r4 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r4 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r4 = ctx_r4.new_page()
     p_r4.goto(BASE, wait_until="networkidle")
     caja_tut = p_r4.locator(".tutorial").bounding_box()
@@ -352,7 +375,7 @@ with sync_playwright() as p:
     ctx_r4.close()
 
     # R5 — ISSUE-15: el enlace a la ficha es visible y dentro de la carta.
-    ctx_r5 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r5 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r5 = ctx_r5.new_page()
     p_r5.goto(BASE, wait_until="networkidle")
     p_r5.get_by_role("button", name="Entendido, a votar").click()
@@ -377,7 +400,7 @@ with sync_playwright() as p:
 
     # R6 — ISSUE-21: el tutorial es modal para lectores de pantalla: recibe el
     # foco al abrirse y la pila de cartas queda fuera del árbol de accesibilidad.
-    ctx_r6 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r6 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r6 = ctx_r6.new_page()
     p_r6.goto(BASE, wait_until="networkidle")
     p_r6.wait_for_selector(".tutorial", timeout=4000)
@@ -400,7 +423,7 @@ with sync_playwright() as p:
     # R7 — ISSUE-30: el voto se anuncia al lector. La región live debe existir
     # ANTES de votar (si nace con el texto, TalkBack no la anuncia) y dos votos
     # iguales seguidos deben cambiar su texto.
-    ctx_r7 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r7 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r7 = ctx_r7.new_page()
     p_r7.goto(BASE, wait_until="networkidle")
     p_r7.get_by_role("button", name="Entendido, a votar").click()
@@ -429,6 +452,358 @@ with sync_playwright() as p:
     )
     shot(p_r7, "18-reg-issue30-anuncio-voto")
     ctx_r7.close()
+
+    # R8 — ISSUE-37: «¿Dónde vives?». Contexto limpio, SIN municipio recordado.
+    ctx_r8 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r8 = ctx_r8.new_page()
+    p_r8.goto(BASE, wait_until="networkidle")
+    titulo = p_r8.get_by_role("heading", name="¿Dónde vives?")
+    check("R8 ISSUE-37: primera pantalla pregunta el municipio", titulo.is_visible())
+    check(
+        "R8 ISSUE-37: sin municipio no hay mazo ni pestañas",
+        p_r8.locator(".card-frame").count() == 0 and p_r8.locator(".tabbar").count() == 0,
+    )
+    check(
+        "R8 ISSUE-37: el foco empieza en la pregunta",
+        p_r8.evaluate("() => document.activeElement?.id === 'municipio-titulo'"),
+    )
+    shot(p_r8, "19-reg-issue37-municipio-375")
+    p_r8.get_by_role("button", name="Teulada").click()
+    p_r8.wait_for_selector(".tutorial", timeout=4000)
+    check("R8 ISSUE-37: tras elegir sale el tutorial", p_r8.locator(".tutorial").is_visible())
+    check(
+        "R8 ISSUE-37: se recuerda en el dispositivo",
+        p_r8.evaluate(f"() => localStorage.getItem('{MUNICIPIO_KEY}')") == "Teulada",
+    )
+    p_r8.get_by_role("button", name="Entendido, a votar").click()
+    p_r8.wait_for_timeout(300)
+    # El mazo trae exactamente las obras del municipio según los datos.
+    esperadas = 21  # obras de Teulada en lib/obras.ts
+    check(
+        "R8 ISSUE-37: el mazo solo trae las obras del municipio",
+        p_r8.locator(f'.deck-zone[aria-label="Quedan {esperadas} tarjetas"]').count() == 1,
+        f"aria-label={p_r8.locator('.deck-zone').first.get_attribute('aria-label')!r}",
+    )
+    check(
+        "R8 ISSUE-37: la cabecera muestra el municipio",
+        "teulada" in p_r8.locator(".brand-badge").inner_text().lower(),
+    )
+    p_r8.reload(wait_until="networkidle")
+    check(
+        "R8 ISSUE-37: al volver no pregunta otra vez",
+        p_r8.get_by_role("heading", name="¿Dónde vives?").count() == 0
+        and p_r8.locator(".card-frame").count() > 0,
+    )
+    p_r8.get_by_role("tab", name="Info").click()
+    p_r8.get_by_role("button", name="Cambiar de municipio").click()
+    check(
+        "R8 ISSUE-37: Info → Cambiar de municipio vuelve a preguntar",
+        p_r8.get_by_role("heading", name="¿Dónde vives?").is_visible()
+        and p_r8.evaluate(f"() => localStorage.getItem('{MUNICIPIO_KEY}')") is None,
+    )
+    p_r8.get_by_role("button", name="Teulada").click()
+    p_r8.wait_for_timeout(300)
+    check(
+        "R8 ISSUE-37: tras cambiar, vuelve a la pestaña Votar",
+        p_r8.get_by_role("tab", name="Votar").get_attribute("aria-selected") == "true",
+    )
+    ctx_r8.close()
+
+    # R9 — ISSUE-37: un municipio guardado que no existe en los datos no vale.
+    ctx_r9 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r9.add_init_script(f"try {{ localStorage.setItem('{MUNICIPIO_KEY}', 'Municipio inventado'); }} catch (e) {{}}")
+    p_r9 = ctx_r9.new_page()
+    p_r9.goto(BASE, wait_until="networkidle")
+    check(
+        "R9 ISSUE-37: municipio desconocido → vuelve a preguntar",
+        p_r9.get_by_role("heading", name="¿Dónde vives?").is_visible(),
+    )
+    ctx_r9.close()
+
+    # R10 — ISSUE-37: la pantalla cabe a 320 px sin scroll horizontal.
+    ctx_r10 = browser.new_context(viewport={"width": 320, "height": 640}, locale="es-ES")
+    p_r10 = ctx_r10.new_page()
+    p_r10.goto(BASE, wait_until="networkidle")
+    check(
+        "R10 ISSUE-37: «¿Dónde vives?» sin scroll horizontal a 320 px",
+        p_r10.evaluate("() => document.documentElement.scrollWidth <= 320"),
+    )
+    shot(p_r10, "20-reg-issue37-municipio-320")
+    ctx_r10.close()
+
+    # R11 — ISSUE-37: chips de tipo. Teulada: 21 obras, 3 de deporte,
+    # 3 de parques, 1 de educación (lib/obras.ts).
+    ctx_r11 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r11 = ctx_r11.new_page()
+    p_r11.goto(BASE, wait_until="networkidle")
+    grupo = p_r11.get_by_role("group", name="Filtrar por tipo de obra")
+    check("R11 ISSUE-37: sin chips mientras el tutorial está abierto", grupo.count() == 0)
+    p_r11.get_by_role("button", name="Entendido, a votar").click()
+    p_r11.wait_for_timeout(300)
+
+    def quedan(pg, n):
+        return pg.locator(f'.deck-zone[aria-label="Quedan {n} tarjetas"]').count() == 1
+
+    def chip(pg, nombre):
+        return pg.get_by_role("group", name="Filtrar por tipo de obra").get_by_role("button", name=nombre)
+
+    check("R11 ISSUE-37: chips visibles tras el tutorial", grupo.is_visible())
+    check("R11 ISSUE-37: un chip por tipo con obras + «Todas»", grupo.get_by_role("button").count() == 8)
+    check("R11 ISSUE-37: «Todas» marcado al empezar", chip(p_r11, "Todas").get_attribute("aria-pressed") == "true")
+
+    chip(p_r11, "Deporte").click()
+    p_r11.wait_for_timeout(300)
+    check(
+        "R11 ISSUE-37: «Deporte» deja 3 tarjetas",
+        quedan(p_r11, 3) and chip(p_r11, "Deporte").get_attribute("aria-pressed") == "true"
+        and chip(p_r11, "Todas").get_attribute("aria-pressed") == "false",
+        f"aria-label={p_r11.locator('.deck-zone').first.get_attribute('aria-label')!r}",
+    )
+    anuncio_filtro = p_r11.locator('.filtro-tipos [role="status"]').inner_text()
+    check(
+        "R11 ISSUE-37: el lector anuncia cuántas quedan",
+        anuncio_filtro == "3 obras pendientes: Deporte",
+        f"texto={anuncio_filtro!r}",
+    )
+    check(
+        "R11 ISSUE-37: la carta de arriba es de deporte",
+        "deporte" in p_r11.locator(".stack-slot").first.inner_text().lower(),
+    )
+
+    # Las flechas sobre un chip no votan (el foco está en un botón).
+    chip(p_r11, "Deporte").focus()
+    p_r11.keyboard.press("ArrowRight")
+    p_r11.wait_for_timeout(400)
+    check("R11 ISSUE-37: flecha con foco en un chip no vota", quedan(p_r11, 3))
+
+    chip(p_r11, "Parques").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: varios tipos a la vez (deporte + parques = 6)", quedan(p_r11, 6))
+
+    # El filtro sobrevive a cambiar de pestaña.
+    p_r11.get_by_role("tab", name="Info").click()
+    p_r11.get_by_role("tab", name="Votar").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: el filtro se mantiene al volver a Votar", quedan(p_r11, 6))
+
+    chip(p_r11, "Todas").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: «Todas» devuelve las 21", quedan(p_r11, 21))
+
+    # Filtro que se queda vacío: no es «Ya has votado todo».
+    chip(p_r11, "Educación").click()
+    p_r11.wait_for_timeout(300)
+    p_r11.get_by_role("button", name="Valió", exact=True).click()
+    p_r11.wait_for_selector(".empty-deck", timeout=4000)
+    vacio = p_r11.locator(".empty-deck").inner_text()
+    check(
+        "R11 ISSUE-37: filtro agotado avisa de que quedan otros tipos",
+        "Nada pendiente de este tipo" in vacio and "Ya has votado todo" not in vacio,
+        f"texto={vacio[:80]!r}",
+    )
+    shot(p_r11, "21-reg-issue37-filtro-vacio")
+    p_r11.get_by_role("button", name="Ver todas").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: «Ver todas» vuelve al mazo (20 sin votar)", quedan(p_r11, 20))
+    ctx_r11.close()
+
+    # R12 — ISSUE-37: chips a 320 px sin scroll horizontal de la página.
+    ctx_r12 = nuevo_contexto(browser, viewport={"width": 320, "height": 640}, locale="es-ES")
+    p_r12 = ctx_r12.new_page()
+    p_r12.goto(BASE, wait_until="networkidle")
+    p_r12.get_by_role("button", name="Entendido, a votar").click()
+    p_r12.wait_for_timeout(300)
+    check(
+        "R12 ISSUE-37: chips sin scroll horizontal de página a 320 px",
+        p_r12.evaluate("() => document.documentElement.scrollWidth <= 320"),
+    )
+    caja_btn = p_r12.locator(".action-btn.big").first.bounding_box()
+    check(
+        "R12 ISSUE-37: con chips, los botones de voto caben a 320×640",
+        bool(caja_btn) and caja_btn["y"] + caja_btn["height"] <= 640,
+    )
+    shot(p_r12, "22-reg-issue37-chips-320")
+    p_r12.set_viewport_size({"width": 375, "height": 812})
+    p_r12.wait_for_timeout(300)
+    shot(p_r12, "23-reg-issue37-chips-375")
+    ctx_r12.close()
+
+    # R13 — ISSUE-37: chips de orden. «Más recientes» = por año (provisional);
+    # «Mayor importe» = adjudicado o, si no hay, licitado. En lib/obras.ts:
+    # 1.º OBRA-01 (2026, 177.686 €), luego OBRA-02 (2026) por año y OBRA-19
+    # (39.300 €) por importe.
+    ctx_r13 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r13 = ctx_r13.new_page()
+    p_r13.goto(BASE, wait_until="networkidle")
+    p_r13.get_by_role("button", name="Entendido, a votar").click()
+    p_r13.wait_for_timeout(300)
+    orden = p_r13.get_by_role("radiogroup", name="Ordenar obras")
+    recientes = orden.get_by_role("radio", name="Más recientes")
+    importe = orden.get_by_role("radio", name="Mayor importe")
+    check("R13 ISSUE-37: chips de orden visibles", orden.is_visible())
+    check("R13 ISSUE-37: «Más recientes» marcado al empezar", recientes.get_attribute("aria-checked") == "true")
+
+    importe.click()
+    p_r13.wait_for_timeout(300)
+    check(
+        "R13 ISSUE-37: «Mayor importe» marcado y el otro no",
+        importe.get_attribute("aria-checked") == "true" and recientes.get_attribute("aria-checked") == "false",
+    )
+    anuncio_orden = p_r13.locator('.filtros-barra [role="status"]').first.inner_text()
+    check(
+        "R13 ISSUE-37: el lector anuncia el orden",
+        anuncio_orden == "Ordenadas por mayor importe",
+        f"texto={anuncio_orden!r}",
+    )
+    primera = nombre_top(p_r13)
+    p_r13.get_by_role("button", name="Valió", exact=True).click()
+    esperar_nombre_distinto(p_r13, primera)
+    check(
+        "R13 ISSUE-37: por importe, tras OBRA-01 va OBRA-19",
+        nombre_top(p_r13) == "Contrato menor de obras de asfaltado",
+        f"top={nombre_top(p_r13)!r}",
+    )
+
+    # Teclado: flechas dentro del grupo cambian el orden y NO votan.
+    importe.focus()
+    p_r13.keyboard.press("ArrowLeft")
+    p_r13.wait_for_timeout(300)
+    check(
+        "R13 ISSUE-37: flecha cambia a «Más recientes» y lleva el foco",
+        recientes.get_attribute("aria-checked") == "true"
+        and p_r13.evaluate("() => document.activeElement?.textContent") == "Más recientes",
+    )
+    check(
+        "R13 ISSUE-37: las flechas en el orden no votan",
+        p_r13.locator('.deck-zone[aria-label="Quedan 20 tarjetas"]').count() == 1,
+    )
+    check(
+        "R13 ISSUE-37: por año, tras OBRA-01 va OBRA-02",
+        "reconstrucción parcial del muro" in nombre_top(p_r13).lower(),
+        f"top={nombre_top(p_r13)!r}",
+    )
+    check(
+        "R13 ISSUE-37: un solo chip de orden en el Tab (roving tabindex)",
+        importe.get_attribute("tabindex") == "-1" and recientes.get_attribute("tabindex") == "0",
+    )
+    shot(p_r13, "24-reg-issue37-orden-375")
+    ctx_r13.close()
+
+    # R14 — ISSUE-37: accesibilidad del flujo nuevo solo con teclado, desde
+    # cero (sin municipio). Sin librerías nuevas: solo Playwright.
+    NOMBRE_FOCO = (
+        "() => { const e = document.activeElement; if (!e || e === document.body) return '';"
+        " return (e.getAttribute('aria-label') || e.textContent || '').trim(); }"
+    )
+    ctx_r14 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r14 = ctx_r14.new_page()
+    p_r14.goto(BASE, wait_until="networkidle")
+
+    # «¿Dónde vives?» se elige solo con teclado.
+    p_r14.keyboard.press("Tab")
+    check(
+        "R14 ISSUE-37: Tab desde la pregunta llega al municipio",
+        p_r14.evaluate(NOMBRE_FOCO).startswith("Teulada"),
+        f"foco={p_r14.evaluate(NOMBRE_FOCO)!r}",
+    )
+    check(
+        "R14 ISSUE-37: foco visible en el botón del municipio",
+        p_r14.evaluate("() => getComputedStyle(document.activeElement).outlineStyle !== 'none'"),
+    )
+    p_r14.keyboard.press("Enter")
+    p_r14.wait_for_selector(".tutorial", timeout=4000)
+    p_r14.wait_for_timeout(300)
+    p_r14.get_by_role("button", name="Entendido, a votar").focus()
+    p_r14.keyboard.press("Enter")
+    p_r14.wait_for_timeout(400)
+
+    # Recorrido con Tab: todo lo nuevo es alcanzable, y el orden ocupa un solo Tab.
+    recorrido = []
+    for _ in range(40):
+        p_r14.keyboard.press("Tab")
+        recorrido.append(p_r14.evaluate(NOMBRE_FOCO))
+    for esperado in ["Más recientes", "Todas", "Deporte, 3 obras", "Valió"]:
+        check(
+            f"R14 ISSUE-37: «{esperado}» alcanzable con Tab",
+            esperado in recorrido,
+            f"recorrido={recorrido[:14]}",
+        )
+    check(
+        "R14 ISSUE-37: «Mayor importe» no gasta un Tab (se llega con flechas)",
+        "Mayor importe" not in recorrido,
+    )
+    # El orden de Tab lo marca el DOM. (El recorrido de arriba no sirve para
+    # esto: al cerrar el tutorial el navegador sigue desde donde estaba él.)
+    check(
+        "R14 ISSUE-37: los chips van antes que el mazo en el orden de Tab",
+        p_r14.evaluate(
+            "() => { const c = document.querySelector('.filtros-barra');"
+            " const v = document.querySelector('.action-row');"
+            " return !!c && !!v && !!(c.compareDocumentPosition(v) & Node.DOCUMENT_POSITION_FOLLOWING); }"
+        ),
+    )
+
+    # Un chip se activa con Espacio y se ve el foco.
+    chip_deporte = p_r14.get_by_role("button", name="Deporte, 3 obras")
+    chip_deporte.focus()
+    check(
+        "R14 ISSUE-37: foco visible en los chips",
+        p_r14.evaluate("() => getComputedStyle(document.activeElement).outlineStyle !== 'none'"),
+    )
+    p_r14.keyboard.press("Space")
+    p_r14.wait_for_timeout(300)
+    check("R14 ISSUE-37: Espacio activa un chip", chip_deporte.get_attribute("aria-pressed") == "true")
+
+    # Todos los controles nuevos tienen nombre y tamaño táctil suficiente
+    # (WCAG 2.5.8 pide 24 px; nosotros apuntamos a 40).
+    controles = p_r14.evaluate(
+        "() => [...document.querySelectorAll('.filtros-barra button')].map((b) => {"
+        " const r = b.getBoundingClientRect();"
+        " return { nombre: (b.getAttribute('aria-label') || b.textContent || '').trim(), alto: r.height, ancho: r.width }; })"
+    )
+    sin_nombre = [c for c in controles if not c["nombre"]]
+    pequenos = [c["nombre"] for c in controles if c["alto"] < 40 or c["ancho"] < 40]
+    check("R14 ISSUE-37: todos los chips tienen nombre accesible", controles and not sin_nombre)
+    check("R14 ISSUE-37: chips de al menos 40×40 px", controles and not pequenos, f"pequeños={pequenos}")
+
+    # Contraste AA (4,5:1) del texto de los chips, marcados y sin marcar.
+    CONTRASTE = """(sel) => {
+      const lum = (c) => {
+        const [r, g, b] = c.match(/\\d+(\\.\\d+)?/g).slice(0, 3).map((v) => {
+          const s = Number(v) / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      // Fondo real: sube por los padres mientras sea transparente.
+      const fondo = (e) => {
+        for (let n = e; n; n = n.parentElement) {
+          const c = getComputedStyle(n).backgroundColor;
+          const alfa = c.match(/\\d+(\\.\\d+)?/g)[3];
+          if (alfa === undefined || Number(alfa) > 0) return c;
+        }
+        return "rgb(255, 255, 255)";
+      };
+      return [...document.querySelectorAll(sel)].map((e) => {
+        const [a, b] = [lum(getComputedStyle(e).color), lum(fondo(e))].sort((x, y) => y - x);
+        return Math.round(((a + 0.05) / (b + 0.05)) * 100) / 100;
+      });
+    }"""
+    ratios = p_r14.evaluate(CONTRASTE, ".filtros-barra .filtro-chip")
+    check(
+        "R14 ISSUE-37: contraste AA en chips marcados y sin marcar",
+        ratios and min(ratios) >= 4.5,
+        f"mínimo={min(ratios) if ratios else None}",
+    )
+    p_r14.get_by_role("tab", name="Info").click()
+    p_r14.get_by_role("button", name="Cambiar de municipio").click()
+    ratios_mun = p_r14.evaluate(CONTRASTE, ".municipio-nombre, .municipio-detalle")
+    check(
+        "R14 ISSUE-37: contraste AA en «¿Dónde vives?»",
+        ratios_mun and min(ratios_mun) >= 4.5,
+        f"mínimo={min(ratios_mun) if ratios_mun else None}",
+    )
+    ctx_r14.close()
 
     browser.close()
 
