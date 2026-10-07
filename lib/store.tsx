@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { existeMunicipio, obrasDe } from "./municipios";
+import type { Orden } from "./orden";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
@@ -54,6 +55,9 @@ interface StoreValue {
   tipos: Categoria[];
   alternarTipo: (tipo: Categoria) => void;
   verTodosLosTipos: () => void;
+  /** Orden del mazo. Solo en memoria. */
+  orden: Orden;
+  setOrden: (orden: Orden) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -64,6 +68,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [listo, setListo] = useState(false);
   const [municipio, setMunicipio] = useState<string | null>(null);
   const [tipos, setTipos] = useState<Categoria[]>([]);
+  const [orden, setOrden] = useState<Orden>("recientes");
 
   useEffect(() => {
     setVotos(leerVotos());
@@ -147,6 +152,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       tipos,
       alternarTipo,
       verTodosLosTipos,
+      orden,
+      setOrden,
     }),
     [
       votos,
@@ -162,6 +169,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       tipos,
       alternarTipo,
       verTodosLosTipos,
+      orden,
     ],
   );
 

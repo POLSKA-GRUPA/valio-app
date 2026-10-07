@@ -10,6 +10,8 @@ import { DetailSheet } from "./DetailSheet";
 import { MatchScreen } from "./MatchScreen";
 import { ClaimDraft } from "./ClaimDraft";
 import { FiltroTipos } from "./FiltroTipos";
+import { OrdenObras } from "./OrdenObras";
+import { importeDe, ordenar } from "@/lib/orden";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
@@ -41,7 +43,7 @@ function destinoDe(voto: Voto): { x: number; y: number } {
 function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
   const c = CATEGORIA_COLOR[obra.categoria];
   // Importe protagonista: el de adjudicación si consta; si no, el de licitación.
-  const importe = obra.adjudicacion?.importeSinIva ?? obra.importeLicitacion;
+  const importe = importeDe(obra);
   const tipoImporte = obra.adjudicacion ? "Adjudicado · sin IVA" : "Licitación · sin IVA";
   return (
     <>
@@ -209,9 +211,31 @@ function Tutorial({ onCerrar }: { onCerrar: () => void }) {
   );
 }
 
+/** Orden y tipos en una sola fila con scroll lateral: el mazo conserva su alto. */
+function BarraFiltros() {
+  return (
+    <div className="filtros-barra">
+      <OrdenObras />
+      <span className="filtros-separador" aria-hidden="true" />
+      <FiltroTipos />
+    </div>
+  );
+}
+
 export function Deck() {
-  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo, municipio, obras, tipos, verTodosLosTipos } =
-    useStore();
+  const {
+    votos,
+    votar,
+    reset,
+    marcarTutorialVisto,
+    tutorialVisto,
+    listo,
+    municipio,
+    obras,
+    tipos,
+    verTodosLosTipos,
+    orden,
+  } = useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
   const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
@@ -233,7 +257,10 @@ export function Deck() {
   const onVueloCompleto = useCallback(() => setVuelo(null), []);
 
   const sinVotar = listo ? obras.filter((o) => !votos[o.id]) : [];
-  const pendientes = tipos.length === 0 ? sinVotar : sinVotar.filter((o) => tipos.includes(o.categoria));
+  const pendientes = ordenar(
+    tipos.length === 0 ? sinVotar : sinVotar.filter((o) => tipos.includes(o.categoria)),
+    orden,
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -275,7 +302,7 @@ export function Deck() {
   if (pendientes.length === 0 && sinVotar.length > 0 && !vuelo) {
     return (
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <FiltroTipos />
+        <BarraFiltros />
         <div className="deck-zone" aria-label="Sin obras de este tipo">
           <div className="empty-deck">
             <h2 className="display">Nada pendiente de este tipo</h2>
@@ -317,7 +344,7 @@ export function Deck() {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {/* Con el tutorial abierto no hay chips: el tutorial es modal. */}
-      {tutorialVisto && <FiltroTipos />}
+      {tutorialVisto && <BarraFiltros />}
       <div className="deck-zone" aria-label={`Quedan ${restantes} tarjetas`}>
         <AnimatePresence>
           {tutorialVisto ? null : <Tutorial key="tutorial" onCerrar={marcarTutorialVisto} />}
