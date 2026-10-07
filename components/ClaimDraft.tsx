@@ -3,20 +3,32 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { Obra } from "@/lib/obras";
+import { euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
 
 function borrador(obra: Obra): string {
-  return `A la atención del organismo competente (Ayuntamiento de ${obra.municipio}):
+  const adj = obra.adjudicacion;
+  return `A la atención del organismo competente (${obra.organismo}):
 
-Por medio del formulario de ¿VALIÓ? (demo), solicito explicaciones sobre «${obra.nombre}».
+Por medio de la app ¿VALIÓ?, solicito explicaciones sobre «${obra.nombre}»${
+    adj?.numExpediente ? ` (expediente ${adj.numExpediente})` : ""
+  }.
 
-Datos que motivan la solicitud (de demostración, pendientes de verificación):
-- Coste declarado: ${obra.importe}.
-- Plazo: ${obra.plazos}.
-- Promesa oficial: ${obra.promesa}.
+Datos oficiales que constan (${obra.fuente.nombre}, consultada el ${obra.fuente.fechaConsulta}):
+- Presupuesto de licitación: ${euros(obra.importeLicitacion)} (IVA ${
+    obra.ivaLicitacionIncluido ? "incluido" : "no incluido"
+  }).
+${
+    adj
+      ? `- Adjudicataria: ${adj.adjudicataria}${adj.cif ? ` (${adj.cif})` : ""}.
+- Importe de adjudicación: ${euros(adj.importeSinIva)} sin IVA.
+- Fecha del acuerdo de adjudicación: ${adj.fechaAcuerdo}; plazo de ejecución: ${adj.plazo}.
+`
+      : "- No he podido localizar la adjudicación en la fuente pública consultada.\n"
+  }- Estado de ejecución: no localizado en las fuentes públicas consultadas.
 
 Solicitud:
-1. Informe del estado actual y justificación de desviaciones de coste o plazo.
+1. Informe del estado actual de ejecución y justificación de desviaciones de coste o plazo.
 2. Documentación contractual aplicable y fechas clave.
 3. Previsión de finalización o corrección.
 
