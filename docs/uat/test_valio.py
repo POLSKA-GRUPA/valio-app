@@ -623,6 +623,67 @@ with sync_playwright() as p:
     shot(p_r12, "23-reg-issue37-chips-375")
     ctx_r12.close()
 
+    # R13 — ISSUE-37: chips de orden. «Más recientes» = por año (provisional);
+    # «Mayor importe» = adjudicado o, si no hay, licitado. En lib/obras.ts:
+    # 1.º OBRA-01 (2026, 177.686 €), luego OBRA-02 (2026) por año y OBRA-19
+    # (39.300 €) por importe.
+    ctx_r13 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r13 = ctx_r13.new_page()
+    p_r13.goto(BASE, wait_until="networkidle")
+    p_r13.get_by_role("button", name="Entendido, a votar").click()
+    p_r13.wait_for_timeout(300)
+    orden = p_r13.get_by_role("radiogroup", name="Ordenar obras")
+    recientes = orden.get_by_role("radio", name="Más recientes")
+    importe = orden.get_by_role("radio", name="Mayor importe")
+    check("R13 ISSUE-37: chips de orden visibles", orden.is_visible())
+    check("R13 ISSUE-37: «Más recientes» marcado al empezar", recientes.get_attribute("aria-checked") == "true")
+
+    importe.click()
+    p_r13.wait_for_timeout(300)
+    check(
+        "R13 ISSUE-37: «Mayor importe» marcado y el otro no",
+        importe.get_attribute("aria-checked") == "true" and recientes.get_attribute("aria-checked") == "false",
+    )
+    anuncio_orden = p_r13.locator('.filtros-barra [role="status"]').first.inner_text()
+    check(
+        "R13 ISSUE-37: el lector anuncia el orden",
+        anuncio_orden == "Ordenadas por mayor importe",
+        f"texto={anuncio_orden!r}",
+    )
+    primera = nombre_top(p_r13)
+    p_r13.get_by_role("button", name="Valió", exact=True).click()
+    esperar_nombre_distinto(p_r13, primera)
+    check(
+        "R13 ISSUE-37: por importe, tras OBRA-01 va OBRA-19",
+        nombre_top(p_r13) == "Contrato menor de obras de asfaltado",
+        f"top={nombre_top(p_r13)!r}",
+    )
+
+    # Teclado: flechas dentro del grupo cambian el orden y NO votan.
+    importe.focus()
+    p_r13.keyboard.press("ArrowLeft")
+    p_r13.wait_for_timeout(300)
+    check(
+        "R13 ISSUE-37: flecha cambia a «Más recientes» y lleva el foco",
+        recientes.get_attribute("aria-checked") == "true"
+        and p_r13.evaluate("() => document.activeElement?.textContent") == "Más recientes",
+    )
+    check(
+        "R13 ISSUE-37: las flechas en el orden no votan",
+        p_r13.locator('.deck-zone[aria-label="Quedan 20 tarjetas"]').count() == 1,
+    )
+    check(
+        "R13 ISSUE-37: por año, tras OBRA-01 va OBRA-02",
+        "reconstrucción parcial del muro" in nombre_top(p_r13).lower(),
+        f"top={nombre_top(p_r13)!r}",
+    )
+    check(
+        "R13 ISSUE-37: un solo chip de orden en el Tab (roving tabindex)",
+        importe.get_attribute("tabindex") == "-1" and recientes.get_attribute("tabindex") == "0",
+    )
+    shot(p_r13, "24-reg-issue37-orden-375")
+    ctx_r13.close()
+
     browser.close()
 
 parar_servidor()
