@@ -53,6 +53,19 @@ def cerrar_match_si_sale(page):
     page.wait_for_selector(".match-screen", state="detached")
     page.wait_for_timeout(150)
 
+# Desde el #37 la app empieza por «¿Dónde vives?». Los contextos que prueban
+# otras cosas entran con el municipio ya recordado, como un usuario que vuelve.
+MUNICIPIO_KEY = "valio.municipio.v1"
+RECORDAR_TEULADA = (
+    "try { if (!localStorage.getItem('%s')) localStorage.setItem('%s', 'Teulada'); } catch (e) {}"
+    % (MUNICIPIO_KEY, MUNICIPIO_KEY)
+)
+
+def nuevo_contexto(browser, **kw):
+    contexto = browser.new_context(**kw)
+    contexto.add_init_script(RECORDAR_TEULADA)
+    return contexto
+
 def _servidor_listo():
     try:
         with urllib.request.urlopen(BASE, timeout=2) as respuesta:
@@ -109,6 +122,11 @@ with sync_playwright() as p:
 
     page.goto(BASE, wait_until="networkidle")
     check("carga inicial", page.locator(".brand").count() == 1)
+
+    # 0. Primera visita: «¿Dónde vives?» antes que el mazo (issue #37)
+    check("pregunta el municipio en la primera visita", page.get_by_role("heading", name="¿Dónde vives?").is_visible())
+    page.get_by_role("button", name="Teulada").click()
+    page.wait_for_selector(".tutorial", timeout=4000)
 
     # 1. Tutorial
     tut = page.locator(".tutorial")
@@ -245,7 +263,7 @@ with sync_playwright() as p:
     check("votos persisten tras recarga", page.locator(".result-item").count() == 21)
 
     # 14. Teclado en estado limpio (otro contexto sin votos)
-    ctx2 = browser.new_context(viewport={"width": 375, "height": 812})
+    ctx2 = nuevo_contexto(browser, viewport={"width": 375, "height": 812})
     p2 = ctx2.new_page()
     p2.goto(BASE, wait_until="networkidle")
     p2.get_by_role("button", name="Entendido, a votar").click()
@@ -262,7 +280,7 @@ with sync_playwright() as p:
 
     # 15. Tamaños de pantalla
     for w, h, name in [(414, 896, "10-414"), (768, 1024, "11-768")]:
-        pg = browser.new_context(viewport={"width": w, "height": h}, locale="es-ES").new_page()
+        pg = nuevo_contexto(browser, viewport={"width": w, "height": h}, locale="es-ES").new_page()
         pg.goto(BASE, wait_until="networkidle")
         pg.get_by_role("button", name="Entendido, a votar").click()
         pg.wait_for_timeout(300)
@@ -276,7 +294,7 @@ with sync_playwright() as p:
     # Cada check debe FALLAR si se quita el fix correspondiente.
 
     # R1 — ISSUE-11: copiar sin contexto seguro (sin navigator.clipboard).
-    ctx_r1 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r1 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r1 = ctx_r1.new_page()
     # simulamos un origen no seguro: sin API moderna de portapapeles
     p_r1.add_init_script(
@@ -298,7 +316,7 @@ with sync_playwright() as p:
 
     # R2 — ISSUE-12: Volver a empezar rellena el mazo (recargar no basta:
     # los votos persisten en localStorage).
-    ctx_r2 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r2 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r2 = ctx_r2.new_page()
     p_r2.goto(BASE, wait_until="networkidle")
     p_r2.get_by_role("button", name="Entendido, a votar").click()
@@ -321,7 +339,7 @@ with sync_playwright() as p:
     ctx_r2.close()
 
     # R3 — ISSUE-13: paneles ocultos fuera del layout y mazo a pantalla.
-    ctx_r3 = browser.new_context(viewport={"width": 740, "height": 360}, locale="es-ES")
+    ctx_r3 = nuevo_contexto(browser, viewport={"width": 740, "height": 360}, locale="es-ES")
     p_r3 = ctx_r3.new_page()
     p_r3.goto(BASE, wait_until="networkidle")
     check(
@@ -339,7 +357,7 @@ with sync_playwright() as p:
 
     # R4 — ISSUE-14: el tutorial vive dentro del mazo: si el mazo tiene alto,
     # el tutorial tiene espacio.
-    ctx_r4 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r4 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r4 = ctx_r4.new_page()
     p_r4.goto(BASE, wait_until="networkidle")
     caja_tut = p_r4.locator(".tutorial").bounding_box()
@@ -352,7 +370,7 @@ with sync_playwright() as p:
     ctx_r4.close()
 
     # R5 — ISSUE-15: el enlace a la ficha es visible y dentro de la carta.
-    ctx_r5 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r5 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r5 = ctx_r5.new_page()
     p_r5.goto(BASE, wait_until="networkidle")
     p_r5.get_by_role("button", name="Entendido, a votar").click()
@@ -377,7 +395,7 @@ with sync_playwright() as p:
 
     # R6 — ISSUE-21: el tutorial es modal para lectores de pantalla: recibe el
     # foco al abrirse y la pila de cartas queda fuera del árbol de accesibilidad.
-    ctx_r6 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r6 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r6 = ctx_r6.new_page()
     p_r6.goto(BASE, wait_until="networkidle")
     p_r6.wait_for_selector(".tutorial", timeout=4000)
@@ -400,7 +418,7 @@ with sync_playwright() as p:
     # R7 — ISSUE-30: el voto se anuncia al lector. La región live debe existir
     # ANTES de votar (si nace con el texto, TalkBack no la anuncia) y dos votos
     # iguales seguidos deben cambiar su texto.
-    ctx_r7 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r7 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r7 = ctx_r7.new_page()
     p_r7.goto(BASE, wait_until="networkidle")
     p_r7.get_by_role("button", name="Entendido, a votar").click()
@@ -429,6 +447,84 @@ with sync_playwright() as p:
     )
     shot(p_r7, "18-reg-issue30-anuncio-voto")
     ctx_r7.close()
+
+    # R8 — ISSUE-37: «¿Dónde vives?». Contexto limpio, SIN municipio recordado.
+    ctx_r8 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r8 = ctx_r8.new_page()
+    p_r8.goto(BASE, wait_until="networkidle")
+    titulo = p_r8.get_by_role("heading", name="¿Dónde vives?")
+    check("R8 ISSUE-37: primera pantalla pregunta el municipio", titulo.is_visible())
+    check(
+        "R8 ISSUE-37: sin municipio no hay mazo ni pestañas",
+        p_r8.locator(".card-frame").count() == 0 and p_r8.locator(".tabbar").count() == 0,
+    )
+    check(
+        "R8 ISSUE-37: el foco empieza en la pregunta",
+        p_r8.evaluate("() => document.activeElement?.id === 'municipio-titulo'"),
+    )
+    shot(p_r8, "19-reg-issue37-municipio-375")
+    p_r8.get_by_role("button", name="Teulada").click()
+    p_r8.wait_for_selector(".tutorial", timeout=4000)
+    check("R8 ISSUE-37: tras elegir sale el tutorial", p_r8.locator(".tutorial").is_visible())
+    check(
+        "R8 ISSUE-37: se recuerda en el dispositivo",
+        p_r8.evaluate(f"() => localStorage.getItem('{MUNICIPIO_KEY}')") == "Teulada",
+    )
+    p_r8.get_by_role("button", name="Entendido, a votar").click()
+    p_r8.wait_for_timeout(300)
+    # El mazo trae exactamente las obras del municipio según los datos.
+    esperadas = 21  # obras de Teulada en lib/obras.ts
+    check(
+        "R8 ISSUE-37: el mazo solo trae las obras del municipio",
+        p_r8.locator(f'.deck-zone[aria-label="Quedan {esperadas} tarjetas"]').count() == 1,
+        f"aria-label={p_r8.locator('.deck-zone').first.get_attribute('aria-label')!r}",
+    )
+    check(
+        "R8 ISSUE-37: la cabecera muestra el municipio",
+        "teulada" in p_r8.locator(".brand-badge").inner_text().lower(),
+    )
+    p_r8.reload(wait_until="networkidle")
+    check(
+        "R8 ISSUE-37: al volver no pregunta otra vez",
+        p_r8.get_by_role("heading", name="¿Dónde vives?").count() == 0
+        and p_r8.locator(".card-frame").count() > 0,
+    )
+    p_r8.get_by_role("tab", name="Info").click()
+    p_r8.get_by_role("button", name="Cambiar de municipio").click()
+    check(
+        "R8 ISSUE-37: Info → Cambiar de municipio vuelve a preguntar",
+        p_r8.get_by_role("heading", name="¿Dónde vives?").is_visible()
+        and p_r8.evaluate(f"() => localStorage.getItem('{MUNICIPIO_KEY}')") is None,
+    )
+    p_r8.get_by_role("button", name="Teulada").click()
+    p_r8.wait_for_timeout(300)
+    check(
+        "R8 ISSUE-37: tras cambiar, vuelve a la pestaña Votar",
+        p_r8.get_by_role("tab", name="Votar").get_attribute("aria-selected") == "true",
+    )
+    ctx_r8.close()
+
+    # R9 — ISSUE-37: un municipio guardado que no existe en los datos no vale.
+    ctx_r9 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r9.add_init_script(f"try {{ localStorage.setItem('{MUNICIPIO_KEY}', 'Municipio inventado'); }} catch (e) {{}}")
+    p_r9 = ctx_r9.new_page()
+    p_r9.goto(BASE, wait_until="networkidle")
+    check(
+        "R9 ISSUE-37: municipio desconocido → vuelve a preguntar",
+        p_r9.get_by_role("heading", name="¿Dónde vives?").is_visible(),
+    )
+    ctx_r9.close()
+
+    # R10 — ISSUE-37: la pantalla cabe a 320 px sin scroll horizontal.
+    ctx_r10 = browser.new_context(viewport={"width": 320, "height": 640}, locale="es-ES")
+    p_r10 = ctx_r10.new_page()
+    p_r10.goto(BASE, wait_until="networkidle")
+    check(
+        "R10 ISSUE-37: «¿Dónde vives?» sin scroll horizontal a 320 px",
+        p_r10.evaluate("() => document.documentElement.scrollWidth <= 320"),
+    )
+    shot(p_r10, "20-reg-issue37-municipio-320")
+    ctx_r10.close()
 
     browser.close()
 
