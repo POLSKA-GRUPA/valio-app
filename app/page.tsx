@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { OBRAS } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { Deck } from "@/components/Deck";
+import { ElegirMunicipio } from "@/components/ElegirMunicipio";
 import { CabreoMap, Info, Results } from "@/components/Panels";
 
 type Pestaña = "votar" | "cabreo" | "resultados" | "info";
@@ -16,10 +16,10 @@ const PESTAÑAS: { id: Pestaña; icono: string; etiqueta: string }[] = [
 ];
 
 export default function Home() {
-  const { votos } = useStore();
+  const { votos, listo, municipio, elegirMunicipio, obras } = useStore();
   const [pestaña, setPestaña] = useState<Pestaña>("votar");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const votadas = OBRAS.filter((o) => votos[o.id]).length;
+  const votadas = obras.filter((o) => votos[o.id]).length;
 
   const onTablistKey = (e: React.KeyboardEvent) => {
     const actual = PESTAÑAS.findIndex((p) => p.id === pestaña);
@@ -34,11 +34,39 @@ export default function Home() {
     tabRefs.current[siguiente]?.focus();
   };
 
+  // Hasta leer el dispositivo no sabemos si ya eligió municipio: sin parpadeo de pantallas.
+  if (!listo) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <h1 className="brand display">¿VALIÓ?</h1>
+        </header>
+        <div className="panel" aria-busy="true" />
+      </main>
+    );
+  }
+
+  if (!municipio) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <h1 className="brand display">¿VALIÓ?</h1>
+        </header>
+        <ElegirMunicipio
+          onElegir={(nombre) => {
+            elegirMunicipio(nombre);
+            setPestaña("votar");
+          }}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <h1 className="brand display">¿VALIÓ?</h1>
-        <span className="brand-badge">PILOTO · {OBRAS[0].municipio} · {votadas}/{OBRAS.length}</span>
+        <span className="brand-badge">PILOTO · {municipio} · {votadas}/{obras.length}</span>
       </header>
 
       {PESTAÑAS.map((p) => (

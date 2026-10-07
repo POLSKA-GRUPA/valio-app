@@ -1,13 +1,13 @@
 "use client";
 
-import { CATEGORIA_LABEL, OBRAS, VOTO_LABEL, type Votos } from "@/lib/obras";
+import { CATEGORIA_LABEL, VOTO_LABEL, type Votos } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 
 export function Results() {
-  const { votos, reset, listo } = useStore();
+  const { votos, reset, listo, obras } = useStore();
   if (!listo) return <div className="panel" aria-busy="true" />;
 
-  const votadas = OBRAS.filter((o) => votos[o.id]);
+  const votadas = obras.filter((o) => votos[o.id]);
 
   if (votadas.length === 0) {
     return (
@@ -48,7 +48,8 @@ export function Results() {
 }
 
 export function CabreoMap({ votos }: { votos: Votos }) {
-  const conteo = OBRAS.map((obra) => {
+  const { obras } = useStore();
+  const conteo = obras.map((obra) => {
     const cabreo = (votos[obra.id] === "no_valio" ? 1 : 0) + (votos[obra.id] === "explica" ? 1 : 0);
     return { obra, cabreo };
   }).sort((a, b) => b.cabreo - a.cabreo);
@@ -78,15 +79,25 @@ export function CabreoMap({ votos }: { votos: Votos }) {
 }
 
 export function Info() {
+  const { municipio, obras, cambiarMunicipio } = useStore();
   return (
     <div className="panel">
       <h2 className="panel-title display">¿VALIÓ?</h2>
       <p className="panel-intro">Lo que costó. Lo que consiguió. Tú decides.</p>
       <div style={{ display: "grid", gap: 12 }}>
         <div className="info-note">
-          Piloto real de {OBRAS[0].municipio}: {OBRAS.length} obras con datos oficiales de la Plataforma de
+          Piloto real de {municipio}: {obras.length} obras con datos oficiales de la Plataforma de
           Contratación del Sector Público (PLACE), verificadas con el método P0 del repo valio-datos. El estado
           de ejecución no lo publica el ayuntamiento: se muestra como dato faltante.
+        </div>
+        <div className="info-block">
+          <h3>Tu municipio: {municipio}</h3>
+          <p>Solo ves las obras de tu municipio. Si te has equivocado o te mudas, puedes cambiarlo.</p>
+          <p>
+            <button type="button" className="btn" onClick={cambiarMunicipio}>
+              Cambiar de municipio
+            </button>
+          </p>
         </div>
         <div className="info-block">
           <h3>Cómo funciona</h3>
@@ -108,7 +119,10 @@ export function Info() {
         </div>
         <div className="info-block">
           <h3>Privacidad</h3>
-          <p>Tus votos y si ya viste el tutorial se guardan solo en tu dispositivo (localStorage). Sin cuentas, sin rastreo.</p>
+          <p>
+            Tus votos, tu municipio y si ya viste el tutorial se guardan solo en tu dispositivo (localStorage). Sin
+            cuentas, sin rastreo y sin pedir tu ubicación.
+          </p>
         </div>
         <div className="info-block">
           <h3>Proyecto</h3>
