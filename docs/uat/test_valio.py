@@ -526,6 +526,103 @@ with sync_playwright() as p:
     shot(p_r10, "20-reg-issue37-municipio-320")
     ctx_r10.close()
 
+    # R11 — ISSUE-37: chips de tipo. Teulada: 21 obras, 3 de deporte,
+    # 3 de parques, 1 de educación (lib/obras.ts).
+    ctx_r11 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r11 = ctx_r11.new_page()
+    p_r11.goto(BASE, wait_until="networkidle")
+    grupo = p_r11.get_by_role("group", name="Filtrar por tipo de obra")
+    check("R11 ISSUE-37: sin chips mientras el tutorial está abierto", grupo.count() == 0)
+    p_r11.get_by_role("button", name="Entendido, a votar").click()
+    p_r11.wait_for_timeout(300)
+
+    def quedan(pg, n):
+        return pg.locator(f'.deck-zone[aria-label="Quedan {n} tarjetas"]').count() == 1
+
+    def chip(pg, nombre):
+        return pg.get_by_role("group", name="Filtrar por tipo de obra").get_by_role("button", name=nombre)
+
+    check("R11 ISSUE-37: chips visibles tras el tutorial", grupo.is_visible())
+    check("R11 ISSUE-37: un chip por tipo con obras + «Todas»", grupo.get_by_role("button").count() == 8)
+    check("R11 ISSUE-37: «Todas» marcado al empezar", chip(p_r11, "Todas").get_attribute("aria-pressed") == "true")
+
+    chip(p_r11, "Deporte").click()
+    p_r11.wait_for_timeout(300)
+    check(
+        "R11 ISSUE-37: «Deporte» deja 3 tarjetas",
+        quedan(p_r11, 3) and chip(p_r11, "Deporte").get_attribute("aria-pressed") == "true"
+        and chip(p_r11, "Todas").get_attribute("aria-pressed") == "false",
+        f"aria-label={p_r11.locator('.deck-zone').first.get_attribute('aria-label')!r}",
+    )
+    anuncio_filtro = p_r11.locator('.filtro-tipos [role="status"]').inner_text()
+    check(
+        "R11 ISSUE-37: el lector anuncia cuántas quedan",
+        anuncio_filtro == "3 obras pendientes: Deporte",
+        f"texto={anuncio_filtro!r}",
+    )
+    check(
+        "R11 ISSUE-37: la carta de arriba es de deporte",
+        "deporte" in p_r11.locator(".stack-slot").first.inner_text().lower(),
+    )
+
+    # Las flechas sobre un chip no votan (el foco está en un botón).
+    chip(p_r11, "Deporte").focus()
+    p_r11.keyboard.press("ArrowRight")
+    p_r11.wait_for_timeout(400)
+    check("R11 ISSUE-37: flecha con foco en un chip no vota", quedan(p_r11, 3))
+
+    chip(p_r11, "Parques").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: varios tipos a la vez (deporte + parques = 6)", quedan(p_r11, 6))
+
+    # El filtro sobrevive a cambiar de pestaña.
+    p_r11.get_by_role("tab", name="Info").click()
+    p_r11.get_by_role("tab", name="Votar").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: el filtro se mantiene al volver a Votar", quedan(p_r11, 6))
+
+    chip(p_r11, "Todas").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: «Todas» devuelve las 21", quedan(p_r11, 21))
+
+    # Filtro que se queda vacío: no es «Ya has votado todo».
+    chip(p_r11, "Educación").click()
+    p_r11.wait_for_timeout(300)
+    p_r11.get_by_role("button", name="Valió", exact=True).click()
+    p_r11.wait_for_selector(".empty-deck", timeout=4000)
+    vacio = p_r11.locator(".empty-deck").inner_text()
+    check(
+        "R11 ISSUE-37: filtro agotado avisa de que quedan otros tipos",
+        "Nada pendiente de este tipo" in vacio and "Ya has votado todo" not in vacio,
+        f"texto={vacio[:80]!r}",
+    )
+    shot(p_r11, "21-reg-issue37-filtro-vacio")
+    p_r11.get_by_role("button", name="Ver todas").click()
+    p_r11.wait_for_timeout(300)
+    check("R11 ISSUE-37: «Ver todas» vuelve al mazo (20 sin votar)", quedan(p_r11, 20))
+    ctx_r11.close()
+
+    # R12 — ISSUE-37: chips a 320 px sin scroll horizontal de la página.
+    ctx_r12 = nuevo_contexto(browser, viewport={"width": 320, "height": 640}, locale="es-ES")
+    p_r12 = ctx_r12.new_page()
+    p_r12.goto(BASE, wait_until="networkidle")
+    p_r12.get_by_role("button", name="Entendido, a votar").click()
+    p_r12.wait_for_timeout(300)
+    check(
+        "R12 ISSUE-37: chips sin scroll horizontal de página a 320 px",
+        p_r12.evaluate("() => document.documentElement.scrollWidth <= 320"),
+    )
+    caja_btn = p_r12.locator(".action-btn.big").first.bounding_box()
+    check(
+        "R12 ISSUE-37: con chips, los botones de voto caben a 320×640",
+        bool(caja_btn) and caja_btn["y"] + caja_btn["height"] <= 640,
+    )
+    shot(p_r12, "22-reg-issue37-chips-320")
+    p_r12.set_viewport_size({"width": 375, "height": 812})
+    p_r12.wait_for_timeout(300)
+    shot(p_r12, "23-reg-issue37-chips-375")
+    ctx_r12.close()
+
     browser.close()
 
 parar_servidor()
