@@ -213,11 +213,10 @@ body {
 
 .tabbar {
   display: flex;
-  border: 3px solid var(--line);
-  border-bottom: 0;
-  border-radius: 18px 18px 0 0;
-  background: var(--ink);
-  overflow: hidden;
+  border-top: 1px solid var(--rule);
+  background: var(--paper-2);
+  margin: 0 -14px;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .tab {
@@ -225,33 +224,22 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 9px 4px 8px;
+  gap: 3px;
+  padding: 8px 4px 9px;
   border: 0;
+  border-top: 3px solid transparent;
   background: transparent;
-  color: #cfd9e4;
+  color: var(--ink-soft);
   font-family: var(--font-body), sans-serif;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.tab .tab-icon {
-  width: 34px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  font-size: 14px;
-}
-
 .tab[aria-selected="true"] {
-  color: #fffdf7;
-}
-
-.tab[aria-selected="true"] .tab-icon {
-  background: var(--yellow);
-  color: var(--ink);
+  color: var(--accent);
+  border-top-color: var(--accent);
+  font-weight: 700;
 }
 
 .panel {
@@ -951,9 +939,8 @@ body {
   }
 
   .tab .tab-icon {
-    width: 28px;
+    width: 18px;
     height: 18px;
-    font-size: 12px;
   }
 
   .card-body {

@@ -1,5 +1,6 @@
 "use client";
 
+import { Info as IconoInfo, Layers, MapPin, Vote, type LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { OBRAS } from "@/lib/obras";
 import { useStore } from "@/lib/store";
@@ -8,11 +9,12 @@ import { CabreoMap, Info, Results } from "@/components/Panels";
 
 type Pestaña = "votar" | "cabreo" | "resultados" | "info";
 
-const PESTAÑAS: { id: Pestaña; icono: string; etiqueta: string }[] = [
-  { id: "votar", icono: "🂠", etiqueta: "Votar" },
-  { id: "cabreo", icono: "📍", etiqueta: "Cabreo" },
-  { id: "resultados", icono: "🗳", etiqueta: "Resultados" },
-  { id: "info", icono: "ℹ", etiqueta: "Info" },
+// Iconos Lucide en lugar de emojis (ISSUE-39).
+const PESTAÑAS: { id: Pestaña; Icono: LucideIcon; etiqueta: string }[] = [
+  { id: "votar", Icono: Layers, etiqueta: "Votar" },
+  { id: "cabreo", Icono: MapPin, etiqueta: "Cabreo" },
+  { id: "resultados", Icono: Vote, etiqueta: "Resultados" },
+  { id: "info", Icono: IconoInfo, etiqueta: "Info" },
 ];
 
 export default function Home() {
@@ -72,9 +74,7 @@ export default function Home() {
             className="tab"
             onClick={() => setPestaña(p.id)}
           >
-            <span className="tab-icon" aria-hidden="true">
-              {p.icono}
-            </span>
+            <p.Icono className="tab-icon" size={22} aria-hidden="true" />
             {p.etiqueta}
           </button>
         ))}
