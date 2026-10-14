@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
-import { CATEGORIA_LABEL, OBRAS, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
+import { CATEGORIA_LABEL, ESTADO_LABEL, OBRAS, VOTO_LABEL, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { costeVecino, eurosCompactos } from "@/lib/formato";
@@ -12,17 +12,6 @@ import { ClaimDraft } from "./ClaimDraft";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
-
-// Color de tarjeta por categoría: codifica el tipo de gasto (dato), no decoración.
-const CATEGORIA_COLOR: Record<Categoria, string> = {
-  urbanismo: "#2F6BFF",
-  deporte: "#0E9F6E",
-  parques: "#059669",
-  educacion: "#E11D48",
-  seguridad: "#7C3AED",
-  patrimonio: "#B45309",
-  "medio ambiente": "#65A30D",
-};
 
 function destinoDe(voto: Voto): { x: number; y: number } {
   switch (voto) {
@@ -37,35 +26,35 @@ function destinoDe(voto: Voto): { x: number; y: number } {
   }
 }
 
-function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
-  const c = CATEGORIA_COLOR[obra.categoria];
+/**
+ * Contenido de la tarjeta (ISSUE-39): solo datos, sin arte decorativo.
+ * Arriba la obra; abajo la cifra protagonista (no hay ubicación en los datos,
+ * así que no hay mapa) y una única etiqueta: el nivel de evidencia.
+ */
+function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void }) {
   // Importe protagonista: el de adjudicación si consta; si no, el de licitación.
   const importe = obra.adjudicacion?.importeSinIva ?? obra.importeLicitacion;
-  const tipoImporte = obra.adjudicacion ? "Adjudicado · sin IVA" : "Licitación · sin IVA";
+  const tipoImporte = obra.adjudicacion ? "Importe adjudicado, sin IVA" : "Presupuesto de licitación, sin IVA";
   return (
-    <>
-      <svg viewBox="0 0 360 460" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <rect width="360" height="460" fill={c} />
-        <g opacity="0.35">
-          {Array.from({ length: 9 }).map((_, i) => (
-            <rect key={i} x={-80 + i * 56} y={-40} width="18" height="600" fill="#fffdf7" transform="rotate(18 180 230)" />
-          ))}
-        </g>
-        <circle cx="292" cy="76" r="64" fill="#102a43" opacity="0.9" />
-        <circle cx="292" cy="76" r="40" fill={c} />
-        <text x="18" y="72" fontFamily="var(--font-display)" fontSize="64" fill="#fffdf7" opacity="0.9">
-          {String(indice).padStart(2, "0")}
-        </text>
-      </svg>
-      <div className="art-top">
-        <span className="chip chip-cat">{CATEGORIA_LABEL[obra.categoria]}</span>
-        <span className="art-top-right">
-          <span className="chip estado-faltante">Ejecución: dato faltante</span>
-        </span>
+    <div className="card-body">
+      <p className="card-kicker">
+        {CATEGORIA_LABEL[obra.categoria]} · {obra.municipio} · {obra.anyo}
+      </p>
+      <h2 className="card-nombre display">{obra.nombre}</h2>
+      <div className="card-cifra">
+        <p className="card-cifra-tipo">{tipoImporte}</p>
+        <p className="card-cifra-valor num">{eurosCompactos(importe)}</p>
+        <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
       </div>
-      <p className="art-cost display">{eurosCompactos(importe)}</p>
-      <p className="art-tipo-importe">{tipoImporte} · ≈ {costeVecino(obra.costePorHabitante)}</p>
-    </>
+      <div className="card-pie">
+        <span className="tag tag-NO_VERIFICADO">{ESTADO_LABEL.NO_VERIFICADO}</span>
+        {onFicha && (
+          <button type="button" className="card-ficha-link" onClick={onFicha}>
+            Ver ficha y evidencia
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -125,21 +114,7 @@ function WorkCard({
         else if (info.offset.y > UMBRAL_Y) onDecide("no_puedo");
       }}
     >
-      <div className="card-art">
-        <ArteObra obra={obra} indice={indice} />
-      </div>
-      <div className="card-body">
-        <h2 className="card-nombre display">{obra.nombre}</h2>
-        <div className="card-meta">
-          <span>
-            {obra.municipio} · {obra.anyo}
-          </span>
-          <span>{obra.adjudicacion?.plazo ?? "plazo sin dato"}</span>
-        </div>
-        <button type="button" className="card-ficha-link" onClick={onFicha}>
-          Ver ficha y evidencia
-        </button>
-      </div>
+      <ContenidoTarjeta obra={obra} onFicha={onFicha} />
       <motion.span style={{ opacity: opValio }} aria-hidden="true">
         <Sello voto="valio" />
       </motion.span>
@@ -156,15 +131,10 @@ function WorkCard({
   );
 }
 
-function CardPreview({ obra, indice }: { obra: Obra; indice: number }) {
+function CardPreview({ obra }: { obra: Obra }) {
   return (
     <div className="card-frame" aria-hidden="true" style={{ pointerEvents: "none" }}>
-      <div className="card-art">
-        <ArteObra obra={obra} indice={indice} />
-      </div>
-      <div className="card-body">
-        <h2 className="card-nombre display">{obra.nombre}</h2>
-      </div>
+      <ContenidoTarjeta obra={obra} />
     </div>
   );
 }
@@ -321,7 +291,7 @@ export function Deck() {
                 onFicha={() => setFichaObra(obra)}
               />
             ) : (
-              <CardPreview obra={obra} indice={OBRAS.findIndex((o) => o.id === obra.id) + 1} />
+              <CardPreview obra={obra} />
             )}
           </div>
         ))}
