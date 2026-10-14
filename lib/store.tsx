@@ -2,9 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Voto, Votos } from "./obras";
+import { SENALES, type Senal, type Senales } from "./senal";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
+const SENALES_KEY = "valio.senales.v1";
 const VOTOS_VALIDOS: readonly string[] = ["valio", "no_valio", "explica", "no_puedo"];
 
 /** Valida y sanea lo leído de localStorage: nunca confiamos en el almacenamiento. */
@@ -15,6 +17,25 @@ function sanitizarVotos(raw: unknown): Votos {
     if (typeof voto === "string" && VOTOS_VALIDOS.includes(voto)) out[id] = voto as Voto;
   }
   return out;
+}
+
+/** Igual que los votos: solo pasan respuestas conocidas (ISSUE-43). */
+function sanitizarSenales(raw: unknown): Senales {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Senales = {};
+  for (const [id, senal] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof senal === "string" && (SENALES as readonly string[]).includes(senal)) out[id] = senal as Senal;
+  }
+  return out;
+}
+
+function leerSenales(): Senales {
+  try {
+    const raw = window.localStorage.getItem(SENALES_KEY);
+    return raw ? sanitizarSenales(JSON.parse(raw)) : {};
+  } catch {
+    return {};
+  }
 }
 
 function leerVotos(): Votos {
@@ -32,6 +53,9 @@ interface StoreValue {
   reset: () => void;
   tutorialVisto: boolean;
   marcarTutorialVisto: () => void;
+  /** Señal vecinal por obra: se puede cambiar, no borrar (ISSUE-43). */
+  senales: Senales;
+  responderSenal: (id: string, senal: Senal) => void;
   listo: boolean;
 }
 
@@ -39,11 +63,13 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [votos, setVotos] = useState<Votos>({});
+  const [senales, setSenales] = useState<Senales>({});
   const [tutorialVisto, setTutorialVisto] = useState(true);
   const [listo, setListo] = useState(false);
 
   useEffect(() => {
     setVotos(leerVotos());
+    setSenales(leerSenales());
     try {
       setTutorialVisto(window.localStorage.getItem(TUTORIAL_KEY) === "1");
     } catch {
@@ -70,6 +96,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const reset = useCallback(() => persist({}), [persist]);
 
+  const responderSenal = useCallback((id: string, senal: Senal) => {
+    setSenales((prev) => {
+      const next = { ...prev, [id]: senal };
+      try {
+        window.localStorage.setItem(SENALES_KEY, JSON.stringify(next));
+      } catch {
+        // sin persistencia, la respuesta vive solo en esta sesión
+      }
+      return next;
+    });
+  }, []);
+
   const marcarTutorialVisto = useCallback(() => {
     setTutorialVisto(true);
     try {
@@ -80,8 +118,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ votos, votar, reset, tutorialVisto, marcarTutorialVisto, listo }),
-    [votos, votar, reset, tutorialVisto, marcarTutorialVisto, listo],
+    () => ({ votos, votar, reset, tutorialVisto, marcarTutorialVisto, senales, responderSenal, listo }),
+    [votos, votar, reset, tutorialVisto, marcarTutorialVisto, senales, responderSenal, listo],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
