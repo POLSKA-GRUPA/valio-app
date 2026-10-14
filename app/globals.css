@@ -181,12 +181,10 @@ body {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  border: 3px solid var(--line);
+  border: 2px solid currentColor;
   background: var(--paper-2);
-  font-size: 24px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
   display: grid;
   place-items: center;
   transition: transform 0.06s ease;
@@ -202,10 +200,16 @@ body {
   font-size: 28px;
 }
 
-.action-valio { background: #e7f7ef; color: var(--green-dark); }
-.action-novalio { background: #ffecec; color: var(--coral-dark); }
-.action-explica { background: #fdf6d8; color: var(--yellow-dark); }
-.action-nose { background: #e9eef4; color: var(--ink); }
+/* Color = significado del voto (no decoración); icono y borde a ≥ 3:1. */
+.action-valio { color: var(--green-dark); }
+.action-novalio { color: var(--coral-dark); }
+.action-explica { color: var(--yellow-dark); }
+.action-nose { color: var(--ink-soft); }
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .tabbar {
   display: flex;

@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
+import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { CATEGORIA_LABEL, ESTADO_LABEL, OBRAS, VOTO_LABEL, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
@@ -305,16 +306,16 @@ export function Deck() {
 
       <div className="action-row">
         <button type="button" className="action-btn action-nose" aria-label="No puedo valorarlo" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
-          ↓
+          <ArrowDown size={24} strokeWidth={2.5} aria-hidden="true" />
         </button>
         <button type="button" className="action-btn action-novalio big" aria-label="No valió" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_valio")}>
-          ✕
+          <X size={30} strokeWidth={2.5} aria-hidden="true" />
         </button>
         <button type="button" className="action-btn action-valio big" aria-label="Valió" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "valio")}>
-          ✓
+          <Check size={30} strokeWidth={2.5} aria-hidden="true" />
         </button>
         <button type="button" className="action-btn action-explica" aria-label="Pido explicaciones" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "explica")}>
-          ↑
+          <ArrowUp size={24} strokeWidth={2.5} aria-hidden="true" />
         </button>
       </div>
 
