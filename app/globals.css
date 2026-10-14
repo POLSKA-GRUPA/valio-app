@@ -303,11 +303,21 @@ body {
   font-size: clamp(20px, 6vw, 26px);
   line-height: 1.22;
   overflow-wrap: anywhere;
-  /* el nombre completo está en la ficha y en el aria-label de la tarjeta */
+  /* El nombre completo está en la ficha y en el aria-label de la tarjeta.
+     flex-shrink 0: si la caja encogiera, cortaría el texto sin «…» y
+     parecería completo; así manda el line-clamp, que sí pone «…». */
+  flex-shrink: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 6;
   overflow: hidden;
+}
+
+/* Móviles bajos (p. ej. 320 × 568): menos líneas para que quepa la cifra. */
+@media (max-height: 700px) {
+  .card-nombre {
+    -webkit-line-clamp: 4;
+  }
 }
 
 .card-cifra {
