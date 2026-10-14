@@ -320,6 +320,8 @@ body {
   }
 }
 
+/* margin-top auto: el hueco entre titular y cifra queda reservado para la
+   foto de la obra u ortofoto PNOA cuando haya ubicación (DESIGN_DNA, #39). */
 .card-cifra {
   margin-top: auto;
   padding-top: 12px;
@@ -530,6 +532,7 @@ body {
   .resumen > div {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: baseline;
     gap: 16px;
   }
 
