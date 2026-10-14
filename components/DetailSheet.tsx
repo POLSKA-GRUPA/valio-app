@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
 import { costeVecino, euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
+import { SenalVecinal } from "./SenalVecinal";
 
 export function DetailSheet({
   obra,
@@ -134,6 +135,8 @@ export function DetailSheet({
               </div>
             </dl>
           </section>
+
+          <SenalVecinal obra={obra} />
 
           <section className="capa">
             <h3>Capa 3 · Evidencia</h3>
