@@ -8,7 +8,8 @@ import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-BASE = "http://localhost:3000"
+# VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
+BASE = os.environ.get("VALIO_BASE", "http://localhost:3000")
 # Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
 os.makedirs(SHOTS, exist_ok=True)
@@ -125,7 +126,9 @@ with sync_playwright() as p:
 
     # 2. Tarjeta superior visible (OBRA-01: asfaltado de calles)
     check("tarjeta OBRA-01 visible", "asfaltado" in (nombre_top(page) or "").lower())
-    check("chip ejecución faltante en tarjeta", page.locator(".chip.estado-faltante").first.is_visible())
+    # Contar antes de leer: si no hay etiqueta, FAIL limpio en vez de esperar 30 s y caerse.
+    etiqueta = page.locator(".card-frame .tag")
+    check("etiqueta de evidencia en tarjeta", etiqueta.count() > 0 and etiqueta.first.inner_text() == "No verificado")
     shot(page, "02-mazo-inicial")
 
     # 3. Botón NO VALIÓ -> match ciudadano
@@ -184,16 +187,16 @@ with sync_playwright() as p:
     esperar_nombre_distinto(page, antes)
     check("botón explica consume tarjeta", True)
 
-    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (siguiente obra)
+    # 7. Ficha con Enter (foco al cuerpo) y sus secciones (siguiente obra)
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("Enter")
     page.wait_for_timeout(500)
     hoja = page.locator(".sheet")
     check("ficha se abre con Enter", hoja.is_visible())
-    capas = page.locator(".sheet .capa").count()
-    check("ficha con capas resumen/datos/evidencia", capas >= 3, f"capas={capas}")
-    check("ficha con estado del dato", "estado del dato" in hoja.inner_text().lower())
-    shot(page, "06-ficha-3-capas")
+    secciones = page.locator(".sheet .ficha-seccion").count()
+    check("ficha con secciones obra/documentos/vecino/evidencia", secciones >= 4, f"secciones={secciones}")
+    check("ficha con nivel de evidencia", "nivel de evidencia" in hoja.inner_text().lower())
+    shot(page, "06-ficha")
 
     # 7b. Escape cierra la ficha
     page.keyboard.press("Escape")
@@ -429,6 +432,30 @@ with sync_playwright() as p:
     )
     shot(p_r7, "18-reg-issue30-anuncio-voto")
     ctx_r7.close()
+
+    # R10 — ISSUE-39: tarjeta y ficha guiadas por el contenido. Una sola
+    # etiqueta de estado (la evidencia), nada de arte decorativo, ningún
+    # emoji en la interfaz y la ficha sin rótulos «Capa N».
+    ctx_r10 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r10 = ctx_r10.new_page()
+    p_r10.goto(BASE, wait_until="networkidle")
+    p_r10.get_by_role("button", name="Entendido, a votar").click()
+    p_r10.wait_for_timeout(300)
+    carta = p_r10.locator(".stack-slot").first.locator(".card-frame")
+    etiquetas = carta.locator(".tag").count()
+    check("R10 ISSUE-39: una sola etiqueta en la tarjeta", etiquetas == 1, f"etiquetas={etiquetas}")
+    check("R10 ISSUE-39: tarjeta sin arte decorativo (svg)", carta.locator("svg").count() == 0)
+    check("R10 ISSUE-39: la tarjeta muestra el coste por vecino", "por vecino" in carta.inner_text())
+    emojis = p_r10.evaluate(
+        r"() => (document.body.innerText.match(/\p{Extended_Pictographic}/gu) || []).join(' ')"
+    )
+    check("R10 ISSUE-39: sin emojis en la interfaz", emojis == "", f"emojis={emojis!r}")
+    p_r10.get_by_role("button", name="Ver ficha y evidencia").first.click()
+    p_r10.wait_for_timeout(500)
+    texto_ficha = p_r10.locator(".sheet").inner_text().lower()
+    check("R10 ISSUE-39: ficha sin rótulos de capa", "capa " not in texto_ficha)
+    shot(p_r10, "20-reg-issue39-ficha")
+    ctx_r10.close()
 
     browser.close()
 
