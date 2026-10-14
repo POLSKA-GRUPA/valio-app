@@ -8,7 +8,8 @@ import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-BASE = "http://localhost:3000"
+# VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
+BASE = os.environ.get("VALIO_BASE", "http://localhost:3000")
 # Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
 os.makedirs(SHOTS, exist_ok=True)
@@ -429,6 +430,43 @@ with sync_playwright() as p:
     )
     shot(p_r7, "18-reg-issue30-anuncio-voto")
     ctx_r7.close()
+
+    # R9 — ISSUE-43: señal vecinal «¿Sabes si está terminada?». Es un dato
+    # alegado: bloque propio, separado de «Los documentos dicen». La respuesta
+    # persiste tras recargar y se anuncia al lector (región live ya montada).
+    ctx_r9 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r9 = ctx_r9.new_page()
+    p_r9.goto(BASE, wait_until="networkidle")
+    p_r9.get_by_role("button", name="Entendido, a votar").click()
+    p_r9.wait_for_timeout(300)
+    p_r9.get_by_role("button", name="Ver ficha y evidencia").first.click()
+    p_r9.wait_for_timeout(500)
+    bloque = p_r9.locator(".sheet .capa-vecinos")
+    check("R9 ISSUE-43: bloque vecinal en ficha con ejecución faltante", bloque.count() == 1)
+    texto_bloque = bloque.inner_text().lower() if bloque.count() == 1 else ""
+    check("R9 ISSUE-43: rótulo de dato no verificado", "lo dicen los vecinos · no verificado" in texto_bloque)
+    check("R9 ISSUE-43: separado de los documentos oficiales", "documentos dicen" not in texto_bloque)
+    region = bloque.get_by_role("status")
+    check(
+        "R9 ISSUE-43: región live montada y vacía antes de responder",
+        region.count() == 1 and region.inner_text() == "",
+    )
+    bloque.get_by_role("button", name="En obras").click()
+    p_r9.wait_for_timeout(300)
+    anuncio = region.inner_text() if region.count() == 1 else ""
+    check(
+        "R9 ISSUE-43: anuncia la respuesta al lector",
+        anuncio == "Respuesta guardada: En obras.",
+        f"texto={anuncio!r}",
+    )
+    p_r9.reload(wait_until="networkidle")
+    check("R9 ISSUE-43: responder no consume la tarjeta", "asfaltado" in (nombre_top(p_r9) or "").lower())
+    p_r9.get_by_role("button", name="Ver ficha y evidencia").first.click()
+    p_r9.wait_for_timeout(500)
+    pulsado = p_r9.locator(".sheet .capa-vecinos").get_by_role("button", name="En obras").get_attribute("aria-pressed")
+    check("R9 ISSUE-43: la respuesta persiste tras recargar", pulsado == "true", f"aria-pressed={pulsado!r}")
+    shot(p_r9, "19-reg-issue43-senal-vecinal")
+    ctx_r9.close()
 
     browser.close()
 
