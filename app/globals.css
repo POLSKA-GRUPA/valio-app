@@ -554,22 +554,24 @@ body {
   color: var(--ink-soft);
 }
 
-/* ISSUE-43: lo que dicen los vecinos (dato alegado). Borde discontinuo y
-   fondo tintado para que nunca se confunda con las capas oficiales. */
+/* ISSUE-43 con el diseño del #39: lo que dicen los vecinos es un dato
+   alegado. Filete discontinuo y fondo gris liso para que nunca se confunda
+   con las listas oficiales. Contrastes: tinta 17,9:1 y secundario 6,5:1
+   sobre el gris; blanco sobre el acento (opción elegida) 5,2:1. */
 .capa-vecinos {
-  border-style: dashed;
-  background: #fdf6d8;
-  box-shadow: none;
+  border: 2px dashed var(--ink-soft);
+  background: var(--paper);
+  padding: 16px;
 }
 
 .capa-vecinos h3 {
-  color: var(--yellow-dark);
+  margin-top: 0;
 }
 
 .senal-pregunta {
-  margin: 0 0 8px;
-  font-size: 15px;
-  font-weight: 800;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .senal-opciones {
@@ -581,36 +583,37 @@ body {
 .senal-btn {
   min-height: 44px;
   padding: 8px 10px;
-  border: 2px solid var(--line);
-  border-radius: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
   background: var(--paper-2);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .senal-btn[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--paper-2);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
 }
 
 .senal-btn:focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
 .senal-estado {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   min-height: 1.4em;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .senal-nota {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-soft);
 }
 
