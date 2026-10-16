@@ -1,6 +1,7 @@
 """Prueba E2E de ¿VALIÓ? — piloto real de Teulada: gestos, botones, teclado, ficha, borrador, persistencia."""
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -28,6 +29,23 @@ def check(name, cond, detail=""):
     print(f"[{status}] {name}" + (f" — {detail}" if detail and not cond else ""))
     if not cond:
         ISSUES.append({"id": name, "detail": detail})
+
+def _evidencia_por_nombre():
+    """{nombre de obra: etiqueta de evidencia} leído de lib/obras.ts (generado)."""
+    raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(raiz, "lib", "obras.ts"), encoding="utf-8") as f:
+        fuente = f.read()
+    marca = "export const OBRAS: Obra[] = "
+    obras, _ = json.JSONDecoder().raw_decode(fuente, fuente.index(marca) + len(marca))
+    bloque = fuente[fuente.index("ESTADO_LABEL"):]
+    bloque = bloque[: bloque.index("};")]
+    etiquetas = dict(re.findall(r'^\s+([A-Z_]+): "([^"]+)",?$', bloque, re.M))
+    return {o["nombre"]: etiquetas.get(o["estadoDato"]) for o in obras}
+
+EVIDENCIA = _evidencia_por_nombre()
+
+def etiqueta_evidencia(nombre):
+    return EVIDENCIA.get((nombre or "").strip())
 
 def nombre_top(page):
     return page.locator(".card-nombre").first.inner_text()
@@ -158,7 +176,15 @@ with sync_playwright() as p:
 
     # 2. Tarjeta superior visible (OBRA-01: asfaltado de calles)
     check("tarjeta OBRA-01 visible", "asfaltado" in (nombre_top(page) or "").lower())
-    check("chip ejecución faltante en tarjeta", page.locator(".chip.estado-faltante").first.is_visible())
+    # Contar antes de leer: si no hay etiqueta, FAIL limpio en vez de esperar 30 s y caerse.
+    etiqueta = page.locator(".card-frame .tag")
+    esperada = etiqueta_evidencia(nombre_top(page))
+    leida = etiqueta.first.inner_text() if etiqueta.count() > 0 else None
+    check(
+        "etiqueta de evidencia en tarjeta (la de la obra)",
+        esperada is not None and leida == esperada,
+        f"leída={leida!r} esperada={esperada!r}",
+    )
     shot(page, "02-mazo-inicial")
 
     # 3. Botón NO VALIÓ -> sin match (#38), solo el aviso de voto guardado
@@ -214,16 +240,16 @@ with sync_playwright() as p:
     page.wait_for_selector(".sheet-backdrop", state="detached")
     page.wait_for_timeout(150)
 
-    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (siguiente obra)
+    # 7. Ficha con Enter (foco al cuerpo) y sus secciones (siguiente obra)
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("Enter")
     page.wait_for_timeout(500)
     hoja = page.locator(".sheet")
     check("ficha se abre con Enter", hoja.is_visible())
-    capas = page.locator(".sheet .capa").count()
-    check("ficha con capas resumen/datos/evidencia", capas >= 3, f"capas={capas}")
-    check("ficha con estado del dato", "estado del dato" in hoja.inner_text().lower())
-    shot(page, "06-ficha-3-capas")
+    secciones = page.locator(".sheet .ficha-seccion").count()
+    check("ficha con secciones obra/documentos/vecino/evidencia", secciones >= 4, f"secciones={secciones}")
+    check("ficha con nivel de evidencia", "nivel de evidencia" in hoja.inner_text().lower())
+    shot(page, "06-ficha")
 
     # 7b. Escape cierra la ficha
     page.keyboard.press("Escape")
@@ -888,8 +914,37 @@ with sync_playwright() as p:
     bloque = p_r18.locator(".sheet .capa-vecinos")
     check("R18 ISSUE-43: bloque vecinal en ficha con ejecución faltante", bloque.count() == 1)
     texto_bloque = bloque.inner_text().lower() if bloque.count() == 1 else ""
-    check("R18 ISSUE-43: rótulo de dato no verificado", "lo dicen los vecinos · no verificado" in texto_bloque)
-    check("R18 ISSUE-43: separado de los documentos oficiales", "documentos dicen" not in texto_bloque)
+    check("R18 ISSUE-43: rótulo de dato alegado", "lo dicen los vecinos · dato alegado, no oficial" in texto_bloque)
+    check(
+        "R18 ISSUE-39: el rótulo vecinal no repite la etiqueta oficial «no verificado»",
+        "no verificado" not in texto_bloque,
+    )
+    check(
+        "R18 ISSUE-43: separado de los documentos oficiales",
+        "documentos dicen" not in texto_bloque and "dicen los documentos" not in texto_bloque,
+    )
+    # Va al final, después de la evidencia oficial, y con fondo propio.
+    al_final = p_r18.evaluate(
+        """() => {
+            const s = [...document.querySelectorAll('.sheet .ficha-seccion')];
+            const v = s.findIndex((e) => e.classList.contains('capa-vecinos'));
+            const ev = s.findIndex((e) => e.querySelector('#ficha-evidencia'));
+            return v === s.length - 1 && ev >= 0 && ev < v;
+        }"""
+    )
+    check("R18 ISSUE-39: bloque vecinal al final, tras la evidencia", al_final)
+    fondos = p_r18.evaluate(
+        """() => {
+            const b = document.querySelector('.sheet .capa-vecinos');
+            const h = document.querySelector('.sheet');
+            return b && h ? [getComputedStyle(b).backgroundColor, getComputedStyle(h).backgroundColor] : null;
+        }"""
+    )
+    check(
+        "R18 ISSUE-39: bloque vecinal con fondo propio distinto de la ficha",
+        bool(fondos) and fondos[0] != fondos[1] and fondos[0] not in ("rgba(0, 0, 0, 0)", "transparent"),
+        f"fondos={fondos!r}",
+    )
     region = bloque.get_by_role("status")
     check(
         "R18 ISSUE-43: región live montada y vacía antes de responder",
@@ -911,6 +966,51 @@ with sync_playwright() as p:
     check("R18 ISSUE-43: la respuesta persiste tras recargar", pulsado == "true", f"aria-pressed={pulsado!r}")
     shot(p_r18, "19-reg-issue43-senal-vecinal")
     ctx_r18.close()
+
+    # R19 — ISSUE-39: tarjeta y ficha guiadas por el contenido. Una sola
+    # etiqueta de estado (la evidencia, la de la obra en los datos), nada de
+    # arte decorativo, ningún emoji en la interfaz y la ficha sin «Capa N».
+    ctx_r19 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r19 = ctx_r19.new_page()
+    p_r19.goto(BASE, wait_until="networkidle")
+    p_r19.get_by_role("button", name="Entendido, a votar").click()
+    p_r19.wait_for_timeout(300)
+    carta = p_r19.locator(".stack-slot").first.locator(".card-frame")
+    nombre_r19 = nombre_top(p_r19)
+    esperada = etiqueta_evidencia(nombre_r19)
+    etiquetas = carta.locator(".tag")
+    check("R19 ISSUE-39: una sola etiqueta en la tarjeta", etiquetas.count() == 1, f"etiquetas={etiquetas.count()}")
+    leida = etiquetas.first.inner_text() if etiquetas.count() == 1 else None
+    check(
+        "R19 ISSUE-39: la etiqueta es el nivel de evidencia de la obra",
+        esperada is not None and leida == esperada,
+        f"leída={leida!r} esperada={esperada!r}",
+    )
+    # Los iconos decorativos (Lucide, aria-hidden) se permiten; el arte antiguo no.
+    svg_sin_ocultar = carta.locator("svg:not([aria-hidden='true'])").count()
+    check(
+        "R19 ISSUE-39: tarjeta sin arte decorativo",
+        svg_sin_ocultar == 0 and carta.locator(".card-art").count() == 0,
+        f"svg sin aria-hidden={svg_sin_ocultar}, .card-art={carta.locator('.card-art').count()}",
+    )
+    check("R19 ISSUE-39: la tarjeta muestra el coste por vecino", "por vecino" in carta.inner_text())
+    emojis = p_r19.evaluate(
+        r"() => (document.body.innerText.match(/\p{Extended_Pictographic}/gu) || []).join(' ')"
+    )
+    check("R19 ISSUE-39: sin emojis en la interfaz", emojis == "", f"emojis={emojis!r}")
+    p_r19.get_by_role("button", name="Ver ficha y evidencia").first.click()
+    p_r19.wait_for_timeout(500)
+    texto_ficha = p_r19.locator(".sheet").inner_text().lower()
+    check("R19 ISSUE-39: ficha sin rótulos de capa", "capa " not in texto_ficha)
+    tag_ficha = p_r19.locator(".sheet .tag")
+    leida_ficha = tag_ficha.first.inner_text() if tag_ficha.count() == 1 else None
+    check(
+        "R19 ISSUE-39: la ficha muestra el nivel de evidencia de la obra",
+        esperada is not None and leida_ficha == esperada,
+        f"leída={leida_ficha!r} esperada={esperada!r}",
+    )
+    shot(p_r19, "25-reg-issue39-ficha")
+    ctx_r19.close()
 
     browser.close()
 

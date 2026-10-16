@@ -1,8 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
+import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { CATEGORIA_LABEL, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
+import { CATEGORIA_LABEL, ESTADO_LABEL, VOTO_LABEL, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { costeVecino, eurosCompactos } from "@/lib/formato";
@@ -14,17 +15,6 @@ import { importeDe, ordenar } from "@/lib/orden";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
-
-// Color de tarjeta por categoría: codifica el tipo de gasto (dato), no decoración.
-const CATEGORIA_COLOR: Record<Categoria, string> = {
-  urbanismo: "#2F6BFF",
-  deporte: "#0E9F6E",
-  parques: "#059669",
-  educacion: "#E11D48",
-  seguridad: "#7C3AED",
-  patrimonio: "#B45309",
-  "medio ambiente": "#65A30D",
-};
 
 function destinoDe(voto: Voto): { x: number; y: number } {
   switch (voto) {
@@ -39,37 +29,37 @@ function destinoDe(voto: Voto): { x: number; y: number } {
   }
 }
 
-function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
-  const c = CATEGORIA_COLOR[obra.categoria];
-  // Importe protagonista: el de adjudicación si consta; si no, el de licitación.
+/**
+ * Contenido de la tarjeta (ISSUE-39): solo datos, sin arte decorativo.
+ * Arriba la obra; abajo la cifra protagonista (no hay ubicación en los datos,
+ * así que no hay mapa) y una única etiqueta: el nivel de evidencia de la obra.
+ */
+function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void }) {
+  // Importe protagonista: el mismo que usa el orden por importe (#37).
   const importe = importeDe(obra);
   const tipoImporte = obra.adjudicacion
-    ? "Adjudicado · sin IVA"
-    : `Licitación · ${obra.ivaLicitacionIncluido ? "con IVA" : "sin IVA"}`;
+    ? "Importe adjudicado, sin IVA"
+    : `Presupuesto de licitación, ${obra.ivaLicitacionIncluido ? "con IVA" : "sin IVA"}`;
   return (
-    <>
-      <svg viewBox="0 0 360 460" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <rect width="360" height="460" fill={c} />
-        <g opacity="0.35">
-          {Array.from({ length: 9 }).map((_, i) => (
-            <rect key={i} x={-80 + i * 56} y={-40} width="18" height="600" fill="#fffdf7" transform="rotate(18 180 230)" />
-          ))}
-        </g>
-        <circle cx="292" cy="76" r="64" fill="#102a43" opacity="0.9" />
-        <circle cx="292" cy="76" r="40" fill={c} />
-        <text x="18" y="72" fontFamily="var(--font-display)" fontSize="64" fill="#fffdf7" opacity="0.9">
-          {String(indice).padStart(2, "0")}
-        </text>
-      </svg>
-      <div className="art-top">
-        <span className="chip chip-cat">{CATEGORIA_LABEL[obra.categoria]}</span>
-        <span className="art-top-right">
-          <span className="chip estado-faltante">Ejecución: dato faltante</span>
-        </span>
+    <div className="card-body">
+      <p className="card-kicker">
+        {CATEGORIA_LABEL[obra.categoria]} · {obra.municipio} · {obra.anyo}
+      </p>
+      <h2 className="card-nombre display">{obra.nombre}</h2>
+      <div className="card-cifra">
+        <p className="card-cifra-tipo">{tipoImporte}</p>
+        <p className="card-cifra-valor num">{eurosCompactos(importe)}</p>
+        <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
       </div>
-      <p className="art-cost display">{eurosCompactos(importe)}</p>
-      <p className="art-tipo-importe">{tipoImporte} · ≈ {costeVecino(obra.costePorHabitante)}</p>
-    </>
+      <div className="card-pie">
+        <span className={`tag tag-${obra.estadoDato}`}>{ESTADO_LABEL[obra.estadoDato]}</span>
+        {onFicha && (
+          <button type="button" className="card-ficha-link" onClick={onFicha}>
+            Ver ficha y evidencia
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -129,21 +119,7 @@ function WorkCard({
         else if (info.offset.y > UMBRAL_Y) onDecide("no_puedo");
       }}
     >
-      <div className="card-art">
-        <ArteObra obra={obra} indice={indice} />
-      </div>
-      <div className="card-body">
-        <h2 className="card-nombre display">{obra.nombre}</h2>
-        <div className="card-meta">
-          <span>
-            {obra.municipio} · {obra.anyo}
-          </span>
-          <span>{obra.adjudicacion?.plazo ?? "plazo sin dato"}</span>
-        </div>
-        <button type="button" className="card-ficha-link" onClick={onFicha}>
-          Ver ficha y evidencia
-        </button>
-      </div>
+      <ContenidoTarjeta obra={obra} onFicha={onFicha} />
       <motion.span style={{ opacity: opValio }} aria-hidden="true">
         <Sello voto="valio" />
       </motion.span>
@@ -160,15 +136,10 @@ function WorkCard({
   );
 }
 
-function CardPreview({ obra, indice }: { obra: Obra; indice: number }) {
+function CardPreview({ obra }: { obra: Obra }) {
   return (
     <div className="card-frame" aria-hidden="true" style={{ pointerEvents: "none" }}>
-      <div className="card-art">
-        <ArteObra obra={obra} indice={indice} />
-      </div>
-      <div className="card-body">
-        <h2 className="card-nombre display">{obra.nombre}</h2>
-      </div>
+      <ContenidoTarjeta obra={obra} />
     </div>
   );
 }
@@ -391,7 +362,7 @@ export function Deck() {
                 onFicha={() => setFichaObra(obra)}
               />
             ) : (
-              <CardPreview obra={obra} indice={posicion(obra)} />
+              <CardPreview obra={obra} />
             )}
           </div>
         ))}
@@ -413,16 +384,16 @@ export function Deck() {
       {!vacio && (
       <div className="action-row">
         <button type="button" className="action-btn action-nose" aria-label="No puedo valorarlo" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
-          ↓
+          <ArrowDown size={24} strokeWidth={2.5} aria-hidden="true" />
         </button>
         <button type="button" className="action-btn action-novalio big" aria-label="No valió" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_valio")}>
-          ✕
+          <X size={30} strokeWidth={2.5} aria-hidden="true" />
         </button>
         <button type="button" className="action-btn action-valio big" aria-label="Valió" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "valio")}>
-          ✓
+          <Check size={30} strokeWidth={2.5} aria-hidden="true" />
         </button>
         <button type="button" className="action-btn action-explica" aria-label="Pido explicaciones" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "explica")}>
-          ↑
+          <ArrowUp size={24} strokeWidth={2.5} aria-hidden="true" />
         </button>
       </div>
       )}

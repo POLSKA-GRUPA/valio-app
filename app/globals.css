@@ -1,18 +1,27 @@
 :root {
-  --paper: #f4f0e6;
-  --paper-2: #fffdf7;
-  --ink: #102a43;
-  --ink-soft: #526677;
+  /* ISSUE-39: base sobria. Fondo liso, texto casi negro, un solo acento
+     (azul institucional) y filetes finos. Contrastes AA sobre blanco:
+     --ink 19,6:1 · --ink-soft 7,1:1 · --accent 5,2:1. */
+  --paper: #f4f5f6;
+  --paper-2: #ffffff;
+  --ink: #0b0c0c;
+  --ink-soft: #505a5f;
   --line: #102a43;
+  --rule: #b1b4b6;
+  --accent: #1d70b8;
+  --accent-dark: #003078;
   --green: #0e9f6e;
   --green-dark: #075b2a;
   --coral: #ff5a5f;
   --coral-dark: #8b1720;
   --yellow: #f8d648;
   --yellow-dark: #8a6d00;
-  --blue: #2f6bff;
-  --shadow: 6px 6px 0 rgba(16, 42, 67, 0.9);
-  --shadow-soft: 4px 4px 0 rgba(16, 42, 67, 0.25);
+  --blue: var(--accent);
+  /* Sin sombras duras desplazadas: solo una elevación suave para lo que flota
+     (la tarjeta que se arrastra). */
+  --shadow: none;
+  --shadow-soft: none;
+  --elev: 0 1px 2px rgba(11, 12, 12, 0.08), 0 8px 24px rgba(11, 12, 12, 0.08);
 }
 
 * {
@@ -30,19 +39,19 @@ body {
 body {
   font-family: var(--font-body), Georgia, serif;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 12% 8%, rgba(47, 107, 255, 0.10), transparent 34%),
-    radial-gradient(circle at 88% 92%, rgba(14, 159, 110, 0.10), transparent 36%),
-    linear-gradient(rgba(16, 42, 67, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 42, 67, 0.05) 1px, transparent 1px),
-    #e7e2d4;
-  background-size: auto, auto, 26px 26px, 26px 26px, auto;
+  background: var(--paper);
   overscroll-behavior: none;
 }
 
 .display {
-  font-family: var(--font-display), var(--font-body), sans-serif;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Cifras de datos: misma anchura por dígito para que los importes alineen. */
+.num {
+  font-variant-numeric: tabular-nums;
 }
 
 .app-shell {
@@ -57,8 +66,8 @@ body {
 
 @media (min-width: 768px) {
   .app-shell {
-    border-left: 3px solid var(--line);
-    border-right: 3px solid var(--line);
+    border-left: 1px solid var(--rule);
+    border-right: 1px solid var(--rule);
     background: var(--paper);
   }
 }
@@ -79,14 +88,10 @@ body {
 }
 
 .brand-badge {
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  padding: 4px 8px;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  background: var(--yellow);
-  box-shadow: 3px 3px 0 var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 
 .deck-zone {
@@ -129,21 +134,19 @@ body {
 
 .btn {
   font-family: var(--font-body), sans-serif;
-  font-weight: 900;
-  border: 3px solid var(--line);
-  border-radius: 14px;
+  font-weight: 700;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
   background: var(--paper-2);
   color: var(--ink);
   padding: 12px 18px;
-  font-size: 15px;
+  font-size: 16px;
   cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: transform 0.06s ease, box-shadow 0.06s ease;
+  transition: transform 0.06s ease;
 }
 
 .btn:active {
-  transform: translate(3px, 3px);
-  box-shadow: 2px 2px 0 rgba(16, 42, 67, 0.9);
+  transform: translateY(1px);
 }
 
 .btn:focus-visible,
@@ -151,13 +154,19 @@ body {
 .tab:focus-visible,
 .sheet-close:focus-visible,
 .linklike:focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
 .btn-primary {
-  background: var(--ink);
-  color: var(--paper-2);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
 }
 
 .action-row {
@@ -172,12 +181,10 @@ body {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  border: 3px solid var(--line);
+  border: 2px solid currentColor;
   background: var(--paper-2);
-  font-size: 24px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
   display: grid;
   place-items: center;
   transition: transform 0.06s ease;
@@ -193,18 +200,23 @@ body {
   font-size: 28px;
 }
 
-.action-valio { background: #e7f7ef; color: var(--green-dark); }
-.action-novalio { background: #ffecec; color: var(--coral-dark); }
-.action-explica { background: #fdf6d8; color: var(--yellow-dark); }
-.action-nose { background: #e9eef4; color: var(--ink); }
+/* Color = significado del voto (no decoración); icono y borde a ≥ 3:1. */
+.action-valio { color: var(--green-dark); }
+.action-novalio { color: var(--coral-dark); }
+.action-explica { color: var(--yellow-dark); }
+.action-nose { color: var(--ink-soft); }
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .tabbar {
   display: flex;
-  border: 3px solid var(--line);
-  border-bottom: 0;
-  border-radius: 18px 18px 0 0;
-  background: var(--ink);
-  overflow: hidden;
+  border-top: 1px solid var(--rule);
+  background: var(--paper-2);
+  margin: 0 -14px;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .tab {
@@ -212,33 +224,22 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 9px 4px 8px;
+  gap: 3px;
+  padding: 8px 4px 9px;
   border: 0;
+  border-top: 3px solid transparent;
   background: transparent;
-  color: #cfd9e4;
+  color: var(--ink-soft);
   font-family: var(--font-body), sans-serif;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.tab .tab-icon {
-  width: 34px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  font-size: 14px;
-}
-
 .tab[aria-selected="true"] {
-  color: #fffdf7;
-}
-
-.tab[aria-selected="true"] .tab-icon {
-  background: var(--yellow);
-  color: var(--ink);
+  color: var(--accent);
+  border-top-color: var(--accent);
+  font-weight: 700;
 }
 
 .panel {
@@ -266,10 +267,10 @@ body {
 .card-frame {
   position: absolute;
   inset: 0;
-  border: 3px solid var(--line);
-  border-radius: 24px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
   background: var(--paper-2);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -280,85 +281,100 @@ body {
 
 .card-frame:active { cursor: grabbing; }
 
-.card-art {
-  position: relative;
+/* ISSUE-39: la tarjeta es solo datos. Arriba la obra; abajo la cifra. */
+.card-body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  border-bottom: 3px solid var(--line);
-}
-
-.card-art svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.art-cost {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 8px;
-  z-index: 2;
-  margin: 0;
-  color: var(--paper-2);
-  font-size: clamp(26px, 8vw, 40px);
-  line-height: 1.02;
-  text-shadow: 3px 3px 0 rgba(16, 42, 67, 0.55);
-  word-break: break-word;
-}
-
-.art-top {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  z-index: 2;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.art-top-right {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  gap: 10px;
+  padding: 20px 20px 16px;
 }
 
-.chip {
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: var(--paper-2);
-}
-
-.chip-demo { background: var(--yellow); }
-.chip-cat { background: var(--ink); color: var(--paper-2); }
-
-.estado-NO_VERIFICADO { background: #fdf6d8; }
-.estado-EVIDENCIADO { background: #e7f7ef; }
-.estado-CONTRADICHO { background: #ffecec; }
-.estado-DESACTUALIZADO { background: #e9eef4; }
-
-.card-body {
-  padding: 12px 14px 12px;
-  display: grid;
-  gap: 6px;
-  background: var(--paper-2);
+.card-kicker {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .card-nombre {
   margin: 0;
-  font-size: 19px;
-  line-height: 1.15;
+  font-size: clamp(20px, 6vw, 26px);
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  /* El nombre completo está en la ficha y en el aria-label de la tarjeta.
+     flex-shrink 0: si la caja encogiera, cortaría el texto sin «…» y
+     parecería completo; así manda el line-clamp, que sí pone «…». */
+  flex-shrink: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
 }
+
+/* Móviles bajos (p. ej. 320 × 568): menos líneas para que quepa la cifra. */
+@media (max-height: 700px) {
+  .card-nombre {
+    -webkit-line-clamp: 4;
+  }
+}
+
+/* margin-top auto: el hueco entre titular y cifra queda reservado para la
+   foto de la obra u ortofoto PNOA cuando haya ubicación (DESIGN_DNA, #39). */
+.card-cifra {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+
+.card-cifra p {
+  margin: 0;
+}
+
+.card-cifra-tipo {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.card-cifra-valor {
+  margin-top: 2px;
+  font-size: clamp(34px, 11vw, 46px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.card-cifra-vecino {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.card-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+/* Etiqueta de estado (patrón tag de GOV.UK): la única de la tarjeta.
+   Contraste del texto sobre su fondo: 7,8:1. */
+.tag {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 8px;
+}
+
+.tag-NO_VERIFICADO { background: #fff7bf; color: #594d00; }
+/* Resto de niveles (el generador ya los admite): colores tag de GOV.UK.
+   Contrastes: 6,2:1 · 5,7:1 · 8,6:1. */
+.tag-EVIDENCIADO { background: #cce2d8; color: #005a30; }
+.tag-CONTRADICHO { background: #f4cdc6; color: #942514; }
+.tag-DESACTUALIZADO { background: #e5e6e7; color: #383f43; }
 
 .card-meta {
   display: flex;
@@ -370,15 +386,21 @@ body {
 }
 
 .card-ficha-link {
-  justify-self: start;
   border: 0;
   background: none;
-  padding: 2px 0;
+  padding: 8px 0;
   font: inherit;
-  font-weight: 900;
-  color: var(--blue);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
   text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
+}
+
+.card-ficha-link:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .stamp {
@@ -403,7 +425,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: rgba(16, 42, 67, 0.55);
+  background: rgba(11, 12, 12, 0.5);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -419,101 +441,146 @@ body {
   width: 100%;
   max-width: 480px;
   max-height: 86dvh;
-  background: var(--paper);
-  border: 3px solid var(--line);
-  border-bottom: 0;
-  border-radius: 22px 22px 0 0;
-  box-shadow: 0 -8px 0 rgba(16, 42, 67, 0.35);
+  background: var(--paper-2);
+  border-radius: 12px 12px 0 0;
   display: flex;
   flex-direction: column;
 }
 
 .sheet-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-  padding: 14px 16px 10px;
-  border-bottom: 3px solid var(--line);
+  gap: 12px;
+  padding: 18px 16px 14px 20px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sheet-titulo {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheet-titulo .card-kicker {
+  font-size: 14px;
 }
 
 .sheet-head h2 {
   margin: 0;
-  font-size: 21px;
-  line-height: 1.15;
+  font-size: 22px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .sheet-close {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--line);
-  border-radius: 50%;
-  background: var(--paper-2);
-  font-size: 18px;
-  font-weight: 900;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 20px;
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
+}
+
+.sheet-close:hover {
+  background: var(--paper);
 }
 
 .sheet-body {
   overflow-y: auto;
-  padding: 14px 16px 20px;
+  padding: 4px 20px 24px;
   display: grid;
-  gap: 12px;
+  gap: 24px;
 }
 
-.capa {
-  border: 3px solid var(--line);
-  border-radius: 16px;
-  background: var(--paper-2);
-  padding: 12px 14px;
-  box-shadow: var(--shadow-soft);
+.sheet-body a {
+  color: var(--accent);
+  text-underline-offset: 3px;
 }
 
-.capa h3 {
-  margin: 0 0 6px;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.capa dl {
-  margin: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.capa dt {
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.capa dd {
-  margin: 2px 0 0;
-  font-size: 14.5px;
+/* ISSUE-39: ficha como lista resumen (patrón summary list de GOV.UK). */
+.ficha-seccion h3 {
+  margin: 16px 0 4px;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 19px;
   font-weight: 600;
 }
 
-/* ISSUE-43: lo que dicen los vecinos (dato alegado). Borde discontinuo y
-   fondo tintado para que nunca se confunda con las capas oficiales. */
+.resumen {
+  margin: 0;
+}
+
+.resumen > div {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.resumen dt {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.resumen dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Con sitio, clave y valor en la misma fila. */
+@media (min-width: 440px) {
+  .resumen > div {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  .resumen dd {
+    margin: 0;
+  }
+}
+
+.ficha-cifra {
+  margin: 4px 0 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.ficha-nota {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+/* ISSUE-43 con el diseño del #39: lo que dicen los vecinos es un dato
+   alegado, no oficial. Va al final de la ficha, tras la evidencia, con
+   filete discontinuo y un fondo arena propio (ni el blanco de la ficha ni
+   el amarillo de la etiqueta «No verificado») para que nunca se confunda
+   con las listas oficiales. Contrastes sobre el arena: tinta 16,8:1,
+   secundario 6,1:1; blanco sobre el acento (opción elegida) 5,2:1. */
 .capa-vecinos {
-  border-style: dashed;
-  background: #fdf6d8;
-  box-shadow: none;
+  --vecinos-fondo: #f3ede0;
+  border: 2px dashed var(--ink-soft);
+  border-radius: 6px;
+  background: var(--vecinos-fondo);
+  padding: 16px;
 }
 
 .capa-vecinos h3 {
-  color: var(--yellow-dark);
+  margin-top: 0;
 }
 
 .senal-pregunta {
-  margin: 0 0 8px;
-  font-size: 15px;
-  font-weight: 800;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .senal-opciones {
@@ -525,36 +592,37 @@ body {
 .senal-btn {
   min-height: 44px;
   padding: 8px 10px;
-  border: 2px solid var(--line);
-  border-radius: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
   background: var(--paper-2);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .senal-btn[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--paper-2);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
 }
 
 .senal-btn:focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
 .senal-estado {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   min-height: 1.4em;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .senal-nota {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-soft);
 }
 
@@ -1000,22 +1068,26 @@ body {
   }
 
   .tab .tab-icon {
-    width: 28px;
+    width: 18px;
     height: 18px;
-    font-size: 12px;
-  }
-
-  .art-cost {
-    font-size: clamp(20px, 6dvh, 28px);
   }
 
   .card-body {
-    padding: 8px 12px;
+    padding: 10px 14px;
     gap: 4px;
   }
 
   .card-nombre {
-    font-size: 16px;
+    font-size: 17px;
+    -webkit-line-clamp: 3;
+  }
+
+  .card-cifra {
+    padding-top: 6px;
+  }
+
+  .card-cifra-valor {
+    font-size: clamp(22px, 7dvh, 30px);
   }
 
   .stamp {
