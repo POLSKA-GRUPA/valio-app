@@ -95,7 +95,7 @@ export const OBRAS: Obra[] = [
     "ivaLicitacionIncluido": false,
     "adjudicacion": {
       "adjudicataria": "JOSE JAVIER BISQUERT IVARS",
-      "cif": "52783313S",
+      "cif": null,
       "fechaAcuerdo": "12/05/2026",
       "fechaPublicacion": "12-05-2026",
       "importeSinIva": 4300,
@@ -151,7 +151,7 @@ export const OBRAS: Obra[] = [
     "ivaLicitacionIncluido": false,
     "adjudicacion": {
       "adjudicataria": "JOSE JAVIER BISQUERT IVARS",
-      "cif": "52783313S",
+      "cif": null,
       "fechaAcuerdo": "21/11/2024",
       "fechaPublicacion": "22-11-2024",
       "importeSinIva": 27995,
