@@ -498,6 +498,66 @@ body {
   font-weight: 600;
 }
 
+/* ISSUE-43: lo que dicen los vecinos (dato alegado). Borde discontinuo y
+   fondo tintado para que nunca se confunda con las capas oficiales. */
+.capa-vecinos {
+  border-style: dashed;
+  background: #fdf6d8;
+  box-shadow: none;
+}
+
+.capa-vecinos h3 {
+  color: var(--yellow-dark);
+}
+
+.senal-pregunta {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.senal-opciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.senal-btn {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.senal-btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper-2);
+}
+
+.senal-btn:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.senal-estado {
+  margin: 8px 0 0;
+  min-height: 1.4em;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.senal-nota {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
 .senales {
   margin: 0;
   padding: 0;

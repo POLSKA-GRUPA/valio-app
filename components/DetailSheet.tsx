@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
 import { costeVecino, euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
+import { SenalVecinal } from "./SenalVecinal";
 
 export function DetailSheet({
   obra,
@@ -156,6 +157,10 @@ export function DetailSheet({
               Cada dato es rastreable hasta la ficha {obra.id} del repositorio valio-datos (método P0).
             </p>
           </section>
+
+          {/* Dato alegado por vecinos: después de la evidencia oficial, para que
+              la fuente (PLACE) nunca parezca respaldar lo que dicen los vecinos. */}
+          <SenalVecinal obra={obra} />
 
           <button type="button" className="btn btn-primary" onClick={onClaim}>
             Pedir explicaciones

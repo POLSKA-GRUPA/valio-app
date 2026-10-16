@@ -2,12 +2,14 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Categoria, Obra, Voto, Votos } from "./obras";
+import { SENALES, type Senal, type Senales } from "./senal";
 import { existeMunicipio, obrasDe } from "./municipios";
 import type { Orden } from "./orden";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
 const MUNICIPIO_KEY = "valio.municipio.v1";
+const SENALES_KEY = "valio.senales.v1";
 const VOTOS_VALIDOS: readonly string[] = ["valio", "no_valio", "explica", "no_puedo"];
 
 /** Valida y sanea lo leído de localStorage: nunca confiamos en el almacenamiento. */
@@ -18,6 +20,25 @@ function sanitizarVotos(raw: unknown): Votos {
     if (typeof voto === "string" && VOTOS_VALIDOS.includes(voto)) out[id] = voto as Voto;
   }
   return out;
+}
+
+/** Igual que los votos: solo pasan respuestas conocidas (ISSUE-43). */
+function sanitizarSenales(raw: unknown): Senales {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Senales = {};
+  for (const [id, senal] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof senal === "string" && (SENALES as readonly string[]).includes(senal)) out[id] = senal as Senal;
+  }
+  return out;
+}
+
+function leerSenales(): Senales {
+  try {
+    const raw = window.localStorage.getItem(SENALES_KEY);
+    return raw ? sanitizarSenales(JSON.parse(raw)) : {};
+  } catch {
+    return {};
+  }
 }
 
 function leerVotos(): Votos {
@@ -45,6 +66,9 @@ interface StoreValue {
   reset: () => void;
   tutorialVisto: boolean;
   marcarTutorialVisto: () => void;
+  /** Señal vecinal por obra: se puede cambiar, no borrar (ISSUE-43). */
+  senales: Senales;
+  responderSenal: (id: string, senal: Senal) => void;
   listo: boolean;
   municipio: string | null;
   elegirMunicipio: (nombre: string) => void;
@@ -64,6 +88,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [votos, setVotos] = useState<Votos>({});
+  const [senales, setSenales] = useState<Senales>({});
   const [tutorialVisto, setTutorialVisto] = useState(true);
   const [listo, setListo] = useState(false);
   const [municipio, setMunicipio] = useState<string | null>(null);
@@ -72,6 +97,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setVotos(leerVotos());
+    setSenales(leerSenales());
     setMunicipio(leerMunicipio());
     try {
       setTutorialVisto(window.localStorage.getItem(TUTORIAL_KEY) === "1");
@@ -96,6 +122,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     [persist, votos],
   );
+
+  const responderSenal = useCallback((id: string, senal: Senal) => {
+    setSenales((prev) => {
+      const next = { ...prev, [id]: senal };
+      try {
+        window.localStorage.setItem(SENALES_KEY, JSON.stringify(next));
+      } catch {
+        // sin persistencia, la respuesta vive solo en esta sesión
+      }
+      return next;
+    });
+  }, []);
 
   const marcarTutorialVisto = useCallback(() => {
     setTutorialVisto(true);
@@ -159,6 +197,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       verTodosLosTipos,
       orden,
       setOrden,
+      senales,
+      responderSenal,
     }),
     [
       votos,
@@ -175,6 +215,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alternarTipo,
       verTodosLosTipos,
       orden,
+      senales,
+      responderSenal,
     ],
   );
 
