@@ -136,14 +136,12 @@ export function DetailSheet({
             </dl>
           </section>
 
-          <SenalVecinal obra={obra} />
-
           <section className="capa">
             <h3>Capa 3 · Evidencia</h3>
             <dl>
               <div>
                 <dt>Estado del dato</dt>
-                <dd>{ESTADO_LABEL.NO_VERIFICADO} · {obra.id}</dd>
+                <dd>{ESTADO_LABEL[obra.estadoDato]} · {obra.id}</dd>
               </div>
               <div>
                 <dt>Fuente</dt>
@@ -159,6 +157,10 @@ export function DetailSheet({
               Cada dato es rastreable hasta la ficha {obra.id} del repositorio valio-datos (método P0).
             </p>
           </section>
+
+          {/* Dato alegado por vecinos: después de la evidencia oficial, para que
+              la fuente (PLACE) nunca parezca respaldar lo que dicen los vecinos. */}
+          <SenalVecinal obra={obra} />
 
           <button type="button" className="btn btn-primary" onClick={onClaim}>
             Pedir explicaciones
