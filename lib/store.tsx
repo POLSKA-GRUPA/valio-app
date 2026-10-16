@@ -97,8 +97,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persist, votos],
   );
 
-  const reset = useCallback(() => persist({}), [persist]);
-
   const marcarTutorialVisto = useCallback(() => {
     setTutorialVisto(true);
     try {
@@ -130,6 +128,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const obras = useMemo(() => obrasDe(municipio), [municipio]);
+
+  // «Volver a empezar» borra solo los votos del municipio actual: los de
+  // otros municipios se conservan, igual que al cambiar de municipio.
+  const reset = useCallback(() => {
+    const deAqui = new Set(obras.map((o) => o.id));
+    persist(Object.fromEntries(Object.entries(votos).filter(([id]) => !deAqui.has(id))));
+  }, [persist, votos, obras]);
 
   const alternarTipo = useCallback((tipo: Categoria) => {
     setTipos((actual) => (actual.includes(tipo) ? actual.filter((t) => t !== tipo) : [...actual, tipo]));
