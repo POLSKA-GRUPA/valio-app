@@ -465,6 +465,32 @@ with sync_playwright() as p:
     shot(p_r9, "20-reg-issue38-gesto-arriba")
     ctx_r9.close()
 
+    # R9b — ISSUE-38: si el ÚLTIMO voto del mazo es «Pido explicaciones», el
+    # borrador sigue abierto al vaciarse el mazo (antes se cerraba solo).
+    ctx_r9b = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r9b = ctx_r9b.new_page()
+    p_r9b.goto(BASE, wait_until="networkidle")
+    p_r9b.get_by_role("button", name="Entendido, a votar").click()
+    p_r9b.wait_for_timeout(300)
+    for _ in range(50):
+        if p_r9b.locator(".stack-slot").count() <= 1:
+            break
+        p_r9b.get_by_role("button", name="Valió", exact=True).click()
+        p_r9b.wait_for_function("() => !document.querySelector('.action-btn[disabled]')", timeout=4000)
+    ultima = nombre_top(p_r9b)
+    p_r9b.get_by_role("button", name="Pido explicaciones").click()
+    p_r9b.wait_for_selector(".empty-deck", timeout=6000)
+    p_r9b.wait_for_timeout(600)
+    check(
+        "R9b ISSUE-38: tras ↑ en la última carta el borrador sigue abierto",
+        p_r9b.locator("#claim-texto").is_visible(),
+    )
+    check(
+        "R9b ISSUE-38: el borrador es de la última obra",
+        p_r9b.locator("#claim-texto").count() == 1 and ultima in p_r9b.locator("#claim-texto").input_value(),
+    )
+    ctx_r9b.close()
+
     browser.close()
 
 parar_servidor()
