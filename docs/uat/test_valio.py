@@ -1,4 +1,4 @@
-"""Prueba E2E de la demo ¿VALIÓ? — gestos, botones, teclado, ficha, borrador, persistencia."""
+"""Prueba E2E de ¿VALIÓ? — piloto real de Teulada: gestos, botones, teclado, ficha, borrador, persistencia."""
 import json
 import os
 import subprocess
@@ -44,7 +44,7 @@ def esperar_sin_vuelo(page, ms=4000):
         timeout=ms,
     )
 
-def votar_valio_hasta_vaciar(page, maximo=8):
+def votar_valio_hasta_vaciar(page, maximo=60):
     """Pulsa ✓ hasta vaciar el mazo, esperando a que acabe cada vuelo
     (mientras la carta vuela, los botones están desactivados)."""
     for _ in range(maximo):
@@ -127,14 +127,14 @@ with sync_playwright() as p:
     # 1b. Las flechas NO votan durante el tutorial
     page.keyboard.press("ArrowRight")
     page.wait_for_timeout(600)
-    check("teclado bloqueado durante tutorial", "plaza mayor" in (nombre_top(page) or "").lower())
+    check("teclado bloqueado durante tutorial", "asfaltado" in (nombre_top(page) or "").lower())
     page.get_by_role("button", name="Entendido, a votar").click()
     page.wait_for_timeout(400)
     check("tutorial se cierra", not tut.is_visible())
 
-    # 2. Tarjeta superior visible
-    check("tarjeta DEMO-01 visible", "plaza mayor" in (nombre_top(page) or "").lower())
-    check("badge DEMO en tarjeta", page.locator(".chip-demo").first.is_visible())
+    # 2. Tarjeta superior visible (OBRA-01: asfaltado de calles)
+    check("tarjeta OBRA-01 visible", "asfaltado" in (nombre_top(page) or "").lower())
+    check("chip ejecución faltante en tarjeta", page.locator(".chip.estado-faltante").first.is_visible())
     shot(page, "02-mazo-inicial")
 
     # 3. Botón NO VALIÓ -> sin match (#38), solo el aviso de voto guardado
@@ -164,7 +164,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(150)
     page.evaluate("document.activeElement && document.activeElement.blur()")
 
-    # 5. Gesto de arrastre a la izquierda (DEMO-02)
+    # 5. Gesto de arrastre a la izquierda (siguiente obra)
     antes = nombre_top(page)
     card = page.locator(".stack-slot").first.locator(".card-frame")
     box = card.bounding_box()
@@ -180,7 +180,7 @@ with sync_playwright() as p:
     esperar_nombre_distinto(page, antes)
     check("arrastre a la izquierda vota", True)
 
-    # 6. Botón ↑ pido explicaciones (DEMO-03)
+    # 6. Botón ↑ pido explicaciones (siguiente obra)
     antes = nombre_top(page)
     page.get_by_role("button", name="Pido explicaciones").click()
     esperar_nombre_distinto(page, antes)
@@ -190,7 +190,7 @@ with sync_playwright() as p:
     page.wait_for_selector(".sheet-backdrop", state="detached")
     page.wait_for_timeout(150)
 
-    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (DEMO-04)
+    # 7. Ficha con Enter (foco al cuerpo) y 3 capas (siguiente obra)
     page.evaluate("document.activeElement && document.activeElement.blur()")
     page.keyboard.press("Enter")
     page.wait_for_timeout(500)
@@ -216,7 +216,7 @@ with sync_playwright() as p:
     # 9. Votar el resto con ✓
     votar_valio_hasta_vaciar(page)
     check("mazo vacío al final", "Ya has votado todo" in page.locator(".empty-deck").inner_text())
-    check("contador con 8 votos", "8/8" in page.locator(".brand-badge").inner_text())
+    check("contador con 21 votos", "21/21" in page.locator(".brand-badge").inner_text())
     shot(page, "07-mazo-vacio")
 
     # 10-11. Cabreo y Resultados ocultas en P1 (#38): solo Votar e Info
@@ -225,12 +225,12 @@ with sync_playwright() as p:
     # 12. Info
     page.get_by_role("tab", name="Info").click()
     page.wait_for_timeout(300)
-    check("info con aviso demo", "ninguna cifra es real" in page.locator(".panel").inner_text().lower())
+    check("info con aviso de piloto real (PLACE)", "place" in page.locator(".panel").inner_text().lower())
 
     # 13. Persistencia tras recarga (el contador lee los votos guardados)
     page.reload(wait_until="networkidle")
     page.wait_for_timeout(400)
-    check("votos persisten tras recarga", "8/8" in page.locator(".brand-badge").inner_text())
+    check("votos persisten tras recarga", "21/21" in page.locator(".brand-badge").inner_text())
 
     # 14. Teclado en estado limpio (otro contexto sin votos)
     ctx2 = browser.new_context(viewport={"width": 375, "height": 812})
@@ -240,9 +240,9 @@ with sync_playwright() as p:
     p2.wait_for_timeout(400)
     p2.evaluate("document.activeElement && document.activeElement.blur()")
     p2.keyboard.press("ArrowRight")
-    esperar_nombre_distinto(p2, "Rehabilitación de la plaza mayor (ejemplo)")
+    esperar_nombre_distinto(p2, "Obras de asfaltado e inversiones para mejora de calles municipales")
     check("flecha derecha vota sin match", not p2.locator(".match-screen").is_visible())
-    check("tarjeta consumida por teclado", "plaza mayor" not in nombre_top(p2))
+    check("tarjeta consumida por teclado", "asfaltado" not in nombre_top(p2))
     antes2 = nombre_top(p2)
     p2.keyboard.press("ArrowUp")
     esperar_nombre_distinto(p2, antes2)

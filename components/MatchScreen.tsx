@@ -4,6 +4,16 @@ import { motion } from "framer-motion";
 import type { Obra } from "@/lib/obras";
 import { useDialog } from "@/lib/useDialog";
 
+// Los cinco requisitos del match ciudadano (dossier §4.4): son condiciones del
+// estado del caso, no datos por obra.
+const REQUISITOS = [
+  "Participación suficiente",
+  "Evidencia documental mínima",
+  "Pregunta o anomalía concreta",
+  "Organismo competente identificable",
+  "Sin bloqueos de moderación",
+];
+
 export function MatchScreen({
   obra,
   onClose,
@@ -33,7 +43,7 @@ export function MatchScreen({
         requisitos se cumplen de ejemplo; en producción se calibran y se publican.
       </p>
       <div className="match-checklist">
-        {obra.senales.map((s) => (
+        {REQUISITOS.map((s) => (
           <span key={s}>✓ {s}</span>
         ))}
       </div>
