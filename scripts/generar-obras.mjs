@@ -155,7 +155,10 @@ for (const fila of filas) {
   let adjudicacion = null;
   if (adjudicatariaFila && !/no consta/i.test(adjudicatariaFila)) {
     const notaCif = notaFicha(ficha, "Adjudicataria") ?? "";
-    const cif = notaCif.match(/([A-Z]\d{8}|\d{8}[A-Z])/)?.[1] ?? null;
+    // Solo NIF de persona jurídica (letra inicial de entidad). Si la adjudicataria
+    // es una persona física (DNI, NIE o NIF K/L/M) no se publica el documento:
+    // el repo es público y basta con el nombre que da la fuente oficial.
+    const cif = notaCif.match(/\b([ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J])\b/)?.[1] ?? null;
     const fechaAcuerdo = campoFicha(ficha, "Fecha de adjudicación");
     const notaPub = notaFicha(ficha, "Fecha de adjudicación") ?? "";
     const fechaPublicacion = notaPub.match(/(\d{2}-\d{2}-\d{4})/)?.[1] ?? null;
