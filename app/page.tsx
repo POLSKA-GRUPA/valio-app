@@ -2,26 +2,34 @@
 
 import { Info as IconoInfo, Layers, MapPin, Vote, type LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { OBRAS } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { Deck } from "@/components/Deck";
+import { ElegirMunicipio } from "@/components/ElegirMunicipio";
 import { CabreoMap, Info, Results } from "@/components/Panels";
 
 type Pestaña = "votar" | "cabreo" | "resultados" | "info";
 
+// P1 (#38): Cabreo y Resultados están vacías o con relleno. Se ocultan sin
+// borrar su código; para volver a mostrarlas basta con poner esto a true.
+const MOSTRAR_CABREO_Y_RESULTADOS = false;
+
 // Iconos Lucide en lugar de emojis (ISSUE-39).
-const PESTAÑAS: { id: Pestaña; Icono: LucideIcon; etiqueta: string }[] = [
+const TODAS_LAS_PESTAÑAS: { id: Pestaña; Icono: LucideIcon; etiqueta: string }[] = [
   { id: "votar", Icono: Layers, etiqueta: "Votar" },
   { id: "cabreo", Icono: MapPin, etiqueta: "Cabreo" },
   { id: "resultados", Icono: Vote, etiqueta: "Resultados" },
   { id: "info", Icono: IconoInfo, etiqueta: "Info" },
 ];
 
+const PESTAÑAS = MOSTRAR_CABREO_Y_RESULTADOS
+  ? TODAS_LAS_PESTAÑAS
+  : TODAS_LAS_PESTAÑAS.filter((p) => p.id !== "cabreo" && p.id !== "resultados");
+
 export default function Home() {
-  const { votos } = useStore();
+  const { votos, listo, municipio, elegirMunicipio, obras } = useStore();
   const [pestaña, setPestaña] = useState<Pestaña>("votar");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const votadas = OBRAS.filter((o) => votos[o.id]).length;
+  const votadas = obras.filter((o) => votos[o.id]).length;
 
   const onTablistKey = (e: React.KeyboardEvent) => {
     const actual = PESTAÑAS.findIndex((p) => p.id === pestaña);
@@ -36,11 +44,39 @@ export default function Home() {
     tabRefs.current[siguiente]?.focus();
   };
 
+  // Hasta leer el dispositivo no sabemos si ya eligió municipio: sin parpadeo de pantallas.
+  if (!listo) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <h1 className="brand display">¿VALIÓ?</h1>
+        </header>
+        <div className="panel" aria-busy="true" />
+      </main>
+    );
+  }
+
+  if (!municipio) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <h1 className="brand display">¿VALIÓ?</h1>
+        </header>
+        <ElegirMunicipio
+          onElegir={(nombre) => {
+            elegirMunicipio(nombre);
+            setPestaña("votar");
+          }}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <h1 className="brand display">¿VALIÓ?</h1>
-        <span className="brand-badge">PILOTO · {OBRAS[0].municipio} · {votadas}/{OBRAS.length}</span>
+        <span className="brand-badge">PILOTO · {municipio} · {votadas}/{obras.length}</span>
       </header>
 
       {PESTAÑAS.map((p) => (

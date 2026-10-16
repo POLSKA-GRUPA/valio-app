@@ -370,6 +370,11 @@ body {
 }
 
 .tag-NO_VERIFICADO { background: #fff7bf; color: #594d00; }
+/* Resto de niveles (el generador ya los admite): colores tag de GOV.UK.
+   Contrastes: 6,2:1 · 5,7:1 · 8,6:1. */
+.tag-EVIDENCIADO { background: #cce2d8; color: #005a30; }
+.tag-CONTRADICHO { background: #f4cdc6; color: #942514; }
+.tag-DESACTUALIZADO { background: #e5e6e7; color: #383f43; }
 
 .card-meta {
   display: flex;
@@ -555,12 +560,16 @@ body {
 }
 
 /* ISSUE-43 con el diseño del #39: lo que dicen los vecinos es un dato
-   alegado. Filete discontinuo y fondo gris liso para que nunca se confunda
-   con las listas oficiales. Contrastes: tinta 17,9:1 y secundario 6,5:1
-   sobre el gris; blanco sobre el acento (opción elegida) 5,2:1. */
+   alegado, no oficial. Va al final de la ficha, tras la evidencia, con
+   filete discontinuo y un fondo arena propio (ni el blanco de la ficha ni
+   el amarillo de la etiqueta «No verificado») para que nunca se confunda
+   con las listas oficiales. Contrastes sobre el arena: tinta 16,8:1,
+   secundario 6,1:1; blanco sobre el acento (opción elegida) 5,2:1. */
 .capa-vecinos {
+  --vecinos-fondo: #f3ede0;
   border: 2px dashed var(--ink-soft);
-  background: var(--paper);
+  border-radius: 6px;
+  background: var(--vecinos-fondo);
   padding: 16px;
 }
 
@@ -839,6 +848,89 @@ body {
 .info-block p { margin: 0; }
 .info-block a { color: var(--blue); }
 
+/* ¿Dónde vives? (issue #37) */
+.municipio-panel h2:focus { outline: none; }
+
+.municipio-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.municipio-btn {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.municipio-nombre { font-size: 18px; }
+
+/* Chips de orden y de tipo encima del mazo (issue #37). Una fila con scroll
+   lateral: el mazo conserva su alto también a 320 px. */
+.filtros-barra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 6px 10px; /* hueco para el contorno de foco */
+  scrollbar-width: none;
+}
+
+.filtros-barra::-webkit-scrollbar { display: none; }
+
+.filtros-separador {
+  flex: none;
+  width: 3px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.filtro-tipos { display: contents; }
+
+.filtro-chips {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.filtro-chip {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.filtro-chip[aria-pressed="true"],
+.filtro-chip[aria-checked="true"] {
+  background: var(--ink);
+  color: var(--paper-2);
+}
+
+.filtro-chip:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.municipio-detalle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
 .linklike {
   border: 0;
   background: none;
@@ -879,6 +971,27 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* #38: aviso sobrio tras votar. Arriba del mazo para no tapar el nombre ni
+   el importe de la carta siguiente. */
+.voto-guardado {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  z-index: 20;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
 }
 
 /* ISSUE-13: móvil en horizontal — el shell es una columna pensada para

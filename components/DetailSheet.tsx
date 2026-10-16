@@ -138,8 +138,6 @@ export function DetailSheet({
             </dl>
           </section>
 
-          <SenalVecinal obra={obra} />
-
           <section className="ficha-seccion" aria-labelledby="ficha-vecino">
             <h3 id="ficha-vecino">Lo que cuesta a cada vecino</h3>
             <p className="ficha-cifra num">≈ {costeVecino(obra.costePorHabitante)}</p>
@@ -158,7 +156,7 @@ export function DetailSheet({
               <div>
                 <dt>Nivel de evidencia</dt>
                 <dd>
-                  <span className="tag tag-NO_VERIFICADO">{ESTADO_LABEL.NO_VERIFICADO}</span>
+                  <span className={`tag tag-${obra.estadoDato}`}>{ESTADO_LABEL[obra.estadoDato]}</span>
                 </dd>
               </div>
               <div>
@@ -176,6 +174,10 @@ export function DetailSheet({
               </div>
             </dl>
           </section>
+
+          {/* Dato alegado por vecinos: después de la evidencia oficial, para que
+              la fuente (PLACE) nunca parezca respaldar lo que dicen los vecinos. */}
+          <SenalVecinal obra={obra} />
 
           <button type="button" className="btn btn-primary" onClick={onClaim}>
             Pedir explicaciones

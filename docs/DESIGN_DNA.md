@@ -15,7 +15,7 @@ Fuentes de evidencia (no se copia identidad visual, solo patrones de interacció
 | Barra inferior con icono+etiqueta y estado activo destacado | Navegación inferior de 4 pestañas: Votar · Cabreo · Resultados · Info |
 | Onboarding progresivo y omitible + tutorial contextual de gestos | Overlay de tutorial de 4 gestos en primera visita, omitible |
 | Match con celebración expresiva (fondo saturado, formas concéntricas) | Pantalla "Match ciudadano" con anillos concéntricos y checklist de los 5 requisitos del PRD |
-| Ficha dividida en tarjetas apiladas (intención, bio, datos) | Ficha en listas resumen (clave → valor): la obra → lo que dicen los documentos → coste por vecino → evidencia (desde #39) |
+| Ficha dividida en tarjetas apiladas (intención, bio, datos) | Ficha en listas resumen (clave → valor): la obra → lo que dicen los documentos → coste por vecino → evidencia → lo que dicen los vecinos, con fondo arena propio por ser dato alegado (desde #39) |
 | Enseñar el gesto antes de dejar votar | Tutorial + botones/teclado siempre visibles (accesibilidad) |
 
 ## Decisiones propias (anti-copia)
