@@ -27,7 +27,7 @@ export function SenalVecinal({ obra }: { obra: Obra }) {
 
   return (
     <section className="ficha-seccion capa-vecinos" aria-labelledby="senal-titulo">
-      <h3 id="senal-titulo">Lo dicen los vecinos · no verificado</h3>
+      <h3 id="senal-titulo">Lo dicen los vecinos · dato alegado, no oficial</h3>
       <p className="senal-pregunta" id="senal-pregunta">
         ¿Sabes si está terminada?
       </p>

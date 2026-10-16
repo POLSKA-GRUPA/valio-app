@@ -138,6 +138,8 @@ for (const fila of filas) {
   const licitacionNota = (notaFicha(ficha, "Importe \\(tal cual la fuente\\)") ?? "").trim();
   const licitacion = numeroES(licitacionTexto);
   const fechaConsulta = campoFicha(ficha, "Fecha de consulta");
+  // Estado del dato tal cual lo marca el CSV («NO VERIFICADO» → NO_VERIFICADO).
+  const estadoDato = (fila.estado_dato ?? "").trim().toUpperCase().replace(/\s+/g, "_");
   let url = (fila.fuente_url ?? "").trim() || null;
   if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
 
@@ -148,6 +150,8 @@ for (const fila of filas) {
   if (!licitacionNota.toLowerCase().includes("iva"))
     fallar(`OBRA ${id}: la ficha no dice si el importe lleva IVA`);
   if (!url) fallar(`OBRA ${id}: sin fuente_url en el CSV`);
+  if (!["NO_VERIFICADO", "EVIDENCIADO", "CONTRADICHO", "DESACTUALIZADO"].includes(estadoDato))
+    fallar(`OBRA ${id}: estado_dato desconocido (${fila.estado_dato})`);
   if (!fechaConsulta) fallar(`OBRA ${id}: sin fecha de consulta en la ficha`);
 
   // adjudicación (filas nuevas; OBRA-01 lleva «No consta»)
@@ -199,6 +203,7 @@ for (const fila of filas) {
     provincia: fila.provincia.trim(),
     organismo,
     anyo,
+    estadoDato,
     estadoEjecucion: "faltante", // no localizado en fuente oficial (dossier §7.2)
     importeLicitacion: licitacion,
     ivaLicitacionIncluido: /incluido/i.test(licitacionNota) && !/no incluido/i.test(licitacionNota),
@@ -271,6 +276,7 @@ export interface Obra {
   provincia: string;
   organismo: string;
   anyo: number;
+  estadoDato: EstadoDato;
   estadoEjecucion: "faltante";
   importeLicitacion: number;
   ivaLicitacionIncluido: boolean;
