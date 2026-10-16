@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { X } from "lucide-react";
 import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
 import { costeVecino, euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
@@ -39,24 +40,35 @@ export function DetailSheet({
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
       >
         <div className="sheet-head">
-          <h2 className="display">{obra.nombre}</h2>
+          <div className="sheet-titulo">
+            <p className="card-kicker">
+              {CATEGORIA_LABEL[obra.categoria]} · {obra.municipio} · {obra.anyo}
+            </p>
+            <h2 className="display">{obra.nombre}</h2>
+          </div>
           <button type="button" className="sheet-close" onClick={onClose} aria-label="Cerrar ficha">
-            ✕
+            <X size={22} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </div>
         <div className="sheet-body">
-          <section className="capa">
-            <h3>Capa 1 · Resumen</h3>
-            <dl>
+          {/* ISSUE-39: listas resumen (clave → valor) en lugar de «capas»
+              numeradas. Cada sección lleva un título corto para navegar. */}
+          <section className="ficha-seccion" aria-labelledby="ficha-obra">
+            <h3 id="ficha-obra">La obra</h3>
+            <dl className="resumen">
               <div>
                 <dt>Administración</dt>
                 <dd>{obra.organismo}</dd>
               </div>
               <div>
-                <dt>Ámbito</dt>
+                <dt>Municipio</dt>
                 <dd>
-                  {obra.municipio} ({obra.provincia}) · {CATEGORIA_LABEL[obra.categoria]}
+                  {obra.municipio} ({obra.provincia})
                 </dd>
+              </div>
+              <div>
+                <dt>Tipo de obra</dt>
+                <dd>{CATEGORIA_LABEL[obra.categoria]}</dd>
               </div>
               <div>
                 <dt>Año</dt>
@@ -65,12 +77,12 @@ export function DetailSheet({
             </dl>
           </section>
 
-          <section className="capa">
-            <h3>Capa 2 · Los documentos dicen</h3>
-            <dl>
+          <section className="ficha-seccion" aria-labelledby="ficha-contrato">
+            <h3 id="ficha-contrato">Lo que dicen los documentos</h3>
+            <dl className="resumen">
               <div>
                 <dt>Presupuesto de licitación</dt>
-                <dd>
+                <dd className="num">
                   {euros(obra.importeLicitacion)} · IVA{" "}
                   {obra.ivaLicitacionIncluido ? "incluido" : "no incluido"}
                 </dd>
@@ -86,7 +98,7 @@ export function DetailSheet({
                   </div>
                   <div>
                     <dt>Importe de adjudicación</dt>
-                    <dd>
+                    <dd className="num">
                       {euros(adjudicacion.importeSinIva)} sin IVA
                       {adjudicacion.importeConIva != null
                         ? ` (${euros(adjudicacion.importeConIva)} con IVA)`
@@ -95,7 +107,7 @@ export function DetailSheet({
                   </div>
                   <div>
                     <dt>Fecha del acuerdo</dt>
-                    <dd>
+                    <dd className="num">
                       {adjudicacion.fechaAcuerdo}
                       {adjudicacion.fechaPublicacion
                         ? ` · anuncio publicado el ${adjudicacion.fechaPublicacion.replaceAll("-", "/")}`
@@ -120,28 +132,32 @@ export function DetailSheet({
                 </div>
               )}
               <div>
-                <dt>Coste por vecino</dt>
-                <dd>
-                  ≈ {costeVecino(obra.costePorHabitante)} ·{" "}
-                  <a href={POBLACION.fuenteUrl} target="_blank" rel="noreferrer">
-                    población INE a {POBLACION.referencia}: {POBLACION.habitantes.toLocaleString("es-ES")} hab.
-                  </a>{" "}
-                  ({POBLACION.fuenteNombre})
-                </dd>
-              </div>
-              <div>
                 <dt>Estado de ejecución</dt>
                 <dd>Faltante: no localizado en la fuente oficial</dd>
               </div>
             </dl>
           </section>
 
-          <section className="capa">
-            <h3>Capa 3 · Evidencia</h3>
-            <dl>
+          <section className="ficha-seccion" aria-labelledby="ficha-vecino">
+            <h3 id="ficha-vecino">Lo que cuesta a cada vecino</h3>
+            <p className="ficha-cifra num">≈ {costeVecino(obra.costePorHabitante)}</p>
+            <p className="ficha-nota">
+              Calculado sobre la{" "}
+              <a href={POBLACION.fuenteUrl} target="_blank" rel="noreferrer">
+                población INE a {POBLACION.referencia}: {POBLACION.habitantes.toLocaleString("es-ES")} hab.
+              </a>{" "}
+              ({POBLACION.fuenteNombre})
+            </p>
+          </section>
+
+          <section className="ficha-seccion" aria-labelledby="ficha-evidencia">
+            <h3 id="ficha-evidencia">Evidencia</h3>
+            <dl className="resumen">
               <div>
-                <dt>Estado del dato</dt>
-                <dd>{ESTADO_LABEL[obra.estadoDato]} · {obra.id}</dd>
+                <dt>Nivel de evidencia</dt>
+                <dd>
+                  <span className={`tag tag-${obra.estadoDato}`}>{ESTADO_LABEL[obra.estadoDato]}</span>
+                </dd>
               </div>
               <div>
                 <dt>Fuente</dt>
@@ -152,10 +168,11 @@ export function DetailSheet({
                   · consulta: {obra.fuente.fechaConsulta}
                 </dd>
               </div>
+              <div>
+                <dt>Ficha de origen</dt>
+                <dd>{obra.id} en el repositorio valio-datos (método P0)</dd>
+              </div>
             </dl>
-            <p style={{ margin: 0, fontSize: 13 }}>
-              Cada dato es rastreable hasta la ficha {obra.id} del repositorio valio-datos (método P0).
-            </p>
           </section>
 
           {/* Dato alegado por vecinos: después de la evidencia oficial, para que
