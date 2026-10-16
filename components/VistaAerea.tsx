@@ -83,7 +83,7 @@ export function FotoTarjeta({ obra }: { obra: Obra }) {
         />
         <Anillo u={u} v={v} />
         <span className="aerea-pastilla">
-          {fechaVuelo(v.ahora.fecha)} · IGN
+          {fechaVuelo(v.ahora.fecha)} · PNOA CC-BY 4.0 scne.es
         </span>
       </div>
       <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{VEREDICTO_TEXTO[v.veredicto]}</figcaption>
@@ -193,7 +193,10 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
         {v.antes && (
           <div>
             <dt>Foto anterior</dt>
-            <dd>Vuelo de {fechaVuelo(v.antes.fecha)}</dd>
+            <dd>
+              Vuelo de {fechaVuelo(v.antes.fecha)}
+              {v.antes.ventana ? ` (entre el ${fechaEs(v.antes.ventana[0])} y el ${fechaEs(v.antes.ventana[1])})` : ""}
+            </dd>
           </div>
         )}
         {v.adjudicacion && (
@@ -232,7 +235,10 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
           Explorar en el mapa
         </button>
       )}
-      <p className="aerea-atribucion">{v.ahora.atribucion}</p>
+      <p className="aerea-atribucion">
+        {v.ahora.atribucion}
+        {v.antes ? <><br />{v.antes.atribucion}</> : null}
+      </p>
     </section>
   );
 }

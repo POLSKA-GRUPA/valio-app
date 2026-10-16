@@ -9,8 +9,10 @@ export type Veredicto = "posterior" | "durante" | "anterior" | "no_visible" | "s
 
 export interface FotoAerea {
   src: string;
-  /** AAAA-MM del vuelo en el punto (o AAAA si el servicio no da el mes). */
+  /** AAAA-MM del vuelo en el punto (IGN) o AAAA (ICV, ver ventana). */
   fecha: string;
+  /** Ventana del vuelo de toda la Comunitat (ICV): [inicio, fin] AAAA-MM-DD. */
+  ventana: [string, string] | null;
   fuente: string;
   capa: string;
   resolucionM: number | null;

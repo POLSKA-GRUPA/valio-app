@@ -14,10 +14,23 @@ import { fechaVuelo } from "./VistaAerea";
  */
 const PNOA_ACTUAL =
   "https://www.ign.es/wmts/pnoa-ma?request=GetTile&service=WMTS&VERSION=1.0.0&Layer=OI.OrthoimageCoverage&Style=default&Format=image/jpeg&TileMatrixSet=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}";
-const pnoaHistorico = (anyo: number) =>
-  `https://www.ign.es/wms/pnoa-historico?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=PNOA${anyo}&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg`;
+const ATRIBUCION_PNOA = "PNOA CC-BY 4.0 scne.es";
 
-const ANYOS = Array.from({ length: 2024 - 2004 + 1 }, (_, i) => 2024 - i);
+/** Serie anual del ICV (cubre toda la Comunitat; el IGN no tiene 2022-2023 en Alicante). */
+const ICV = [
+  ["2023", "2023CVAL0025"],
+  ["2022", "2022CVAL0025"],
+  ["2021", "2021CVAL0025"],
+  ["2020", "2020CVAL0025"],
+  ["2019", "2019CVAL0025"],
+  ["2018", "2018CVAL0025"],
+  ["2017", "2017CVAL0025"],
+] as const;
+const icvTeselas = (id: string) =>
+  `https://terramapas.icv.gva.es/0202_${id}_3857/wmts/1.0.0/01_8bits_01_RGB_05_PNG/default/GMEPSG3857/{z}/{y}/{x}.png`;
+const atribucionIcv = (anyo: string) =>
+  `Ortofoto ${anyo} CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat`;
+
 const ACTUAL = "actual";
 
 /** Círculo de radio en metros como polígono (MapLibre no dibuja círculos en metros). */
@@ -60,7 +73,7 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
               tiles: [PNOA_ACTUAL],
               tileSize: 256,
               maxzoom: 19,
-              attribution: v.ahora.atribucion,
+              attribution: ATRIBUCION_PNOA,
             },
             obra: { type: "geojson", data: circulo(u.lat, u.lon, u.radioM) },
           },
@@ -93,29 +106,31 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
     };
   }, [u, v]);
 
-  // Cambio de año: una única capa raster visible, por debajo del anillo.
+  // Cambio de año: una única capa raster del ICV visible, por debajo del anillo.
   useEffect(() => {
     const m = mapa.current;
     if (!m) return;
     const aplicar = () => {
-      for (const anyo of ANYOS) {
-        const id = `pnoa-${anyo}`;
+      for (const [anyo] of ICV) {
+        const id = `icv-${anyo}`;
         if (m.getLayer(id)) m.removeLayer(id);
         if (m.getSource(id)) m.removeSource(id);
       }
-      if (capa === ACTUAL) return;
-      const id = `pnoa-${capa}`;
+      const elegido = ICV.find(([anyo]) => anyo === capa);
+      if (!elegido) return;
+      const id = `icv-${elegido[0]}`;
       m.addSource(id, {
         type: "raster",
-        tiles: [pnoaHistorico(Number(capa))],
+        tiles: [icvTeselas(elegido[1])],
         tileSize: 256,
-        attribution: v.ahora.atribucion,
+        maxzoom: 19,
+        attribution: atribucionIcv(elegido[0]),
       });
       m.addLayer({ id, type: "raster", source: id }, "obra-borde");
     };
     if (m.isStyleLoaded()) aplicar();
     else m.once("load", aplicar);
-  }, [capa, v]);
+  }, [capa]);
 
   return (
     <div className="aerea-mapa-caja">
@@ -123,9 +138,9 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
         Foto del año{" "}
         <select value={capa} onChange={(e) => setCapa(e.target.value)}>
           <option value={ACTUAL}>Más reciente del IGN (guardada: {fechaVuelo(v.ahora.fecha)})</option>
-          {ANYOS.map((a) => (
-            <option key={a} value={a}>
-              {a}
+          {ICV.map(([anyo]) => (
+            <option key={anyo} value={anyo}>
+              {anyo} (ICV)
             </option>
           ))}
         </select>
@@ -138,7 +153,7 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
       />
       {error && (
         <p className="aerea-nota">
-          Algunas teselas del IGN no han cargado. Puede que ese año no se voló esta zona.
+          Algunas teselas no han cargado. Prueba otro año o vuelve a intentarlo más tarde.
         </p>
       )}
     </div>

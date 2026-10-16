@@ -38,22 +38,44 @@ const ALTO = 480;
 // Lado mínimo del encuadre en metros: por debajo, la obra se ve sin contexto.
 const LADO_MIN_M = 180;
 
-const ATRIBUCION_PNOA = "PNOA cedido por © Instituto Geográfico Nacional";
+/**
+ * Atribución exigida por la licencia (CC BY 4.0, scne.es e ICV). Las imágenes
+ * guardadas son recortes, así que van precedidas de «Obra derivada de».
+ */
+const atribucionPnoa = (anyo) => `Obra derivada de PNOA ${anyo} CC-BY 4.0 scne.es`;
+const atribucionIcv = (anyo) =>
+  `Obra derivada de Ortofoto ${anyo} CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat`;
 
-/** Fuente de la foto «ahora» y vuelos históricos para «antes». */
+/** Foto «ahora»: PNOA máxima actualidad, con fecha de vuelo en el punto. */
 const ACTUAL = {
-  fuente: "PNOA máxima actualidad (IGN)",
+  fuente: "PNOA (IGN)",
   wms: "https://www.ign.es/wms-inspire/pnoa-ma",
   capa: "OI.OrthoimageCoverage",
   capaFecha: "OI.MosaicElement",
-  atribucion: ATRIBUCION_PNOA,
 };
-const HISTORICO = {
-  fuente: "PNOA histórico (IGN)",
-  wms: "https://www.ign.es/wms/pnoa-historico",
-  atribucion: ATRIBUCION_PNOA,
-};
-const ANYOS_HISTORICO = Array.from({ length: 2024 - 2004 + 1 }, (_, i) => 2024 - i);
+
+/**
+ * Fotos «antes»: serie anual del ICV, que cubre toda la Comunitat (el IGN no
+ * tiene 2022 ni 2023 en Alicante). El ICV publica la ventana del vuelo de toda
+ * la Comunitat, no el día en el punto: solo se usa un año cuyo vuelo TERMINÓ
+ * antes de la adjudicación. Fechas: metadatos spaicv0202_* del ICV.
+ */
+const HISTORICO_ICV = [
+  ["2024CVAL0025", "2024-05-29", "2024-08-24"],
+  ["2023CVAL0025", "2023-04-16", "2023-08-06"],
+  ["2022CVAL0025", "2022-05-08", "2022-06-11"],
+  ["2021CVAL0025", "2021-05-13", "2021-08-15"],
+  ["2020CVAL0025", "2020-05-02", "2020-05-31"],
+  ["2019CVAL0025", "2019-05-14", "2019-06-30"],
+  ["2018CVAL0025", "2018-06-13", "2018-08-24"],
+  ["2017CVAL0025", "2017-06-08", "2017-08-23"],
+].map(([id, inicio, fin]) => ({
+  anyo: id.slice(0, 4),
+  wms: `https://terramapas.icv.gva.es/0202_${id}`,
+  capa: `${id}_RGB`,
+  inicio,
+  fin,
+}));
 
 // --- utilidades -------------------------------------------------------------
 
@@ -247,28 +269,24 @@ for (const o of conPunto) {
   const adjudicacion = fechaEs(o.adjudicacion?.fechaAcuerdo);
   const finPrevisto = sumarPlazo(adjudicacion, o.adjudicacion?.plazo);
 
-  // «antes»: el año histórico más reciente cuyo vuelo es anterior a la
+  // «antes»: el vuelo del ICV más reciente que terminó antes de la
   // adjudicación y que tiene imagen en el punto.
   let antes = null;
   if (adjudicacion) {
-    for (const anyo of ANYOS_HISTORICO) {
-      if (anyo > adjudicacion.getUTCFullYear()) continue;
-      const capa = `PNOA${anyo}`;
-      const v = await fechaVuelo(HISTORICO.wms, capa, c).catch(() => null);
-      const fecha = v?.fecha ?? null;
-      // Sin mes no se puede asegurar que sea anterior en el mismo año.
-      if (fecha ? finMes(fecha) > adjudicacion : anyo >= adjudicacion.getUTCFullYear()) continue;
-      const url = urlMapa(HISTORICO.wms, capa, c);
+    for (const h of HISTORICO_ICV) {
+      if (new Date(`${h.fin}T23:59:59Z`) >= adjudicacion) continue;
+      const url = urlMapa(h.wms, h.capa, c);
       const webp = await imagen(url).catch(() => null);
       if (!webp) continue;
       writeFileSync(resolve(DIR_IMG, `${o.id}-antes.webp`), webp);
       antes = {
         src: `/aerea/${o.id}-antes.webp`,
-        fecha: fecha ?? String(anyo),
-        fuente: HISTORICO.fuente,
-        capa,
-        resolucionM: v?.resolucionM ?? null,
-        atribucion: HISTORICO.atribucion,
+        fecha: h.anyo,
+        ventana: [h.inicio, h.fin],
+        fuente: "Ortofoto ICV",
+        capa: h.capa,
+        resolucionM: 0.25,
+        atribucion: atribucionIcv(h.anyo),
         origen: url,
       };
       break;
@@ -281,10 +299,11 @@ for (const o of conPunto) {
     ahora: {
       src: `/aerea/${o.id}-ahora.webp`,
       fecha: vAhora.fecha,
+      ventana: null,
       fuente: ACTUAL.fuente,
       capa: ACTUAL.capa,
       resolucionM: vAhora.resolucionM,
-      atribucion: ACTUAL.atribucion,
+      atribucion: atribucionPnoa(vAhora.fecha.slice(0, 4)),
       origen: urlAhora,
     },
     antes,
@@ -310,8 +329,10 @@ export type Veredicto = "posterior" | "durante" | "anterior" | "no_visible" | "s
 
 export interface FotoAerea {
   src: string;
-  /** AAAA-MM del vuelo en el punto (o AAAA si el servicio no da el mes). */
+  /** AAAA-MM del vuelo en el punto (IGN) o AAAA (ICV, ver ventana). */
   fecha: string;
+  /** Ventana del vuelo de toda la Comunitat (ICV): [inicio, fin] AAAA-MM-DD. */
+  ventana: [string, string] | null;
   fuente: string;
   capa: string;
   resolucionM: number | null;
