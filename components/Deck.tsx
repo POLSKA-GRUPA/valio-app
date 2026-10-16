@@ -266,24 +266,9 @@ export function Deck() {
     );
   }
 
-  if (pendientes.length === 0 && !vuelo) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <div className="deck-zone" aria-label="Mazo terminado">
-          <div className="empty-deck">
-            <h2 className="display">Ya has votado todo</h2>
-            <p>
-              Este es el resultado de la demo. Con datos reales, tus votos alimentan el mapa del cabreo y los pases de
-              explicaciones.
-            </p>
-            <button type="button" className="btn btn-primary" onClick={reset}>
-              Volver a empezar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Mazo terminado: se pinta dentro del mismo árbol para que el borrador de
+  // explicaciones, el aviso y la región live sigan montados tras el último voto.
+  const terminado = pendientes.length === 0 && !vuelo;
 
   const volando = vuelo ? OBRAS.find((o) => o.id === vuelo.id) ?? null : null;
   const visibles = volando ? [volando, ...pendientes.slice(0, 2)] : pendientes.slice(0, 3);
@@ -291,7 +276,17 @@ export function Deck() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div className="deck-zone" aria-label={`Quedan ${restantes} tarjetas`}>
+      <div className="deck-zone" aria-label={terminado ? "Mazo terminado" : `Quedan ${restantes} tarjetas`}>
+        {terminado && (
+          <div className="empty-deck">
+            <h2 className="display">Ya has votado todo</h2>
+            <p>Tus votos se han guardado en este dispositivo.</p>
+            <button type="button" className="btn btn-primary" onClick={reset}>
+              Volver a empezar
+            </button>
+          </div>
+        )}
+
         <AnimatePresence>
           {tutorialVisto ? null : <Tutorial key="tutorial" onCerrar={marcarTutorialVisto} />}
         </AnimatePresence>
@@ -338,6 +333,7 @@ export function Deck() {
         )}
       </div>
 
+      {!terminado && (
       <div className="action-row">
         <button type="button" className="action-btn action-nose" aria-label="No puedo valorarlo" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
           ↓
@@ -352,6 +348,7 @@ export function Deck() {
           ↑
         </button>
       </div>
+      )}
 
       <AnimatePresence>
         {fichaObra && (
