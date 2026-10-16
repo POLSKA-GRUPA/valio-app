@@ -55,7 +55,8 @@ export interface UbicacionPrecisa {
 /** Los documentos no permiten situarla con precisión: se dice y no se pinta nada. */
 export interface SinUbicacion {
   precision: "municipio" | "sin_ubicacion";
-  motivo: string | null;
+  /** Por qué no se puede situar, en una frase para el vecino. */
+  motivo: string;
 }
 
 export type Ubicacion = UbicacionPrecisa | SinUbicacion;
@@ -105,7 +106,10 @@ export const OBRAS: Obra[] = [
     "importeLicitacion": 177685.95,
     "ivaLicitacionIncluido": false,
     "adjudicacion": null,
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "municipio",
+      "motivo": "la obra son unas 15 actuaciones repartidas por el casco y varias urbanizaciones"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/lY9LU4NAEIR_Sw5c2ckCqx4J71QwKC6EvVCbBK21WBZ5-PslCVeJzq2nuvubQQwdEGv4t_jgg1ANryddMFKa3t5x_BDDY2q4gHcupSS8SIzyq8EyHDPbZglJowAgCn13R9cWBJggtpAPrDkPv4wNf8svGNhyfY7YMgLPhqUX70GK6ciH0s68Fzt6MmC_eZ0Q2yR-SwK8BjBReuk4KamLo9Tf-anq9VZ1Q10NehZ5eeSiQoPPvtXgOPZfY3XmGviqk2PNO6E2806fHPdY5B-sczXwuq40iLlo3Ju4MlpJ6QFEImX5HNur1Q_v7O01/#Z7_AVEQAI930OBRD02JPMTPG21004",
@@ -135,7 +139,10 @@ export const OBRAS: Obra[] = [
       "plazo": "3 Mes(es)",
       "numExpediente": "5122/2026"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "el anuncio no dice cuál de los campos de fútbol de Teulada es"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=KLUBdKw8XNSqb7rCcv76BA%3D%3D",
@@ -165,7 +172,10 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "10390/2025"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "el campo que nombra el anuncio no aparece en ninguna fuente oficial y en Teulada y Moraira hay varios"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/hY9LD4IwEIR_kem2QIEj0FKKICAPpRdCYmJIeBhj-P0Ww1Xd22S_mZ1FCl2Rmvt1uPevYZn7UetW0c7kWRCEEQGnNBiQhNU1jTZJUIMu_xCl1_BlPNB-9UEsIzCbuMlpKQWAjEKW1NgCQegO_MhodQe78xpeeNI1IPPPukOcp1UuCAagqJ6X56T_Kbes4cbXEbXYIS61qYXx7hcCJPYFmPh4YkBzm8e8qLYT__yPKXTloZ26tPLeV0awMQ!!/dz/d5/L2dBISEvZ0FBIS9nQSEh/",
@@ -195,7 +205,10 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Año(s)",
       "numExpediente": "11488/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "el paraje que nombra el anuncio («Pinaret de la Costa») no aparece en ninguna fuente oficial"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/hY9LD4IwEIR_kem2lAJHHqUUQUAeSi-ExMSQ8DDG8Psthqu6t8l-MzuLFLoiNffrcO9fwzL3o9atYh3lme-HEQG7NAIgSVDXLNokQQ26_EOUXsOXcUH71QcxDZ82cZOzUgoAGYVBUmMTBGE78COj1R2szm144UrHgMw76w5xnla5IBiAoXpenpP-p9yyhhtfR9RiajOgwDDe_UKAxJ4Aio-nAFhu8ZgX1Xbin_8xhY48tFOXVu4bCNQvNA!!/dz/d5/L2dBISEvZ0FBIS9nQSEh/",
@@ -225,7 +238,10 @@ export const OBRAS: Obra[] = [
       "plazo": "3 Mes(es)",
       "numExpediente": "7589/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "son dos yacimientos (cap d'Or y punta de Moraira) sin coordenada oficial"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=6%2BScbhVqN1cZDGvgaZEVxQ%3D%3D",
@@ -255,7 +271,21 @@ export const OBRAS: Obra[] = [
       "plazo": "30 Día(s)",
       "numExpediente": "10743/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "zona",
+      "lat": 38.729267,
+      "lon": 0.090883,
+      "radioM": 350,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?limit=10&q=poligono%20industrial%20teulada",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Descripción del anuncio: cámaras en «Calle Els Gremis, Calle Industria, Calle Cristaler, Calle Llanterner, Avda. Europa». Las cinco calles existen en CartoCiudad (ids 31280000815/816/813/817/1949, geometría por findJsonp). Punto = topónimo IGN «Polígono Industrial de Teulada». Ortofoto PNOA: naves industriales y la retícula de esas calles. Visibilidad: cámaras de vigilancia: no se distinguen desde el aire.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=Nc0X04PNOgVPpzdqOdhuWg%3D%3D",
@@ -285,7 +315,21 @@ export const OBRAS: Obra[] = [
       "plazo": "15 Día(s)",
       "numExpediente": "10541/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "zona",
+      "lat": 38.729267,
+      "lon": 0.090883,
+      "radioM": 300,
+      "visibleAire": "si",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?limit=10&q=poligono%20industrial%20teulada",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Descripción: «reasfaltado y reparaciones de pavimentos de varios viales del Polígono Industrial de Teulada: Calle els Gremis, Calle Industria, Calle Cristaler, Calle Llanterner». Geometrías de las 4 calles de CartoCiudad; ortofoto del polígono.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=zQxIqrT8RiKLAncw3qdZkA%3D%3D",
@@ -315,7 +359,21 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "9632/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "zona",
+      "lat": 38.686279,
+      "lon": 0.122682,
+      "radioM": 300,
+      "visibleAire": "parcial",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?q=Playetes%20Teulada&limit=10",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Zona Les Platgetes: punto oficial de la urbanización «Playetes» (CartoCiudad, IGN). Ningún documento publica el trazado exacto de la obra. Objeto: «camino peatonal en la zona verde de platgetes». CartoCiudad (IGN NGBE) solo da el barrio «Urbanización Playetes» (38.686279,0.122682, en mitad de chalets; descartado como punto). Pista OSM (ODbL): parque way 552861850 junto a la «Platja de les Platgetes». Ortofoto PNOA: cala con zona ajardinada y sendas sobre la playa. Catastro: sin parcela (dominio público). Visibilidad: camino peatonal bajo arbolado: visible solo en parte.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=cmmkqvqRaDMXhk1FZxEyvw%3D%3D",
@@ -345,7 +403,21 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "10464/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "instalacion",
+      "lat": 38.731741,
+      "lon": 0.102275,
+      "radioM": 50,
+      "visibleAire": "si",
+      "referenciaCatastral": "8111919BC4981S",
+      "fuente": {
+        "tipo": "ortofoto",
+        "url": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG:4326&BBOX=38.7312497,0.1014689,38.7322323,0.1030811&WIDTH=640&HEIGHT=500&FORMAT=image/jpeg",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Ortofoto PNOA (OBRA-09.jpg): exactamente 5 pistas de pádel verdes con cerramiento (1 + 4) y 2 de tenis, en la ciudad deportiva del NO del casco, al otro lado de la calle del «Estadi Municipal Ricardo Benavente» (IGN BTN_507830). En la otra zona deportiva (Poliesportiu, 38.7284,0.1090) no se ven pistas de pádel. Catastro de la parcela: «Obras de urbanización y jardinería, suelos sin edificar».",
+      "estado": "verificada"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=WbGUELIiRRp4zIRvjBVCSw%3D%3D",
@@ -375,7 +447,21 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "9881/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "zona",
+      "lat": 38.729267,
+      "lon": 0.090883,
+      "radioM": 350,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?limit=10&q=poligono%20industrial%20teulada",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Descripción: «2 nuevas bocas contra incendios ... en vías públicas de Polígono Industrial de Teulada». Punto = topónimo IGN del polígono; ortofoto: polígono industrial. Visibilidad: bocas de incendio: no se distinguen desde el aire.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=lPuI3QYNdVG9Hd5zqvq9cg%3D%3D",
@@ -405,7 +491,10 @@ export const OBRAS: Obra[] = [
       "plazo": "15 Día(s)",
       "numExpediente": "8922/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "municipio",
+      "motivo": "son trabajos forestales repartidos por el término municipal"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=O%2BhHte%2FFjAGkU02jNGj1Fw%3D%3D",
@@ -435,7 +524,21 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "3998/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "instalacion",
+      "lat": 38.728283,
+      "lon": 0.109751,
+      "radioM": 80,
+      "visibleAire": "si",
+      "referenciaCatastral": "8807202BC4980N",
+      "fuente": {
+        "tipo": "catastro",
+        "url": "https://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCallejero.asmx/Consulta_DNPRC?Provincia=&Municipio=&RC=8807202BC4980N",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "CartoCiudad/IGN: «CEIP San Vicente Ferrer, Teulada» (BTN_3266534, tipo Centro docente). Catastro en ese punto: RC 8807202BC4980N, CL JUVENTUD 14, construcciones de uso ENSEÑANZA, año 1984. Ortofoto: edificios escolares con patio.",
+      "estado": "verificada"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=g934hy%2B26hlt5r0ngvMetA%3D%3D",
@@ -465,7 +568,21 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "7382/2023"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "zona",
+      "lat": 38.72895,
+      "lon": 0.104345,
+      "radioM": 120,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/findJsonp?id=31280000028&type=callejero&q=PLAZA+CONSTITUCION%2C+Teulada",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Objeto: «nuevo pluvial entre la calle San Vicente y la Plaza Constitución». Plaza Constitución: CartoCiudad id 31280000028. En el callejero de Catastro de Teulada no existe «Calle San Vicente»; la más cercana es «CL SANT VICENT FERRER», cuyo extremo NO está a unos 70 m de la plaza (geometría incluida). Ortofoto del casco antiguo. Visibilidad: conducción de pluviales enterrada.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=xfLfPBj9%2B6bIGlsa0Wad%2Bw%3D%3D",
@@ -495,7 +612,10 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "5561/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "el anuncio no dice en qué estaciones de bombeo se actúa"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=mgpVrlv9hGH10HRJw8TEnQ%3D%3D",
@@ -525,7 +645,10 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "3844/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "son dos sitios separados unos 3 km (parque del Senillar y ermita de la Font Santa)"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=92bkmyqRP76HCIsjvJ3rhQ%3D%3D",
@@ -555,7 +678,21 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "2402/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "tramo",
+      "lat": 38.727271,
+      "lon": 0.102634,
+      "radioM": 550,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/findJsonp?id=31280000104&type=callejero&q=AVENIDA+MEDITERRANEO%2C+Teulada",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Objeto: «retirada y gestión de residuos de las obras de mejora de la red de pluviales de la Avda. Mediterráneo». Una sola Avenida Mediterráneo en Teulada (CartoCiudad id 31280000104, ~1 km por el S del casco, travesía CV-740). Ortofoto con el eje trazado. Visibilidad: retirada de residuos: no deja huella visible.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=pwEGhw0exa1VkTabT%2FRM8A%3D%3D",
@@ -585,7 +722,21 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Día(s)",
       "numExpediente": "3227/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "instalacion",
+      "lat": 38.728329,
+      "lon": 0.104417,
+      "radioM": 50,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?limit=10&q=ajuntament%20teulada",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Descripción: «Reposición de baldosas (edificio Ayuntamiento) en Plaza de Constitución (zona cubierta situada al lado del Retén de la Policia Local)». IGN: «Ajuntament de Teulada» (38.728329,0.104417), a ~70 m de la Plaza Constitución (CartoCiudad id 31280000028). Ortofoto: edificio y plaza. Visibilidad: baldosas bajo una zona cubierta.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=90w0SGXuLNMeC9GJQOEBkQ%3D%3D",
@@ -615,7 +766,21 @@ export const OBRAS: Obra[] = [
       "plazo": "21 Día(s)",
       "numExpediente": "2394/2024"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "tramo",
+      "lat": 38.681258,
+      "lon": 0.120351,
+      "radioM": 120,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/findJsonp?id=31280000762&type=callejero&q=CALLE+CABO+SANTA+POLA%2C+Cap+Blanc+%28Teulada%29",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Anuncio: «OBRA CONEXIÓN SANEAMIENTO C/ SANTA POLA-BOMBEO C.C. ALGAS». En Teulada solo existe una calle con «Santa Pola»: CL CABO SANTA POLA (callejero de Catastro y CartoCiudad id 31280000762, zona Cap Blanc/La Cometa, Moraira). Pista OSM (ODbL): local «Algas L'Andragó» en 38.681712,0.120670, a ~50 m del extremo E de la calle, junto a un bloque comercial. Punto = extremo E de la calle. Visibilidad: conexión de saneamiento enterrada.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=bRr9yfs7Dj1t5r0ngvMetA%3D%3D",
@@ -645,7 +810,10 @@ export const OBRAS: Obra[] = [
       "plazo": "45 Día(s)",
       "numExpediente": "11277/2023"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "municipio",
+      "motivo": "son cuatro viales separados del término municipal"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=dMcp2HTAAkf%2B3JAijKO%2Bkg%3D%3D",
@@ -675,7 +843,21 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "10979/2023"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "zona",
+      "lat": 38.686279,
+      "lon": 0.122682,
+      "radioM": 300,
+      "visibleAire": "no",
+      "referenciaCatastral": null,
+      "fuente": {
+        "tipo": "cartociudad",
+        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?q=Playetes%20Teulada&limit=10",
+        "fechaConsulta": "2026-10-17"
+      },
+      "evidencia": "Zona Les Platgetes: punto oficial de la urbanización «Playetes» (CartoCiudad, IGN). Ningún documento publica el trazado exacto de la obra. Objeto: «canalización subterránea para línea de alumbrado público en zona Les Platgetes». Misma zona que OBRA-08: cala de Les Platgetes (pista OSM «Platja de les Platgetes»; IGN NGBE «Urbanización Playetes» a ~280 m al O). Ortofoto: cala, zona verde y calles del entorno. Visibilidad: canalización eléctrica enterrada.",
+      "estado": "propuesta"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=ItTc8sCA5CvjHF5qKI4aaw%3D%3D",
@@ -705,7 +887,10 @@ export const OBRAS: Obra[] = [
       "plazo": "6 Mes(es)",
       "numExpediente": "11022/2023"
     },
-    "ubicacion": null,
+    "ubicacion": {
+      "precision": "sin_ubicacion",
+      "motivo": "el anuncio no dice dónde está la tirolina"
+    },
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=4%2Fpkb6LMt%2BwkJPJS%2BPS9vg%3D%3D",

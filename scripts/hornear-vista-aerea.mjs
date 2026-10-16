@@ -21,7 +21,7 @@
  *   node scripts/hornear-vista-aerea.mjs --comprobar # solo mira si hay vuelos nuevos (sale 3 si los hay)
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -152,7 +152,8 @@ async function fechaVuelo(wms, capa, c) {
     J: String(ALTO / 2),
     INFO_FORMAT: "text/html",
   });
-  const html = await (await pedir(`${wms}?${q}`)).text();
+  // Sin etiquetas: el HTML lleva atributos con cifras entre «Fecha» y el valor.
+  const html = (await (await pedir(`${wms}?${q}`)).text()).replace(/<[^>]*>/g, " ");
   const m = html.match(/Fecha[^0-9]*(\d{4})-(\d{2})/i);
   const res = html.match(/Resoluci[^0-9]*([\d.,]+)/i);
   return m
@@ -269,12 +270,15 @@ for (const o of conPunto) {
   const adjudicacion = fechaEs(o.adjudicacion?.fechaAcuerdo);
   const finPrevisto = sumarPlazo(adjudicacion, o.adjudicacion?.plazo);
 
-  // «antes»: el vuelo del ICV más reciente que terminó antes de la
-  // adjudicación y que tiene imagen en el punto.
+  // «antes»: solo tiene sentido si la foto «ahora» es posterior o durante la
+  // obra. Si es anterior, la propia foto «ahora» ya es el estado previo.
+  const juicio = veredicto(vAhora.fecha, adjudicacion, finPrevisto, u.visibleAire);
   let antes = null;
-  if (adjudicacion) {
+  if (adjudicacion && (juicio === "posterior" || juicio === "durante")) {
     for (const h of HISTORICO_ICV) {
       if (new Date(`${h.fin}T23:59:59Z`) >= adjudicacion) continue;
+      // Tampoco el mismo vuelo que «ahora» (IGN e ICV 2024 son el mismo vuelo).
+      if (h.anyo >= vAhora.fecha.slice(0, 4)) continue;
       const url = urlMapa(h.wms, h.capa, c);
       const webp = await imagen(url).catch(() => null);
       if (!webp) continue;
@@ -309,7 +313,7 @@ for (const o of conPunto) {
     antes,
     adjudicacion: adjudicacion ? iso(adjudicacion) : null,
     finPrevisto: finPrevisto ? iso(finPrevisto) : null,
-    veredicto: veredicto(vAhora.fecha, adjudicacion, finPrevisto, u.visibleAire),
+    veredicto: juicio,
   };
   console.log(
     `  ${o.id}: ahora ${vAhora.fecha} · antes ${antes?.fecha ?? "—"} · ${vistas[o.id].veredicto}`,
@@ -356,4 +360,16 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = ${JSON.stringify(vistas
 `;
 
 writeFileSync(SALIDA, encabezado + cuerpo, "utf-8");
+
+// Imágenes que el manifiesto ya no usa (p. ej. un «antes» que dejó de tener
+// sentido): se retiran para no publicar fotos huérfanas.
+const usadas = new Set(
+  Object.values(vistas).flatMap((v) => [v.ahora.src, v.antes?.src].filter(Boolean).map((s) => s.split("/").pop())),
+);
+for (const f of readdirSync(DIR_IMG)) {
+  if (/^OBRA-\d{2}-(ahora|antes)\.webp$/.test(f) && !usadas.has(f)) {
+    unlinkSync(resolve(DIR_IMG, f));
+    console.log(`  retirada ${f}`);
+  }
+}
 console.log(`✓ ${Object.keys(vistas).length} vistas → ${SALIDA}`);

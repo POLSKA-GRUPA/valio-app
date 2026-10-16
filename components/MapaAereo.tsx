@@ -57,12 +57,22 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
 
   useEffect(() => {
     let vivo = true;
-    import("maplibre-gl").then(({ Map: MapaGL, NavigationControl, AttributionControl }) => {
+    import("maplibre-gl").then(({ Map: MapaGL, NavigationControl, AttributionControl, setWorkerUrl }) => {
       if (!vivo || !contenedor.current) return;
+      // Servido por scripts/copiar-worker-mapa.mjs (webpack no empaqueta el worker).
+      setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+      const zona = circulo(u.lat, u.lon, u.radioM);
+      const lons = zona.geometry.coordinates[0].map((p) => p[0]);
+      const lats = zona.geometry.coordinates[0].map((p) => p[1]);
       const m = new MapaGL({
         container: contenedor.current,
-        center: [u.lon, u.lat],
-        zoom: 17,
+        // Encuadra el anillo entero: en una obra de zona grande, un zoom fijo
+        // dejaría la obra fuera de la vista.
+        bounds: [
+          [Math.min(...lons), Math.min(...lats)],
+          [Math.max(...lons), Math.max(...lats)],
+        ],
+        fitBoundsOptions: { padding: 32, maxZoom: 18 },
         maxZoom: 19.5,
         attributionControl: false,
         style: {
@@ -75,7 +85,7 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
               maxzoom: 19,
               attribution: ATRIBUCION_PNOA,
             },
-            obra: { type: "geojson", data: circulo(u.lat, u.lon, u.radioM) },
+            obra: { type: "geojson", data: zona },
           },
           layers: [
             { id: ACTUAL, type: "raster", source: ACTUAL },

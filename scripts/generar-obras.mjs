@@ -158,6 +158,7 @@ const VISIBLE_AIRE = ["si", "parcial", "no"];
 const ESTADOS_UBICACION = ["propuesta", "verificada"];
 
 const ubicaciones = new Map();
+const publicadas = new Set(filas.map((f) => `OBRA-${String(f.id).trim().padStart(2, "0")}`));
 if (existsSync(CSV_UBICACIONES)) {
   if (!existsSync(LIMITE_MUNICIPIO)) fallar(`falta el límite municipal ${LIMITE_MUNICIPIO}`);
   const termino = anillosWkt(readFileSync(LIMITE_MUNICIPIO, "utf-8"));
@@ -167,6 +168,8 @@ if (existsSync(CSV_UBICACIONES)) {
     const u = Object.fromEntries(f.map((v, i) => [cab[i], (v ?? "").trim()]));
     const id = u.id;
     if (!/^OBRA-\d{2}$/.test(id)) fallar(`ubicaciones.csv: id raro (${id})`);
+    // Las obras de municipios no publicados (sin población) se validan cuando entren.
+    if (!publicadas.has(id)) continue;
     if (!PRECISIONES.includes(u.precision)) fallar(`${id}: precisión desconocida (${u.precision})`);
     if (!ESTADOS_UBICACION.includes(u.estado_ubicacion))
       fallar(`${id}: estado_ubicacion desconocido (${u.estado_ubicacion})`);
@@ -175,7 +178,8 @@ if (existsSync(CSV_UBICACIONES)) {
     const lon = u.lon === "" ? null : Number(u.lon);
     if (!conPunto) {
       if (lat != null || lon != null) fallar(`${id}: precisión ${u.precision} no admite coordenadas`);
-      ubicaciones.set(id, { precision: u.precision, motivo: u.evidencia || null });
+      if (!u.motivo) fallar(`${id}: sin ubicación pero sin motivo para el vecino`);
+      ubicaciones.set(id, { precision: u.precision, motivo: u.motivo });
       continue;
     }
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) fallar(`${id}: coordenadas inválidas`);
@@ -371,7 +375,8 @@ export interface UbicacionPrecisa {
 /** Los documentos no permiten situarla con precisión: se dice y no se pinta nada. */
 export interface SinUbicacion {
   precision: "municipio" | "sin_ubicacion";
-  motivo: string | null;
+  /** Por qué no se puede situar, en una frase para el vecino. */
+  motivo: string;
 }
 
 export type Ubicacion = UbicacionPrecisa | SinUbicacion;

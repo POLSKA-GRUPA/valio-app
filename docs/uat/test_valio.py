@@ -10,6 +10,7 @@ import urllib.request
 from playwright.sync_api import sync_playwright
 
 # VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
+VISTA_AEREA = os.environ.get("NEXT_PUBLIC_VISTA_AEREA") == "1"
 BASE = os.environ.get("VALIO_BASE", "http://localhost:3000")
 # Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
@@ -44,6 +45,35 @@ def _evidencia_por_nombre():
 
 EVIDENCIA = _evidencia_por_nombre()
 
+def _con_punto_por_nombre():
+    """{nombre de obra: True si tiene ubicación precisa} leído de lib/obras.ts."""
+    raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(raiz, "lib", "obras.ts"), encoding="utf-8") as f:
+        fuente = f.read()
+    marca = "export const OBRAS: Obra[] = "
+    obras, _ = json.JSONDecoder().raw_decode(fuente, fuente.index(marca) + len(marca))
+    return {
+        o["nombre"]: bool(o.get("ubicacion")) and o["ubicacion"]["precision"] not in ("municipio", "sin_ubicacion")
+        for o in obras
+    }
+
+CON_PUNTO = _con_punto_por_nombre()
+
+def nombre_arriba(page):
+    """Nombre de la tarjeta de arriba del mazo. A diferencia de nombre_top, no
+    puede leer una tarjeta que aún vuela (está fuera del primer hueco)."""
+    return page.locator(".stack-slot").first.locator(".card-nombre").inner_text()
+
+def avanzar_hasta(page, quiere_punto, maximo=25):
+    """Pasa tarjetas («No puedo valorarlo») hasta una obra con o sin ubicación."""
+    for _ in range(maximo):
+        esperar_sin_vuelo(page)
+        if CON_PUNTO.get(nombre_arriba(page).strip()) == quiere_punto:
+            return True
+        page.get_by_role("button", name="No puedo valorarlo").first.click()
+    esperar_sin_vuelo(page)
+    return CON_PUNTO.get(nombre_arriba(page).strip()) == quiere_punto
+
 def etiqueta_evidencia(nombre):
     return EVIDENCIA.get((nombre or "").strip())
 
@@ -58,8 +88,15 @@ def esperar_nombre_distinto(page, anterior, ms=4000):
     )
 
 def esperar_sin_vuelo(page, ms=4000):
+    """Espera a que termine el vuelo de la tarjeta votada.
+
+    Mientras vuela, la app desactiva los botones de voto (Deck.tsx). Antes se
+    buscaba un aria-label «Voto registrado» que no existe (ese texto solo va en
+    la región role=status), así que no esperaba nada: la tarjeta en vuelo seguía
+    en el primer hueco y un clic podía caer en la de debajo.
+    """
     page.wait_for_function(
-        "() => !document.querySelector('[aria-label^=\"Voto registrado\"]')",
+        "() => { const b = document.querySelector('.action-btn'); return !b || !b.disabled; }",
         timeout=ms,
     )
 
@@ -1011,6 +1048,137 @@ with sync_playwright() as p:
     )
     shot(p_r19, "25-reg-issue39-ficha")
     ctx_r19.close()
+
+    # R20-R24 — Vista aérea (docs/specs/vista-aerea.md). Solo con el flag
+    # activo (NEXT_PUBLIC_VISTA_AEREA=1 al arrancar el servidor y los tests);
+    # sin flag se comprueba que la app queda idéntica (A9).
+    ctx_r20 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r20 = ctx_r20.new_page()
+    p_r20.goto(BASE, wait_until="networkidle")
+    p_r20.get_by_role("button", name="Entendido, a votar").click()
+    p_r20.wait_for_timeout(300)
+    if not VISTA_AEREA:
+        # Una obra que SÍ tiene ubicación: con el flag apagado no enseña nada.
+        avanzar_hasta(p_r20, True)
+        check(
+            "R20 VISTA-AÉREA (flag apagado): la tarjeta queda como antes",
+            p_r20.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 0,
+        )
+        p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+        p_r20.wait_for_timeout(400)
+        check(
+            "R20 VISTA-AÉREA (flag apagado): la ficha no tiene «Desde el aire»",
+            p_r20.locator("#ficha-aerea").count() == 0,
+        )
+    else:
+        # Avanza hasta la primera obra con ubicación (no todas la tienen).
+        check("R20 VISTA-AÉREA: hay obras con ubicación", avanzar_hasta(p_r20, True))
+        carta = p_r20.locator(".stack-slot").first.locator(".card-frame")
+        foto = carta.locator(".aerea-img")
+        check("R20 VISTA-AÉREA: la tarjeta muestra la foto aérea", foto.count() == 1)
+        alt = foto.first.get_attribute("alt") or ""
+        check("R20 VISTA-AÉREA: la foto tiene texto alternativo con la fecha", "Foto aérea" in alt and "2024" in alt, alt)
+        check("R20 VISTA-AÉREA: la foto no se arrastra sola", foto.first.get_attribute("draggable") == "false")
+        cargada = p_r20.evaluate("(img) => img.complete && img.naturalWidth > 0", foto.first.element_handle())
+        check("R20 VISTA-AÉREA: la imagen carga", cargada)
+        pastilla = carta.locator(".aerea-pastilla").inner_text()
+        check("R20 VISTA-AÉREA: fecha del vuelo y licencia visibles", "2024" in pastilla and "CC-BY" in pastilla, pastilla)
+        veredicto = carta.locator(".aerea-veredicto").inner_text()
+        check(
+            "R20 VISTA-AÉREA: el texto no sugiere que la obra no se hizo",
+            veredicto != "" and "no se hizo" not in veredicto.lower() and "no existe" not in veredicto.lower(),
+            veredicto,
+        )
+        shot(p_r20, "26-vista-aerea-tarjeta")
+
+        # R21 — el gesto sigue funcionando con la foto: arrastre desde la foto.
+        antes_r21 = nombre_arriba(p_r20)
+        caja = foto.first.bounding_box()
+        cx, cy = caja["x"] + caja["width"] / 2, caja["y"] + caja["height"] / 2
+        p_r20.mouse.move(cx, cy)
+        p_r20.mouse.down()
+        for paso in range(1, 21):
+            p_r20.mouse.move(cx + paso * 20, cy, steps=3)
+            p_r20.wait_for_timeout(16)
+        p_r20.wait_for_timeout(120)
+        p_r20.mouse.up()
+        try:
+            esperar_nombre_distinto(p_r20, antes_r21)
+        except Exception:
+            pass
+        check("R21 VISTA-AÉREA: deslizar desde la foto vota", nombre_arriba(p_r20) != antes_r21)
+        esperar_sin_vuelo(p_r20)
+
+        # R22 — ficha: sección «Desde el aire» con enlaces sin claves.
+        avanzar_hasta(p_r20, True)
+        p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+        p_r20.wait_for_timeout(500)
+        seccion = p_r20.locator(".sheet section:has(#ficha-aerea)")
+        check("R22 VISTA-AÉREA: la ficha tiene «Desde el aire»", seccion.count() == 1)
+        check(
+            "R22 VISTA-AÉREA: enlace a Street View",
+            seccion.get_by_role("link", name="Ver a pie de calle (Street View)").count() == 1,
+        )
+        check("R22 VISTA-AÉREA: atribución de la licencia en la ficha", "scne.es" in seccion.inner_text())
+
+        # R23 — mapa interactivo bajo demanda, sin errores de consola.
+        errores_antes = len(console_errors)
+        seccion.get_by_role("button", name="Explorar en el mapa").click()
+        p_r20.wait_for_selector(".aerea-mapa canvas", timeout=15000)
+        p_r20.wait_for_timeout(2500)
+        check("R23 VISTA-AÉREA: el mapa carga", p_r20.locator(".aerea-mapa canvas").count() >= 1)
+        check(
+            "R23 VISTA-AÉREA: sin errores al cargar el mapa",
+            len(console_errors) == errores_antes,
+            str(console_errors[errores_antes:][:2]),
+        )
+        shot(p_r20, "27-vista-aerea-mapa")
+
+        # R24 — obra sin ubicación: lo dice y no pinta nada.
+        p_r20.get_by_role("button", name="Cerrar ficha").click()
+        p_r20.wait_for_selector(".sheet-backdrop", state="detached")
+        p_r20.wait_for_timeout(150)
+        visto_sin = False
+        detalle_r24 = "no se encontró una obra sin ubicación"
+        if avanzar_hasta(p_r20, False):
+            check(
+                "R24 VISTA-AÉREA: la tarjeta sin ubicación no lleva foto",
+                p_r20.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 0,
+            )
+            p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+            p_r20.wait_for_timeout(400)
+            p_r20.wait_for_selector(".sheet #ficha-aerea", timeout=4000)
+            texto = p_r20.locator(".sheet").inner_text()
+            visto_sin = "Sin ubicación precisa" in texto and p_r20.locator(".sheet .aerea-img").count() == 0
+            detalle_r24 = f"sheets={p_r20.locator('.sheet').count()} imgs={p_r20.locator('.sheet .aerea-img').count()} {texto[:80]!r}"
+        check("R24 VISTA-AÉREA: obra sin ubicación lo explica y no muestra foto", visto_sin, detalle_r24)
+    ctx_r20.close()
+
+    if VISTA_AEREA:
+        # R25 — recorre el mazo entero: llevan foto exactamente las obras con
+        # ubicación precisa en los datos, ni una más ni una menos.
+        ctx_r25 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+        p_r25 = ctx_r25.new_page()
+        p_r25.goto(BASE, wait_until="networkidle")
+        p_r25.get_by_role("button", name="Entendido, a votar").click()
+        discrepancias = []
+        vistas = 0
+        for _ in range(len(CON_PUNTO) + 2):
+            esperar_sin_vuelo(p_r25)
+            if p_r25.locator(".stack-slot").count() == 0:
+                break
+            nombre = nombre_arriba(p_r25).strip()
+            con_foto = p_r25.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 1
+            vistas += 1
+            if con_foto != CON_PUNTO.get(nombre):
+                discrepancias.append(f"{nombre[:40]} foto={con_foto}")
+            p_r25.get_by_role("button", name="No puedo valorarlo").first.click()
+        check(
+            "R25 VISTA-AÉREA: foto en todas las obras con ubicación y en ninguna más",
+            vistas == len(CON_PUNTO) and not discrepancias,
+            f"vistas={vistas} {discrepancias[:3]}",
+        )
+        ctx_r25.close()
 
     browser.close()
 

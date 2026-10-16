@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { tienePunto, type Obra, type UbicacionPrecisa } from "@/lib/obras";
-import { VISTAS_AEREAS, type FotoAerea, type Veredicto, type VistaAerea } from "@/lib/aerea";
+import { VISTAS_AEREAS, type FotoAerea, type VistaAerea } from "@/lib/aerea";
 import { VISTA_AEREA } from "@/lib/flags";
 
 // El mapa interactivo pesa (MapLibre): solo se descarga si el vecino lo pide.
@@ -23,14 +23,25 @@ export function fechaVuelo(fecha: string): string {
 /** "2024-11-21" → "21/11/2024". */
 const fechaEs = (iso: string) => iso.split("-").reverse().join("/");
 
-/** Lo que permite decir la foto. Nunca sugiere que la obra no se hizo. */
-export const VEREDICTO_TEXTO: Record<Veredicto, string> = {
-  posterior: "Foto posterior al plazo de la obra: sirve para comprobarla",
-  durante: "Foto tomada durante el plazo de la obra",
-  anterior: "Foto anterior a la obra: aún no sirve para comprobarla",
-  no_visible: "Esta obra no se ve desde el aire",
-  sin_fechas: "Sin fecha de adjudicación: no se puede comparar",
-};
+/**
+ * Lo que permite decir la foto. Nunca sugiere que la obra no se hizo: si la
+ * foto es anterior, es el estado previo del sitio y así se presenta.
+ */
+export function textoVeredicto(v: VistaAerea): string {
+  const fecha = fechaVuelo(v.ahora.fecha);
+  switch (v.veredicto) {
+    case "posterior":
+      return `Foto de ${fecha}, posterior al plazo: sirve para comprobar la obra`;
+    case "durante":
+      return `Foto de ${fecha}, tomada durante el plazo de la obra`;
+    case "anterior":
+      return `Así estaba el sitio en ${fecha}, antes de la obra. Aún no hay foto oficial posterior`;
+    case "no_visible":
+      return "Dónde se hizo. La obra no se distingue desde el aire";
+    case "sin_fechas":
+      return `Foto de ${fecha}. Sin fecha de adjudicación para compararla`;
+  }
+}
 
 const PRECISION_TEXTO: Record<UbicacionPrecisa["precision"], string> = {
   punto: "punto exacto",
@@ -86,13 +97,13 @@ export function FotoTarjeta({ obra }: { obra: Obra }) {
           {fechaVuelo(v.ahora.fecha)} · PNOA CC-BY 4.0 scne.es
         </span>
       </div>
-      <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{VEREDICTO_TEXTO[v.veredicto]}</figcaption>
+      <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v)}</figcaption>
     </figure>
   );
 }
 
 /** Comparador antes/después: dos fotos horneadas y un deslizador accesible. */
-function Comparador({ obra, v }: { obra: Obra; v: VistaAerea & { antes: FotoAerea } }) {
+function Comparador({ obra, u, v }: { obra: Obra; u: UbicacionPrecisa; v: VistaAerea & { antes: FotoAerea } }) {
   const [pct, setPct] = useState(50);
   const id = useId();
   const antes = fechaVuelo(v.antes.fecha);
@@ -109,6 +120,7 @@ function Comparador({ obra, v }: { obra: Obra; v: VistaAerea & { antes: FotoAere
           className="aerea-img aerea-img-antes"
           style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
         />
+        <Anillo u={u} v={v} />
         <span className="aerea-divisor" style={{ left: `${pct}%` }} aria-hidden="true" />
         <span className="aerea-pastilla aerea-pastilla-izq">{antes}</span>
         <span className="aerea-pastilla">{ahora}</span>
@@ -161,7 +173,7 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
         <h3 id="ficha-aerea">Desde el aire</h3>
         <p className="ficha-nota">
           Sin ubicación precisa en los documentos públicos de la obra
-          {u?.motivo ? `: ${u.motivo}` : "."}
+          {u?.motivo ? `: ${u.motivo}.` : "."}
         </p>
       </section>
     );
@@ -172,9 +184,9 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
   return (
     <section className="ficha-seccion" aria-labelledby="ficha-aerea">
       <h3 id="ficha-aerea">Desde el aire</h3>
-      <p className={`aerea-veredicto aerea-${v.veredicto}`}>{VEREDICTO_TEXTO[v.veredicto]}</p>
+      <p className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v)}</p>
       {v.antes ? (
-        <Comparador obra={obra} v={v as VistaAerea & { antes: FotoAerea }} />
+        <Comparador obra={obra} u={u} v={v as VistaAerea & { antes: FotoAerea }} />
       ) : (
         <div className="aerea-marco">
           <img src={v.ahora.src} alt={textoAlt(obra, v.ahora, "actual")} width={720} height={480} className="aerea-img" />
@@ -238,6 +250,7 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
       <p className="aerea-atribucion">
         {v.ahora.atribucion}
         {v.antes ? <><br />{v.antes.atribucion}</> : null}
+        {u.fuente.tipo === "cartociudad" ? <><br />Ubicación: CartoCiudad CC BY 4.0 scne.es</> : null}
       </p>
     </section>
   );
