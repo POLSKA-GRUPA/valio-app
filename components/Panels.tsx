@@ -121,7 +121,8 @@ export function Info() {
         <div className="info-block">
           <h3>Privacidad</h3>
           <p>
-            Tus votos, tu municipio y si ya viste el tutorial se guardan solo en tu dispositivo (localStorage). Sin
+            Tus votos, tu municipio, tus respuestas sobre si una obra está terminada y si ya viste el tutorial se
+            guardan solo en tu dispositivo (localStorage). Sin
             cuentas, sin rastreo y sin pedir tu ubicación.
           </p>
         </div>
