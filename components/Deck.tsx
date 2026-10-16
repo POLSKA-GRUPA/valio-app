@@ -2,13 +2,15 @@
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
-import { CATEGORIA_LABEL, OBRAS, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
+import { CATEGORIA_LABEL, VOTO_LABEL, type Categoria, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { costeVecino, eurosCompactos } from "@/lib/formato";
 import { DetailSheet } from "./DetailSheet";
-import { MatchScreen } from "./MatchScreen";
 import { ClaimDraft } from "./ClaimDraft";
+import { FiltroTipos } from "./FiltroTipos";
+import { OrdenObras } from "./OrdenObras";
+import { importeDe, ordenar } from "@/lib/orden";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
@@ -40,8 +42,10 @@ function destinoDe(voto: Voto): { x: number; y: number } {
 function ArteObra({ obra, indice }: { obra: Obra; indice: number }) {
   const c = CATEGORIA_COLOR[obra.categoria];
   // Importe protagonista: el de adjudicación si consta; si no, el de licitación.
-  const importe = obra.adjudicacion?.importeSinIva ?? obra.importeLicitacion;
-  const tipoImporte = obra.adjudicacion ? "Adjudicado · sin IVA" : "Licitación · sin IVA";
+  const importe = importeDe(obra);
+  const tipoImporte = obra.adjudicacion
+    ? "Adjudicado · sin IVA"
+    : `Licitación · ${obra.ivaLicitacionIncluido ? "con IVA" : "sin IVA"}`;
   return (
     <>
       <svg viewBox="0 0 360 460" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -208,33 +212,70 @@ function Tutorial({ onCerrar }: { onCerrar: () => void }) {
   );
 }
 
+/** Orden y tipos en una sola fila con scroll lateral: el mazo conserva su alto. */
+function BarraFiltros() {
+  return (
+    <div className="filtros-barra">
+      <OrdenObras />
+      <span className="filtros-separador" aria-hidden="true" />
+      <FiltroTipos />
+    </div>
+  );
+}
+
 export function Deck() {
-  const { votos, votar, reset, marcarTutorialVisto, tutorialVisto, listo } = useStore();
+  const {
+    votos,
+    votar,
+    reset,
+    marcarTutorialVisto,
+    tutorialVisto,
+    listo,
+    municipio,
+    obras,
+    tipos,
+    verTodosLosTipos,
+    orden,
+  } = useStore();
   const [vuelo, setVuelo] = useState<{ id: string; voto: Voto } | null>(null);
-  const [matchObra, setMatchObra] = useState<Obra | null>(null);
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
   const [claimObra, setClaimObra] = useState<Obra | null>(null);
   // Texto de la región live. Lleva el nombre de la obra para que dos votos
   // iguales seguidos cambien el texto y el lector los anuncie los dos.
   const [anuncio, setAnuncio] = useState("");
+  // #38: tras votar, aviso visible y sobrio (sin match: un voto no es un
+  // estado colectivo). Cuenta los votos para reiniciar el temporizador.
+  const [avisoGuardado, setAvisoGuardado] = useState(0);
 
   const decidir = useCallback(
     (obra: Obra, voto: Voto) => {
       votar(obra.id, voto);
-      if (voto === "no_valio") setMatchObra(obra);
       setVuelo({ id: obra.id, voto });
       setAnuncio(`Voto registrado: ${VOTO_LABEL[voto]}. ${obra.nombre}`);
+      setAvisoGuardado((n) => n + 1);
+      // Gesto arriba, botón ↑ o flecha ↑: además del voto, abre el borrador.
+      if (voto === "explica") setClaimObra(obra);
     },
     [votar],
   );
 
+  useEffect(() => {
+    if (!avisoGuardado) return;
+    const t = window.setTimeout(() => setAvisoGuardado(0), 2500);
+    return () => window.clearTimeout(t);
+  }, [avisoGuardado]);
+
   const onVueloCompleto = useCallback(() => setVuelo(null), []);
 
-  const pendientes = listo ? OBRAS.filter((o) => !votos[o.id]) : [];
+  const sinVotar = listo ? obras.filter((o) => !votos[o.id]) : [];
+  const pendientes = ordenar(
+    tipos.length === 0 ? sinVotar : sinVotar.filter((o) => tipos.includes(o.categoria)),
+    orden,
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!tutorialVisto || vuelo || matchObra || fichaObra || claimObra) return;
+      if (!tutorialVisto || vuelo || fichaObra || claimObra) return;
       const top = pendientes[0];
       if (!top) return;
       const objetivo = e.target instanceof HTMLElement ? e.target : null;
@@ -258,7 +299,7 @@ export function Deck() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tutorialVisto, vuelo, matchObra, fichaObra, claimObra, pendientes, decidir]);
+  }, [tutorialVisto, vuelo, fichaObra, claimObra, pendientes, decidir]);
 
   if (!listo) {
     return (
@@ -268,32 +309,61 @@ export function Deck() {
     );
   }
 
-  if (pendientes.length === 0 && !vuelo) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <div className="deck-zone" aria-label="Mazo terminado">
+  // Mazo vacío (por filtro o porque no queda nada): se pinta dentro del mismo
+  // árbol para que el borrador de explicaciones, el aviso y la región live
+  // sigan montados tras el último voto.
+  const vacio = pendientes.length === 0 && !vuelo;
+  const agotadoFiltro = vacio && sinVotar.length > 0;
+  const terminado = vacio && sinVotar.length === 0;
+
+  const volando = vuelo ? obras.find((o) => o.id === vuelo.id) ?? null : null;
+  const visibles = volando ? [volando, ...pendientes.slice(0, 2)] : pendientes.slice(0, 3);
+  const restantes = pendientes.length;
+  // Posición de cada carta dentro de lo que se está votando (municipio + filtro),
+  // no en la lista de datos: con filtro u orden, «Tarjeta 2 de 5», no «19 de 21».
+  const filtradas = tipos.length === 0 ? obras : obras.filter((o) => tipos.includes(o.categoria));
+  const yaVotadas = filtradas.length - pendientes.length;
+  const posicion = (obra: Obra) =>
+    // La carta en vuelo puede no pertenecer ya al filtro (si se cambia durante
+    // la animación): nunca «Tarjeta 0».
+    volando && obra.id === volando.id
+      ? Math.max(1, yaVotadas)
+      : yaVotadas + 1 + pendientes.findIndex((o) => o.id === obra.id);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* Con el tutorial abierto no hay chips: el tutorial es modal. */}
+      {tutorialVisto && !terminado && <BarraFiltros />}
+      <div
+        className="deck-zone"
+        aria-label={
+          terminado ? "Mazo terminado" : agotadoFiltro ? "Sin obras de este tipo" : `Quedan ${restantes} tarjetas`
+        }
+      >
+        {agotadoFiltro && (
+          <div className="empty-deck">
+            <h2 className="display">Nada pendiente de este tipo</h2>
+            <p>
+              Te quedan {sinVotar.length} {sinVotar.length === 1 ? "obra" : "obras"} de otros tipos en {municipio}.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={verTodosLosTipos}>
+              Ver todas
+            </button>
+          </div>
+        )}
+        {terminado && (
           <div className="empty-deck">
             <h2 className="display">Ya has votado todo</h2>
             <p>
-              Has recorrido las {OBRAS.length} obras del piloto de {OBRAS[0].municipio}. Tus votos se
+              Has recorrido las {obras.length} obras del piloto de {municipio}. Tus votos se
               guardan en este dispositivo; desde cada ficha puedes pedir explicaciones al organismo.
             </p>
             <button type="button" className="btn btn-primary" onClick={reset}>
               Volver a empezar
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  const volando = vuelo ? OBRAS.find((o) => o.id === vuelo.id) ?? null : null;
-  const visibles = volando ? [volando, ...pendientes.slice(0, 2)] : pendientes.slice(0, 3);
-  const restantes = pendientes.length;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div className="deck-zone" aria-label={`Quedan ${restantes} tarjetas`}>
         <AnimatePresence>
           {tutorialVisto ? null : <Tutorial key="tutorial" onCerrar={marcarTutorialVisto} />}
         </AnimatePresence>
@@ -313,15 +383,15 @@ export function Deck() {
             {i === 0 ? (
               <WorkCard
                 obra={obra}
-                indice={OBRAS.findIndex((o) => o.id === obra.id) + 1}
-                total={OBRAS.length}
+                indice={posicion(obra)}
+                total={filtradas.length}
                 vuelo={vuelo}
                 onVueloCompleto={onVueloCompleto}
                 onDecide={(voto) => decidir(obra, voto)}
                 onFicha={() => setFichaObra(obra)}
               />
             ) : (
-              <CardPreview obra={obra} indice={OBRAS.findIndex((o) => o.id === obra.id) + 1} />
+              <CardPreview obra={obra} indice={posicion(obra)} />
             )}
           </div>
         ))}
@@ -331,8 +401,16 @@ export function Deck() {
         <div className="sr-only" role="status">
           {anuncio}
         </div>
+
+        {/* aria-hidden: al lector ya se lo dice la región live de arriba. */}
+        {avisoGuardado > 0 && (
+          <p className="voto-guardado" aria-hidden="true">
+            Tu voto se ha guardado en este dispositivo
+          </p>
+        )}
       </div>
 
+      {!vacio && (
       <div className="action-row">
         <button type="button" className="action-btn action-nose" aria-label="No puedo valorarlo" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
           ↓
@@ -347,19 +425,7 @@ export function Deck() {
           ↑
         </button>
       </div>
-
-      <AnimatePresence>
-        {matchObra && (
-          <MatchScreen
-            obra={matchObra}
-            onClose={() => setMatchObra(null)}
-            onClaim={() => {
-              setClaimObra(matchObra);
-              setMatchObra(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
+      )}
 
       <AnimatePresence>
         {fichaObra && (
