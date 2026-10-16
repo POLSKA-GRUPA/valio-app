@@ -1,0 +1,338 @@
+#!/usr/bin/env node
+/**
+ * hornear-vista-aerea.mjs — Descarga y guarda la foto aérea oficial de cada obra.
+ *
+ * Se ejecuta en local (nunca en el build de Vercel): las imágenes y su
+ * manifiesto se versionan, así la app no depende de que el servicio del IGN
+ * esté arriba y la tarjeta carga al instante.
+ *
+ * Para cada obra con ubicación precisa (lib/obras.ts, generado desde
+ * valio-datos):
+ *   1. «ahora»: la ortofoto oficial más reciente del punto, con la fecha de
+ *      vuelo que da el propio servicio en ese punto.
+ *   2. «antes»: el vuelo más reciente ANTERIOR a la adjudicación con cobertura
+ *      real en el punto (se descartan las imágenes en blanco).
+ *   3. Compara la fecha de vuelo con la de la obra y decide el texto honesto.
+ *
+ * Salida: public/aerea/OBRA-XX-{ahora,antes}.webp y lib/aerea.ts.
+ *
+ * Uso:
+ *   node scripts/hornear-vista-aerea.mjs            # todas las obras
+ *   node scripts/hornear-vista-aerea.mjs --comprobar # solo mira si hay vuelos nuevos (sale 3 si los hay)
+ */
+
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import sharp from "sharp";
+
+const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const DIR_IMG = resolve(RAIZ, "public/aerea");
+const SALIDA = resolve(RAIZ, "lib/aerea.ts");
+const SOLO_COMPROBAR = process.argv.includes("--comprobar");
+
+// Píxeles de la imagen guardada (3:2, el doble del hueco de la tarjeta en un
+// móvil de 375 px para que se vea nítida en pantallas retina).
+const ANCHO = 720;
+const ALTO = 480;
+// Lado mínimo del encuadre en metros: por debajo, la obra se ve sin contexto.
+const LADO_MIN_M = 180;
+
+const ATRIBUCION_PNOA = "PNOA cedido por © Instituto Geográfico Nacional";
+
+/** Fuente de la foto «ahora» y vuelos históricos para «antes». */
+const ACTUAL = {
+  fuente: "PNOA máxima actualidad (IGN)",
+  wms: "https://www.ign.es/wms-inspire/pnoa-ma",
+  capa: "OI.OrthoimageCoverage",
+  capaFecha: "OI.MosaicElement",
+  atribucion: ATRIBUCION_PNOA,
+};
+const HISTORICO = {
+  fuente: "PNOA histórico (IGN)",
+  wms: "https://www.ign.es/wms/pnoa-historico",
+  atribucion: ATRIBUCION_PNOA,
+};
+const ANYOS_HISTORICO = Array.from({ length: 2024 - 2004 + 1 }, (_, i) => 2024 - i);
+
+// --- utilidades -------------------------------------------------------------
+
+function fallar(mensaje) {
+  console.error(`✗ ${mensaje}`);
+  process.exit(1);
+}
+
+async function pedir(url, intentos = 3) {
+  for (let i = 1; ; i++) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r;
+    } catch (e) {
+      if (i >= intentos) throw new Error(`${url}: ${e.message}`);
+      await new Promise((ok) => setTimeout(ok, 1500 * i));
+    }
+  }
+}
+
+/** Encuadre con píxeles cuadrados en metros, centrado en la obra. */
+function encuadre(lat, lon, radioM) {
+  const ladoX = Math.max(LADO_MIN_M, radioM * 2 * 3);
+  const ladoY = (ladoX * ALTO) / ANCHO;
+  const mLat = 111_320;
+  const mLon = 111_320 * Math.cos((lat * Math.PI) / 180);
+  return {
+    latMin: lat - ladoY / 2 / mLat,
+    latMax: lat + ladoY / 2 / mLat,
+    lonMin: lon - ladoX / 2 / mLon,
+    lonMax: lon + ladoX / 2 / mLon,
+    metrosAncho: Math.round(ladoX),
+  };
+}
+
+const redondea = (n) => Math.round(n * 1e6) / 1e6;
+
+/** WMS 1.3.0 con EPSG:4326: el eje va lat,lon. */
+function bboxWms(c) {
+  return [c.latMin, c.lonMin, c.latMax, c.lonMax].map(redondea).join(",");
+}
+
+function urlMapa(wms, capa, c) {
+  const q = new URLSearchParams({
+    SERVICE: "WMS",
+    VERSION: "1.3.0",
+    REQUEST: "GetMap",
+    LAYERS: capa,
+    STYLES: "",
+    CRS: "EPSG:4326",
+    BBOX: bboxWms(c),
+    WIDTH: String(ANCHO),
+    HEIGHT: String(ALTO),
+    FORMAT: "image/jpeg",
+  });
+  return `${wms}?${q}`;
+}
+
+/** Fecha (AAAA-MM) del vuelo en el centro del encuadre, según el servicio. */
+async function fechaVuelo(wms, capa, c) {
+  const q = new URLSearchParams({
+    SERVICE: "WMS",
+    VERSION: "1.3.0",
+    REQUEST: "GetFeatureInfo",
+    LAYERS: capa,
+    QUERY_LAYERS: capa,
+    STYLES: "",
+    CRS: "EPSG:4326",
+    BBOX: bboxWms(c),
+    WIDTH: String(ANCHO),
+    HEIGHT: String(ALTO),
+    I: String(ANCHO / 2),
+    J: String(ALTO / 2),
+    INFO_FORMAT: "text/html",
+  });
+  const html = await (await pedir(`${wms}?${q}`)).text();
+  const m = html.match(/Fecha[^0-9]*(\d{4})-(\d{2})/i);
+  const res = html.match(/Resoluci[^0-9]*([\d.,]+)/i);
+  return m
+    ? { fecha: `${m[1]}-${m[2]}`, resolucionM: res ? Number(res[1].replace(",", ".")) : null }
+    : null;
+}
+
+/** Descarga, descarta imágenes vacías y devuelve el webp listo para guardar. */
+async function imagen(url) {
+  const bruto = Buffer.from(await (await pedir(url)).arrayBuffer());
+  const img = sharp(bruto);
+  const { channels } = await img.stats();
+  // Sin cobertura, el WMS devuelve 200 con un lienzo uniforme (blanco o negro).
+  const variacion = Math.max(...channels.slice(0, 3).map((c) => c.stdev));
+  if (variacion < 6) return null;
+  return img.webp({ quality: 72 }).toBuffer();
+}
+
+// --- fechas de la obra ----------------------------------------------------------
+
+/** "21/11/2024" → Date (UTC). */
+function fechaEs(texto) {
+  const m = texto?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])) : null;
+}
+
+/** Suma el plazo de PLACE («2 Mes(es)», «15 Día(s)», «1 Año(s)»). */
+function sumarPlazo(fecha, plazo) {
+  const m = plazo?.match(/(\d+)\s*(D[ií]a|Mes|A[ñn]o)/i);
+  if (!fecha || !m) return null;
+  const n = Number(m[1]);
+  const d = new Date(fecha);
+  const unidad = m[2].toLowerCase();
+  if (unidad.startsWith("d")) d.setUTCDate(d.getUTCDate() + n);
+  else if (unidad.startsWith("m")) d.setUTCMonth(d.getUTCMonth() + n);
+  else d.setUTCFullYear(d.getUTCFullYear() + n);
+  return d;
+}
+
+const inicioMes = (aaaamm) => new Date(`${aaaamm}-01T00:00:00Z`);
+function finMes(aaaamm) {
+  const d = inicioMes(aaaamm);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  return d;
+}
+const iso = (d) => d.toISOString().slice(0, 10);
+
+/**
+ * Qué permite decir la foto «ahora» sobre la obra. Conservador: un vuelo del
+ * mismo mes que la adjudicación cuenta como «durante», nunca como «después».
+ */
+function veredicto(fechaFoto, adjudicacion, finPrevisto, visibleAire) {
+  if (visibleAire === "no") return "no_visible";
+  if (!adjudicacion) return "sin_fechas";
+  if (finMes(fechaFoto) <= adjudicacion) return "anterior";
+  if (finPrevisto && inicioMes(fechaFoto) >= finPrevisto) return "posterior";
+  return "durante";
+}
+
+// --- lectura de obras -------------------------------------------------------
+
+const fuenteObras = readFileSync(resolve(RAIZ, "lib/obras.ts"), "utf-8");
+const bloque = fuenteObras.match(/export const OBRAS: Obra\[\] = (\[[\s\S]*?\n\]);/);
+if (!bloque) fallar("no encuentro OBRAS en lib/obras.ts");
+const OBRAS = JSON.parse(bloque[1]);
+
+const conPunto = OBRAS.filter(
+  (o) => o.ubicacion && !["municipio", "sin_ubicacion"].includes(o.ubicacion.precision),
+);
+console.log(`${conPunto.length}/${OBRAS.length} obras con ubicación precisa`);
+
+// --- modo comprobar: ¿hay un vuelo más nuevo que el guardado? ---------------
+
+if (SOLO_COMPROBAR) {
+  let previo = {};
+  try {
+    const actual = readFileSync(SALIDA, "utf-8").match(/export const VISTAS_AEREAS[^=]*= (\{[\s\S]*?\n\});/);
+    previo = actual ? JSON.parse(actual[1]) : {};
+  } catch {
+    // sin manifiesto previo: todo es nuevo
+  }
+  const nuevos = [];
+  for (const o of conPunto) {
+    const c = encuadre(o.ubicacion.lat, o.ubicacion.lon, o.ubicacion.radioM);
+    const v = await fechaVuelo(ACTUAL.wms, ACTUAL.capaFecha, c);
+    const guardada = previo[o.id]?.ahora?.fecha;
+    if (v && v.fecha !== guardada) nuevos.push(`${o.id}: ${guardada ?? "—"} → ${v.fecha}`);
+  }
+  if (nuevos.length) {
+    console.log(`Vuelos nuevos:\n  ${nuevos.join("\n  ")}`);
+    process.exit(3);
+  }
+  console.log("Sin vuelos nuevos.");
+  process.exit(0);
+}
+
+// --- horneado ---------------------------------------------------------------
+
+mkdirSync(DIR_IMG, { recursive: true });
+const vistas = {};
+
+for (const o of conPunto) {
+  const u = o.ubicacion;
+  const c = encuadre(u.lat, u.lon, u.radioM);
+  const caja = [c.latMin, c.lonMin, c.latMax, c.lonMax].map(redondea);
+
+  const vAhora = await fechaVuelo(ACTUAL.wms, ACTUAL.capaFecha, c);
+  if (!vAhora) fallar(`${o.id}: el servicio no da fecha de vuelo en el punto`);
+  const urlAhora = urlMapa(ACTUAL.wms, ACTUAL.capa, c);
+  const webpAhora = await imagen(urlAhora);
+  if (!webpAhora) fallar(`${o.id}: la ortofoto actual sale en blanco`);
+  writeFileSync(resolve(DIR_IMG, `${o.id}-ahora.webp`), webpAhora);
+
+  const adjudicacion = fechaEs(o.adjudicacion?.fechaAcuerdo);
+  const finPrevisto = sumarPlazo(adjudicacion, o.adjudicacion?.plazo);
+
+  // «antes»: el año histórico más reciente cuyo vuelo es anterior a la
+  // adjudicación y que tiene imagen en el punto.
+  let antes = null;
+  if (adjudicacion) {
+    for (const anyo of ANYOS_HISTORICO) {
+      if (anyo > adjudicacion.getUTCFullYear()) continue;
+      const capa = `PNOA${anyo}`;
+      const v = await fechaVuelo(HISTORICO.wms, capa, c).catch(() => null);
+      const fecha = v?.fecha ?? null;
+      // Sin mes no se puede asegurar que sea anterior en el mismo año.
+      if (fecha ? finMes(fecha) > adjudicacion : anyo >= adjudicacion.getUTCFullYear()) continue;
+      const url = urlMapa(HISTORICO.wms, capa, c);
+      const webp = await imagen(url).catch(() => null);
+      if (!webp) continue;
+      writeFileSync(resolve(DIR_IMG, `${o.id}-antes.webp`), webp);
+      antes = {
+        src: `/aerea/${o.id}-antes.webp`,
+        fecha: fecha ?? String(anyo),
+        fuente: HISTORICO.fuente,
+        capa,
+        resolucionM: v?.resolucionM ?? null,
+        atribucion: HISTORICO.atribucion,
+        origen: url,
+      };
+      break;
+    }
+  }
+
+  vistas[o.id] = {
+    caja,
+    metrosAncho: c.metrosAncho,
+    ahora: {
+      src: `/aerea/${o.id}-ahora.webp`,
+      fecha: vAhora.fecha,
+      fuente: ACTUAL.fuente,
+      capa: ACTUAL.capa,
+      resolucionM: vAhora.resolucionM,
+      atribucion: ACTUAL.atribucion,
+      origen: urlAhora,
+    },
+    antes,
+    adjudicacion: adjudicacion ? iso(adjudicacion) : null,
+    finPrevisto: finPrevisto ? iso(finPrevisto) : null,
+    veredicto: veredicto(vAhora.fecha, adjudicacion, finPrevisto, u.visibleAire),
+  };
+  console.log(
+    `  ${o.id}: ahora ${vAhora.fecha} · antes ${antes?.fecha ?? "—"} · ${vistas[o.id].veredicto}`,
+  );
+}
+
+const encabezado = `/**
+ * ⚠️ ARCHIVO GENERADO — no editar a mano.
+ * Regenerar con: node scripts/hornear-vista-aerea.mjs
+ * Fotos aéreas oficiales de cada obra, con la fecha de vuelo que da el propio
+ * servicio en el punto. Generado: ${new Date().toISOString().slice(0, 10)}
+ */
+`;
+
+const cuerpo = `
+export type Veredicto = "posterior" | "durante" | "anterior" | "no_visible" | "sin_fechas";
+
+export interface FotoAerea {
+  src: string;
+  /** AAAA-MM del vuelo en el punto (o AAAA si el servicio no da el mes). */
+  fecha: string;
+  fuente: string;
+  capa: string;
+  resolucionM: number | null;
+  atribucion: string;
+  /** Petición WMS original, para poder reproducir la imagen. */
+  origen: string;
+}
+
+export interface VistaAerea {
+  /** [latMin, lonMin, latMax, lonMax] del encuadre. */
+  caja: [number, number, number, number];
+  metrosAncho: number;
+  ahora: FotoAerea;
+  antes: FotoAerea | null;
+  adjudicacion: string | null;
+  finPrevisto: string | null;
+  veredicto: Veredicto;
+}
+
+export const VISTAS_AEREAS: Record<string, VistaAerea> = ${JSON.stringify(vistas, null, 2)};
+`;
+
+writeFileSync(SALIDA, encabezado + cuerpo, "utf-8");
+console.log(`✓ ${Object.keys(vistas).length} vistas → ${SALIDA}`);

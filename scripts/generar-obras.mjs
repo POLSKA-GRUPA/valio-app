@@ -15,7 +15,7 @@
  * El repo hermano por defecto es ../valio-datos respecto a este repo.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +23,7 @@ const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
 const CSV = resolve(RAIZ_DATOS, "datos/obras-piloto.csv");
 const DIR_FICHAS = resolve(RAIZ_DATOS, "datos/obras");
+const CSV_UBICACIONES = resolve(RAIZ_DATOS, "datos/ubicaciones.csv");
 const SALIDA = resolve(RAIZ_APP, "lib/obras.ts");
 
 /**
@@ -115,8 +116,91 @@ function notaFicha(ficha, clave) {
 console.log(`Leyendo ${CSV}`);
 const csv = parsearCsv(readFileSync(CSV, "utf-8"));
 const cabecera = csv[0].map((c) => c.trim());
-const filas = csv.slice(1).map((f) => Object.fromEntries(f.map((v, i) => [cabecera[i], v])));
-if (filas.length !== 21) fallar(`esperaba 21 obras, hay ${filas.length}`);
+const todas = csv.slice(1).map((f) => Object.fromEntries(f.map((v, i) => [cabecera[i], v])));
+// Solo municipios con población declarada: sin denominador no hay coste por
+// vecino honesto. Se dice qué se omite en lugar de descartarlo en silencio.
+const filas = todas.filter((f) => (f.municipio ?? "").trim() === POBLACION.municipio);
+const omitidas = todas.length - filas.length;
+if (omitidas) console.log(`  omitidas ${omitidas} obras de otros municipios (sin población declarada)`);
+if (filas.length !== 21) fallar(`esperaba 21 obras de ${POBLACION.municipio}, hay ${filas.length}`);
+
+// --- ubicaciones (vista aérea) -----------------------------------------------
+
+/**
+ * Término municipal oficial (CartoCiudad, IGN), guardado en valio-datos. Una
+ * coordenada fuera del polígono es un error de geolocalización, no una obra:
+ * el generador para antes de publicarla.
+ */
+const LIMITE_MUNICIPIO = resolve(RAIZ_DATOS, "datos/limites/03128-teulada.wkt");
+
+/** Anillos de un MULTIPOLYGON WKT como listas de [lon, lat]. */
+function anillosWkt(wkt) {
+  return [...wkt.matchAll(/\(([^()]+)\)/g)].map((m) =>
+    m[1].split(",").map((par) => par.trim().split(/\s+/).map(Number)),
+  );
+}
+
+/** Regla par-impar: cuenta todos los anillos, así los huecos quedan fuera. */
+function dentroDe(anillos, lon, lat) {
+  let dentro = false;
+  for (const anillo of anillos) {
+    for (let i = 0, j = anillo.length - 1; i < anillo.length; j = i++) {
+      const [xi, yi] = anillo[i];
+      const [xj, yj] = anillo[j];
+      if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) dentro = !dentro;
+    }
+  }
+  return dentro;
+}
+
+const PRECISIONES = ["punto", "instalacion", "zona", "tramo", "municipio", "sin_ubicacion"];
+const VISIBLE_AIRE = ["si", "parcial", "no"];
+const ESTADOS_UBICACION = ["propuesta", "verificada"];
+
+const ubicaciones = new Map();
+if (existsSync(CSV_UBICACIONES)) {
+  if (!existsSync(LIMITE_MUNICIPIO)) fallar(`falta el límite municipal ${LIMITE_MUNICIPIO}`);
+  const termino = anillosWkt(readFileSync(LIMITE_MUNICIPIO, "utf-8"));
+  const tabla = parsearCsv(readFileSync(CSV_UBICACIONES, "utf-8"));
+  const cab = tabla[0].map((c) => c.trim());
+  for (const f of tabla.slice(1)) {
+    const u = Object.fromEntries(f.map((v, i) => [cab[i], (v ?? "").trim()]));
+    const id = u.id;
+    if (!/^OBRA-\d{2}$/.test(id)) fallar(`ubicaciones.csv: id raro (${id})`);
+    if (!PRECISIONES.includes(u.precision)) fallar(`${id}: precisión desconocida (${u.precision})`);
+    if (!ESTADOS_UBICACION.includes(u.estado_ubicacion))
+      fallar(`${id}: estado_ubicacion desconocido (${u.estado_ubicacion})`);
+    const conPunto = !["municipio", "sin_ubicacion"].includes(u.precision);
+    const lat = u.lat === "" ? null : Number(u.lat);
+    const lon = u.lon === "" ? null : Number(u.lon);
+    if (!conPunto) {
+      if (lat != null || lon != null) fallar(`${id}: precisión ${u.precision} no admite coordenadas`);
+      ubicaciones.set(id, { precision: u.precision, motivo: u.evidencia || null });
+      continue;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) fallar(`${id}: coordenadas inválidas`);
+    if (!dentroDe(termino, lon, lat))
+      fallar(`${id}: coordenadas fuera del término municipal (${lat}, ${lon})`);
+    if (!/^https?:\/\//.test(u.fuente_url)) fallar(`${id}: coordenada sin fuente_url`);
+    if (!u.evidencia) fallar(`${id}: coordenada sin evidencia`);
+    if (!VISIBLE_AIRE.includes(u.visible_aire)) fallar(`${id}: visible_aire desconocido (${u.visible_aire})`);
+    const radioM = Number(u.radio_m);
+    if (!Number.isFinite(radioM) || radioM <= 0 || radioM > 1500) fallar(`${id}: radio_m inválido`);
+    ubicaciones.set(id, {
+      precision: u.precision,
+      lat: Math.round(lat * 1e6) / 1e6,
+      lon: Math.round(lon * 1e6) / 1e6,
+      radioM,
+      visibleAire: u.visible_aire,
+      referenciaCatastral: u.referencia_catastral || null,
+      fuente: { tipo: u.fuente_tipo, url: u.fuente_url, fechaConsulta: u.fecha_consulta },
+      evidencia: u.evidencia,
+      estado: u.estado_ubicacion,
+    });
+  }
+} else {
+  console.log("  sin datos/ubicaciones.csv: ninguna obra lleva ubicación");
+}
 
 const obras = [];
 for (const fila of filas) {
@@ -208,6 +292,7 @@ for (const fila of filas) {
     importeLicitacion: licitacion,
     ivaLicitacionIncluido: /incluido/i.test(licitacionNota) && !/no incluido/i.test(licitacionNota),
     adjudicacion,
+    ubicacion: ubicaciones.get(`OBRA-${String(id).padStart(2, "0")}`) ?? null,
     fuente: {
       nombre: "Plataforma de Contratación del Sector Público (PLACE)",
       url,
@@ -238,7 +323,7 @@ const fechaGeneracion = new Date().toISOString().slice(0, 10);
 const encabezado = `/**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/generar-obras.mjs
- * Fuente: valio-datos (obras-piloto.csv + fichas OBRA-XX.md) · ${fechaGeneracion}
+ * Fuente: valio-datos (obras-piloto.csv + ubicaciones.csv + fichas OBRA-XX.md) · ${fechaGeneracion}
  * Cada dato es rastreable hasta su ficha; nada inventado.
  */
 `;
@@ -268,6 +353,33 @@ export interface Adjudicacion {
   numExpediente: string | null;
 }
 
+export type Precision = "punto" | "instalacion" | "zona" | "tramo";
+
+/** Dónde está la obra. Solo existe si un documento público la sitúa. */
+export interface UbicacionPrecisa {
+  precision: Precision;
+  lat: number;
+  lon: number;
+  radioM: number;
+  visibleAire: "si" | "parcial" | "no";
+  referenciaCatastral: string | null;
+  fuente: { tipo: string; url: string; fechaConsulta: string };
+  evidencia: string;
+  estado: "propuesta" | "verificada";
+}
+
+/** Los documentos no permiten situarla con precisión: se dice y no se pinta nada. */
+export interface SinUbicacion {
+  precision: "municipio" | "sin_ubicacion";
+  motivo: string | null;
+}
+
+export type Ubicacion = UbicacionPrecisa | SinUbicacion;
+
+export function tienePunto(u: Ubicacion | null): u is UbicacionPrecisa {
+  return u != null && u.precision !== "municipio" && u.precision !== "sin_ubicacion";
+}
+
 export interface Obra {
   id: string;
   nombre: string;
@@ -281,6 +393,7 @@ export interface Obra {
   importeLicitacion: number;
   ivaLicitacionIncluido: boolean;
   adjudicacion: Adjudicacion | null;
+  ubicacion: Ubicacion | null;
   costePorHabitante: number;
   fuente: { nombre: string; url: string; fechaConsulta: string };
 }

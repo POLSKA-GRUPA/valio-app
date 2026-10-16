@@ -1,0 +1,64 @@
+name: Vuelos nuevos del IGN
+
+# Lo más parecido a «tiempo real» que permiten las fotos aéreas oficiales:
+# cada lunes se pregunta al IGN la fecha de vuelo en el punto de cada obra.
+# Si hay un vuelo más nuevo que el guardado, se vuelven a hornear las fotos y
+# se abre un PR para que una persona lo revise antes de publicarlo.
+#
+# Ojo: un PR abierto con GITHUB_TOKEN no dispara el CI. Para fusionarlo,
+# cerrar y reabrir el PR (o empujar un commit) para que corran los checks.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ¿Hay vuelos nuevos?
+        id: vuelos
+        run: |
+          set +e
+          node scripts/hornear-vista-aerea.mjs --comprobar | tee vuelos.txt
+          codigo=${PIPESTATUS[0]}
+          if [ "$codigo" = 3 ]; then echo "nuevos=si" >> "$GITHUB_OUTPUT"; exit 0; fi
+          exit "$codigo"
+      - name: Hornear y abrir PR
+        if: steps.vuelos.outputs.nuevos == 'si'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rama="auto/vuelos-ign-$(date -u +%Y%m%d)"
+          if git ls-remote --exit-code origin "refs/heads/$rama" >/dev/null; then
+            echo "Ya existe $rama: no se duplica el PR."; exit 0
+          fi
+          node scripts/hornear-vista-aerea.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$rama"
+          git add public/aerea lib/aerea.ts
+          git commit -m "datos: fotos aéreas con el vuelo nuevo del IGN"
+          git push origin "$rama"
+          {
+            echo "El IGN ha publicado vuelos nuevos en el punto de estas obras:"
+            echo
+            echo '```'
+            cat vuelos.txt
+            echo '```'
+            echo
+            echo "Revisar antes de fusionar: que las fotos se ven bien y que el texto de cada obra (anterior / durante / posterior) tiene sentido."
+            echo "Para que corran los checks, cierra y reabre este PR."
+          } > cuerpo.md
+          gh pr create --title "Fotos aéreas: vuelo nuevo del IGN" --body-file cuerpo.md --base main --head "$rama"

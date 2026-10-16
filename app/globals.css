@@ -1134,3 +1134,184 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- Vista aérea (docs/specs/vista-aerea.md) -------------------------------
+   La foto ocupa el hueco reservado en #39. Encoge antes que la cifra: si el
+   móvil es bajo, manda el dato, no la foto. */
+.aerea-tarjeta {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aerea-tarjeta .aerea-marco {
+  flex: 1 1 auto;
+  min-height: 72px;
+  aspect-ratio: auto;
+}
+
+/* Sin hueco suficiente, mejor sin foto que una tira ilegible. */
+@media (max-height: 600px) {
+  .aerea-tarjeta {
+    display: none;
+  }
+}
+
+.aerea-marco {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--rule);
+  aspect-ratio: 3 / 2;
+}
+
+.aerea-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Dentro de la tarjeta que se arrastra: la imagen no debe capturar el gesto
+   (en escritorio el navegador inicia su propio arrastre de imagen). */
+.card-frame .aerea-img,
+.card-frame .aerea-anillo,
+.card-frame .aerea-pastilla {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.aerea-anillo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.aerea-anillo circle {
+  fill: none;
+}
+
+.aerea-anillo-borde {
+  stroke: var(--ink);
+  stroke-width: 7;
+}
+
+.aerea-anillo-trazo {
+  stroke: var(--yellow);
+  stroke-width: 4;
+}
+
+.aerea-pastilla {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(11, 12, 12, 0.85);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.aerea-pastilla-izq {
+  right: auto;
+  left: 8px;
+}
+
+.aerea-veredicto {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 4px solid var(--rule);
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.aerea-posterior {
+  border-left-color: var(--green);
+}
+
+.aerea-durante,
+.aerea-anterior {
+  border-left-color: var(--yellow-dark);
+}
+
+.aerea-divisor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--ink);
+  pointer-events: none;
+}
+
+.aerea-comparador {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aerea-etiqueta {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.aerea-rango {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--accent);
+}
+
+.aerea-enlaces {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aerea-enlaces a {
+  color: var(--accent-dark);
+}
+
+.aerea-mapa-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aerea-mapa-caja select {
+  font: inherit;
+  min-height: 40px;
+  max-width: 100%;
+}
+
+.aerea-mapa {
+  width: 100%;
+  height: 340px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.aerea-nota,
+.aerea-atribucion {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.btn-secundario {
+  background: var(--paper-2);
+  color: var(--accent-dark);
+  border: 2px solid var(--accent-dark);
+}

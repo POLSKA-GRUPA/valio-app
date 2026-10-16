@@ -1,7 +1,7 @@
 /**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/generar-obras.mjs
- * Fuente: valio-datos (obras-piloto.csv + fichas OBRA-XX.md) · 2026-10-16
+ * Fuente: valio-datos (obras-piloto.csv + ubicaciones.csv + fichas OBRA-XX.md) · 2026-10-16
  * Cada dato es rastreable hasta su ficha; nada inventado.
  */
 
@@ -37,6 +37,33 @@ export interface Adjudicacion {
   numExpediente: string | null;
 }
 
+export type Precision = "punto" | "instalacion" | "zona" | "tramo";
+
+/** Dónde está la obra. Solo existe si un documento público la sitúa. */
+export interface UbicacionPrecisa {
+  precision: Precision;
+  lat: number;
+  lon: number;
+  radioM: number;
+  visibleAire: "si" | "parcial" | "no";
+  referenciaCatastral: string | null;
+  fuente: { tipo: string; url: string; fechaConsulta: string };
+  evidencia: string;
+  estado: "propuesta" | "verificada";
+}
+
+/** Los documentos no permiten situarla con precisión: se dice y no se pinta nada. */
+export interface SinUbicacion {
+  precision: "municipio" | "sin_ubicacion";
+  motivo: string | null;
+}
+
+export type Ubicacion = UbicacionPrecisa | SinUbicacion;
+
+export function tienePunto(u: Ubicacion | null): u is UbicacionPrecisa {
+  return u != null && u.precision !== "municipio" && u.precision !== "sin_ubicacion";
+}
+
 export interface Obra {
   id: string;
   nombre: string;
@@ -50,6 +77,7 @@ export interface Obra {
   importeLicitacion: number;
   ivaLicitacionIncluido: boolean;
   adjudicacion: Adjudicacion | null;
+  ubicacion: Ubicacion | null;
   costePorHabitante: number;
   fuente: { nombre: string; url: string; fechaConsulta: string };
 }
@@ -77,6 +105,7 @@ export const OBRAS: Obra[] = [
     "importeLicitacion": 177685.95,
     "ivaLicitacionIncluido": false,
     "adjudicacion": null,
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/lY9LU4NAEIR_Sw5c2ckCqx4J71QwKC6EvVCbBK21WBZ5-PslCVeJzq2nuvubQQwdEGv4t_jgg1ANryddMFKa3t5x_BDDY2q4gHcupSS8SIzyq8EyHDPbZglJowAgCn13R9cWBJggtpAPrDkPv4wNf8svGNhyfY7YMgLPhqUX70GK6ciH0s68Fzt6MmC_eZ0Q2yR-SwK8BjBReuk4KamLo9Tf-anq9VZ1Q10NehZ5eeSiQoPPvtXgOPZfY3XmGviqk2PNO6E2806fHPdY5B-sczXwuq40iLlo3Ju4MlpJ6QFEImX5HNur1Q_v7O01/#Z7_AVEQAI930OBRD02JPMTPG21004",
@@ -106,6 +135,7 @@ export const OBRAS: Obra[] = [
       "plazo": "3 Mes(es)",
       "numExpediente": "5122/2026"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=KLUBdKw8XNSqb7rCcv76BA%3D%3D",
@@ -135,6 +165,7 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "10390/2025"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/hY9LD4IwEIR_kem2QIEj0FKKICAPpRdCYmJIeBhj-P0Ww1Xd22S_mZ1FCl2Rmvt1uPevYZn7UetW0c7kWRCEEQGnNBiQhNU1jTZJUIMu_xCl1_BlPNB-9UEsIzCbuMlpKQWAjEKW1NgCQegO_MhodQe78xpeeNI1IPPPukOcp1UuCAagqJ6X56T_Kbes4cbXEbXYIS61qYXx7hcCJPYFmPh4YkBzm8e8qLYT__yPKXTloZ26tPLeV0awMQ!!/dz/d5/L2dBISEvZ0FBIS9nQSEh/",
@@ -164,6 +195,7 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Año(s)",
       "numExpediente": "11488/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/hY9LD4IwEIR_kem2lAJHHqUUQUAeSi-ExMSQ8DDG8Psthqu6t8l-MzuLFLoiNffrcO9fwzL3o9atYh3lme-HEQG7NAIgSVDXLNokQQ26_EOUXsOXcUH71QcxDZ82cZOzUgoAGYVBUmMTBGE78COj1R2szm144UrHgMw76w5xnla5IBiAoXpenpP-p9yyhhtfR9RiajOgwDDe_UKAxJ4Aio-nAFhu8ZgX1Xbin_8xhY48tFOXVu4bCNQvNA!!/dz/d5/L2dBISEvZ0FBIS9nQSEh/",
@@ -193,6 +225,7 @@ export const OBRAS: Obra[] = [
       "plazo": "3 Mes(es)",
       "numExpediente": "7589/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=6%2BScbhVqN1cZDGvgaZEVxQ%3D%3D",
@@ -222,6 +255,7 @@ export const OBRAS: Obra[] = [
       "plazo": "30 Día(s)",
       "numExpediente": "10743/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=Nc0X04PNOgVPpzdqOdhuWg%3D%3D",
@@ -251,6 +285,7 @@ export const OBRAS: Obra[] = [
       "plazo": "15 Día(s)",
       "numExpediente": "10541/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=zQxIqrT8RiKLAncw3qdZkA%3D%3D",
@@ -280,6 +315,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "9632/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=cmmkqvqRaDMXhk1FZxEyvw%3D%3D",
@@ -309,6 +345,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "10464/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=WbGUELIiRRp4zIRvjBVCSw%3D%3D",
@@ -338,6 +375,7 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "9881/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=lPuI3QYNdVG9Hd5zqvq9cg%3D%3D",
@@ -367,6 +405,7 @@ export const OBRAS: Obra[] = [
       "plazo": "15 Día(s)",
       "numExpediente": "8922/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=O%2BhHte%2FFjAGkU02jNGj1Fw%3D%3D",
@@ -396,6 +435,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "3998/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=g934hy%2B26hlt5r0ngvMetA%3D%3D",
@@ -425,6 +465,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "7382/2023"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=xfLfPBj9%2B6bIGlsa0Wad%2Bw%3D%3D",
@@ -454,6 +495,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "5561/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=mgpVrlv9hGH10HRJw8TEnQ%3D%3D",
@@ -483,6 +525,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Mes(es)",
       "numExpediente": "3844/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=92bkmyqRP76HCIsjvJ3rhQ%3D%3D",
@@ -512,6 +555,7 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "2402/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=pwEGhw0exa1VkTabT%2FRM8A%3D%3D",
@@ -541,6 +585,7 @@ export const OBRAS: Obra[] = [
       "plazo": "2 Día(s)",
       "numExpediente": "3227/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=90w0SGXuLNMeC9GJQOEBkQ%3D%3D",
@@ -570,6 +615,7 @@ export const OBRAS: Obra[] = [
       "plazo": "21 Día(s)",
       "numExpediente": "2394/2024"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=bRr9yfs7Dj1t5r0ngvMetA%3D%3D",
@@ -599,6 +645,7 @@ export const OBRAS: Obra[] = [
       "plazo": "45 Día(s)",
       "numExpediente": "11277/2023"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=dMcp2HTAAkf%2B3JAijKO%2Bkg%3D%3D",
@@ -628,6 +675,7 @@ export const OBRAS: Obra[] = [
       "plazo": "1 Mes(es)",
       "numExpediente": "10979/2023"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=ItTc8sCA5CvjHF5qKI4aaw%3D%3D",
@@ -657,6 +705,7 @@ export const OBRAS: Obra[] = [
       "plazo": "6 Mes(es)",
       "numExpediente": "11022/2023"
     },
+    "ubicacion": null,
     "fuente": {
       "nombre": "Plataforma de Contratación del Sector Público (PLACE)",
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=4%2Fpkb6LMt%2BwkJPJS%2BPS9vg%3D%3D",
