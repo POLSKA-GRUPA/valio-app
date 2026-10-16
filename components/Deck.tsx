@@ -324,7 +324,11 @@ export function Deck() {
   const filtradas = tipos.length === 0 ? obras : obras.filter((o) => tipos.includes(o.categoria));
   const yaVotadas = filtradas.length - pendientes.length;
   const posicion = (obra: Obra) =>
-    volando && obra.id === volando.id ? yaVotadas : yaVotadas + 1 + pendientes.findIndex((o) => o.id === obra.id);
+    // La carta en vuelo puede no pertenecer ya al filtro (si se cambia durante
+    // la animación): nunca «Tarjeta 0».
+    volando && obra.id === volando.id
+      ? Math.max(1, yaVotadas)
+      : yaVotadas + 1 + pendientes.findIndex((o) => o.id === obra.id);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
