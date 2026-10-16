@@ -8,12 +8,20 @@ import { CabreoMap, Info, Results } from "@/components/Panels";
 
 type Pestaña = "votar" | "cabreo" | "resultados" | "info";
 
-const PESTAÑAS: { id: Pestaña; icono: string; etiqueta: string }[] = [
+// P1 (#38): Cabreo y Resultados están vacías o con relleno. Se ocultan sin
+// borrar su código; para volver a mostrarlas basta con poner esto a true.
+const MOSTRAR_CABREO_Y_RESULTADOS = false;
+
+const TODAS_LAS_PESTAÑAS: { id: Pestaña; icono: string; etiqueta: string }[] = [
   { id: "votar", icono: "🂠", etiqueta: "Votar" },
   { id: "cabreo", icono: "📍", etiqueta: "Cabreo" },
   { id: "resultados", icono: "🗳", etiqueta: "Resultados" },
   { id: "info", icono: "ℹ", etiqueta: "Info" },
 ];
+
+const PESTAÑAS = MOSTRAR_CABREO_Y_RESULTADOS
+  ? TODAS_LAS_PESTAÑAS
+  : TODAS_LAS_PESTAÑAS.filter((p) => p.id !== "cabreo" && p.id !== "resultados");
 
 export default function Home() {
   const { votos } = useStore();
