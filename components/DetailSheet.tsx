@@ -140,7 +140,7 @@ export function DetailSheet({
             <dl>
               <div>
                 <dt>Estado del dato</dt>
-                <dd>{ESTADO_LABEL.NO_VERIFICADO} · {obra.id}</dd>
+                <dd>{ESTADO_LABEL[obra.estadoDato]} · {obra.id}</dd>
               </div>
               <div>
                 <dt>Fuente</dt>

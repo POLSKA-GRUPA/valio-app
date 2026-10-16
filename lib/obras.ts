@@ -1,7 +1,7 @@
 /**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/generar-obras.mjs
- * Fuente: valio-datos (obras-piloto.csv + fichas OBRA-XX.md) · 2026-10-05
+ * Fuente: valio-datos (obras-piloto.csv + fichas OBRA-XX.md) · 2026-10-16
  * Cada dato es rastreable hasta su ficha; nada inventado.
  */
 
@@ -45,6 +45,7 @@ export interface Obra {
   provincia: string;
   organismo: string;
   anyo: number;
+  estadoDato: EstadoDato;
   estadoEjecucion: "faltante";
   importeLicitacion: number;
   ivaLicitacionIncluido: boolean;
@@ -71,6 +72,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2026,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 177685.95,
     "ivaLicitacionIncluido": false,
@@ -90,6 +92,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Alcaldia del Ayuntamiento de Teulada",
     "anyo": 2026,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 4300,
     "ivaLicitacionIncluido": false,
@@ -118,6 +121,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Junta de Gobierno del Ayuntamiento de Teulada",
     "anyo": 2025,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 32833,
     "ivaLicitacionIncluido": false,
@@ -146,6 +150,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Junta de Gobierno del Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 27995,
     "ivaLicitacionIncluido": false,
@@ -174,6 +179,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 8140,
     "ivaLicitacionIncluido": false,
@@ -202,6 +208,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 19724.25,
     "ivaLicitacionIncluido": false,
@@ -230,6 +237,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 37005.5,
     "ivaLicitacionIncluido": false,
@@ -258,6 +266,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 31657,
     "ivaLicitacionIncluido": false,
@@ -286,6 +295,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 32925,
     "ivaLicitacionIncluido": false,
@@ -314,6 +324,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 5965.52,
     "ivaLicitacionIncluido": false,
@@ -342,6 +353,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 6102.89,
     "ivaLicitacionIncluido": false,
@@ -370,6 +382,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 38244,
     "ivaLicitacionIncluido": false,
@@ -398,6 +411,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 38000,
     "ivaLicitacionIncluido": false,
@@ -426,6 +440,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 18201.7,
     "ivaLicitacionIncluido": false,
@@ -454,6 +469,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 38755,
     "ivaLicitacionIncluido": false,
@@ -482,6 +498,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 39256.2,
     "ivaLicitacionIncluido": false,
@@ -510,6 +527,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 1498,
     "ivaLicitacionIncluido": false,
@@ -538,6 +556,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2024,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 9725.36,
     "ivaLicitacionIncluido": false,
@@ -566,6 +585,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2023,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 39300,
     "ivaLicitacionIncluido": false,
@@ -594,6 +614,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2023,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 3474.36,
     "ivaLicitacionIncluido": false,
@@ -622,6 +643,7 @@ export const OBRAS: Obra[] = [
     "provincia": "Alicante",
     "organismo": "Ayuntamiento de Teulada",
     "anyo": 2023,
+    "estadoDato": "NO_VERIFICADO",
     "estadoEjecucion": "faltante",
     "importeLicitacion": 33027.5,
     "ivaLicitacionIncluido": false,
