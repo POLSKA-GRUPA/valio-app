@@ -32,6 +32,7 @@ function PosterFicha({ obra }: { obra: Obra }) {
           {cifra}
         </p>
         <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
+        {obra.aviso && <p className="card-cifra-aviso">Solo el primer lote o adjudicatario</p>}
       </div>
     </div>
   );

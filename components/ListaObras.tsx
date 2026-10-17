@@ -79,7 +79,7 @@ export function ListaObras() {
                     type="button"
                     className="lista-item"
                     onClick={() => setFichaObra(o)}
-                    aria-label={`${o.nombre}. ${eurosCompactos(importeDe(o))}. ${ESTADO_LABEL[o.estadoDato]}${
+                    aria-label={`${o.nombre}. ${eurosCompactos(importeDe(o))}${o.aviso ? " (solo el primer lote o adjudicatario)" : ""}. ${ESTADO_LABEL[o.estadoDato]}${
                       voto ? `. Tu voto: ${VOTO_LABEL[voto]}` : ""
                     }. Abrir ficha`}
                   >
@@ -94,7 +94,10 @@ export function ListaObras() {
                     <span className="lista-texto" aria-hidden="true">
                       <span className="lista-nombre">{o.nombre}</span>
                       <span className="lista-meta">
-                        <span className="num">{eurosCompactos(importeDe(o))}</span>
+                        <span className="num">
+                          {eurosCompactos(importeDe(o))}
+                          {o.aviso ? " · 1.er lote" : ""}
+                        </span>
                         <span>{CATEGORIA_LABEL[o.categoria]}</span>
                         <span className={`tag tag-${o.estadoDato}`}>{ESTADO_LABEL[o.estadoDato]}</span>
                       </span>

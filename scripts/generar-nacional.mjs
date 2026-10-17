@@ -169,20 +169,18 @@ for (const entrada of indice) {
 
 // Regla 13: sin ningún municipio el fallo es nuestro.
 if (!salidas.size) fallar("ningún municipio con obras adjudicadas");
-// Todo validado: se escribe aparte y se sustituye la carpeta de una vez.
+// Todo validado: carpeta e índice nuevos se escriben aparte y se activan
+// juntos; si algo falla a medias se restaura lo anterior (carpeta e índice).
 const NUEVA = `${SALIDA_JSON}.nueva`;
 const VIEJA = `${SALIDA_JSON}.vieja`;
 rmSync(NUEVA, { recursive: true, force: true });
 mkdirSync(NUEVA, { recursive: true });
 for (const [nombre, texto] of salidas) writeFileSync(resolve(NUEVA, nombre), texto);
-rmSync(VIEJA, { recursive: true, force: true });
-if (existsSync(SALIDA_JSON)) renameSync(SALIDA_JSON, VIEJA);
-renameSync(NUEVA, SALIDA_JSON);
-rmSync(VIEJA, { recursive: true, force: true });
 municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 const generado = indice.map((m) => m.generado).sort().at(-1) ?? "";
+const TS_NUEVO = `${SALIDA_TS}.nuevo`;
 writeFileSync(
-  SALIDA_TS,
+  TS_NUEVO,
   `/**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/generar-nacional.mjs
@@ -210,4 +208,24 @@ export interface MunicipioNacional {
 export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = ${JSON.stringify(municipios, null, 2)};
 `,
 );
+const TS_VIEJO = `${SALIDA_TS}.viejo`;
+rmSync(VIEJA, { recursive: true, force: true });
+const habiaCarpeta = existsSync(SALIDA_JSON);
+const habiaIndice = existsSync(SALIDA_TS);
+try {
+  if (habiaCarpeta) renameSync(SALIDA_JSON, VIEJA);
+  if (habiaIndice) renameSync(SALIDA_TS, TS_VIEJO);
+  renameSync(NUEVA, SALIDA_JSON);
+  renameSync(TS_NUEVO, SALIDA_TS);
+} catch (error) {
+  // Vuelta atrás: lo anterior queda como estaba.
+  if (habiaCarpeta && existsSync(VIEJA)) {
+    rmSync(SALIDA_JSON, { recursive: true, force: true });
+    renameSync(VIEJA, SALIDA_JSON);
+  }
+  if (habiaIndice && existsSync(TS_VIEJO)) renameSync(TS_VIEJO, SALIDA_TS);
+  fallar(`no se pudo activar la publicación nueva (se restaura la anterior): ${error.message}`);
+}
+rmSync(VIEJA, { recursive: true, force: true });
+rmSync(TS_VIEJO, { force: true });
 console.log(`✓ ${municipios.length} municipios → ${SALIDA_TS}`);
