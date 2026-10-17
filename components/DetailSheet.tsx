@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
-import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
+import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION as POBLACION_PILOTO, type Obra } from "@/lib/obras";
+import { useStore } from "@/lib/store";
 import { costeVecino, euros, eurosCompactos } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
 import { useHojaArrastrable } from "@/lib/useHoja";
@@ -32,6 +33,7 @@ function PosterFicha({ obra }: { obra: Obra }) {
           {cifra}
         </p>
         <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
+        {obra.aviso && <p className="card-cifra-aviso">Solo el primer lote o adjudicatario</p>}
       </div>
     </div>
   );
@@ -49,6 +51,8 @@ export function DetailSheet({
   const dialogRef = useDialog(onClose);
   const { arrastre, asa } = useHojaArrastrable(onClose);
   const adjudicacion = obra.adjudicacion;
+  // Denominador del municipio de ESTA obra (cada municipio tiene el suyo).
+  const POBLACION = useStore().poblacion ?? POBLACION_PILOTO;
   return (
     <>
       <motion.div
@@ -117,8 +121,9 @@ export function DetailSheet({
               <div>
                 <dt>Presupuesto de licitación</dt>
                 <dd className="num">
-                  {euros(obra.importeLicitacion)} · IVA{" "}
-                  {obra.ivaLicitacionIncluido ? "incluido" : "no incluido"}
+                  {obra.importeLicitacion == null
+                    ? "No consta en la fuente"
+                    : `${euros(obra.importeLicitacion)} · IVA ${obra.ivaLicitacionIncluido ? "incluido" : "no incluido"}`}
                 </dd>
               </div>
               {adjudicacion ? (
@@ -175,6 +180,7 @@ export function DetailSheet({
           <section className="ficha-seccion" aria-labelledby="ficha-vecino">
             <h3 id="ficha-vecino">Lo que cuesta a cada vecino</h3>
             <p className="ficha-cifra num">≈ {costeVecino(obra.costePorHabitante)}</p>
+            {obra.aviso && <p className="ficha-nota ficha-aviso">{obra.aviso}</p>}
             <p className="ficha-nota">
               Calculado sobre la{" "}
               <a href={POBLACION.fuenteUrl} target="_blank" rel="noreferrer">
@@ -204,7 +210,11 @@ export function DetailSheet({
               </div>
               <div>
                 <dt>Ficha de origen</dt>
-                <dd>{obra.id} en el repositorio valio-datos (método P0)</dd>
+                <dd>
+                  {obra.estadoDato === "OFICIAL_AUTOMATICO"
+                    ? "Carga nacional automática de valio-datos (sin revisión manual)"
+                    : `${obra.id} en el repositorio valio-datos (método P0)`}
+                </dd>
               </div>
             </dl>
           </section>

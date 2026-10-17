@@ -28,7 +28,7 @@ export default function Home() {
 }
 
 function Contenido() {
-  const { votos, listo, municipio, elegirMunicipio, obras } = useStore();
+  const { votos, listo, municipio, elegirMunicipio, obras, cargando, errorCarga, esPiloto, cambiarMunicipio } = useStore();
   const [pestaña, setPestaña] = useState<Pestaña>("votar");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const votadas = obras.filter((o) => votos[o.id]).length;
@@ -78,8 +78,21 @@ function Contenido() {
     <main className="app-shell">
       <header className="topbar">
         <h1 className="brand display">¿VALIÓ?</h1>
-        <span className="brand-badge">PILOTO · {municipio} · {votadas}/{obras.length}</span>
+        <span className="brand-badge">
+          {esPiloto ? "PILOTO" : "DATO OFICIAL"} · {municipio} · {votadas}/{obras.length}
+        </span>
       </header>
+
+      {(cargando || errorCarga) && (
+        <section className="panel" aria-busy={cargando} aria-live="polite">
+          <p className="panel-intro">{errorCarga ?? `Descargando las obras de ${municipio}…`}</p>
+          {errorCarga && (
+            <button type="button" className="btn" onClick={cambiarMunicipio}>
+              Elegir otro municipio
+            </button>
+          )}
+        </section>
+      )}
 
       {PESTAÑAS.map((p) => (
         <div
@@ -90,8 +103,8 @@ function Contenido() {
           hidden={pestaña !== p.id}
           className="tabpanel-wrap"
         >
-          {pestaña === "votar" && p.id === "votar" && <Deck />}
-          {pestaña === "obras" && p.id === "obras" && <ListaObras />}
+          {!cargando && !errorCarga && pestaña === "votar" && p.id === "votar" && <Deck />}
+          {!cargando && !errorCarga && pestaña === "obras" && p.id === "obras" && <ListaObras />}
           {pestaña === "info" && p.id === "info" && <Info />}
         </div>
       ))}

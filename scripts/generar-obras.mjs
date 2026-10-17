@@ -27,18 +27,19 @@ const CSV_UBICACIONES = resolve(RAIZ_DATOS, "datos/ubicaciones.csv");
 const SALIDA = resolve(RAIZ_APP, "lib/obras.ts");
 
 /**
- * Población de Teulada — fuente oficial INE (Nomenclátor, base Censo Continuo).
- * Consultada y verificada el 05/10/2026; el enlace es público y clicable.
+ * Población de Teulada — cifra oficial del padrón (INE, tabla 29005), la
+ * misma serie que el resto de municipios (valio-datos/datos/referencia/
+ * municipios.csv). Antes se usaba el Nomenclátor (12.932); se unifica con
+ * la cifra oficial el 17/10/2026.
  * El dossier (§4.2) exige explicar el denominador: la UI debe mostrar
  * cifra + fecha + enlace siempre que muestre el coste por habitante.
  */
 const POBLACION = {
   municipio: "Teulada",
-  habitantes: 12932,
-  referencia: "1 de enero de 2025",
-  fuenteNombre: "INE — Nomenclátor (Censo Continuo)",
-  fuenteUrl:
-    "https://www.ine.es/nomen2/tabla.do?accion=busquedaRapida&nombrePoblacion=Teulada&desagregacionRapida=S&aniosRapida=2025",
+  habitantes: 12912,
+  referencia: "01/01/2025",
+  fuenteNombre: "INE — Cifras oficiales del padrón (tabla 29005)",
+  fuenteUrl: "https://www.ine.es/jaxiT3/Tabla.htm?t=29005",
 };
 
 // --- utilidades -------------------------------------------------------------
@@ -343,7 +344,8 @@ const encabezado = `/**
 `;
 
 const cuerpo = `
-export type EstadoDato = "NO_VERIFICADO" | "EVIDENCIADO" | "CONTRADICHO" | "DESACTUALIZADO";
+/** OFICIAL_AUTOMATICO: cargado de PLACE sin revisión manual (carga nacional). */
+export type EstadoDato = "NO_VERIFICADO" | "EVIDENCIADO" | "CONTRADICHO" | "DESACTUALIZADO" | "OFICIAL_AUTOMATICO";
 
 export type Categoria = ${categorias.map((c) => `"${c}"`).join(" | ")};
 
@@ -354,6 +356,7 @@ export const ESTADO_LABEL: Record<EstadoDato, string> = {
   EVIDENCIADO: "Evidenciado",
   CONTRADICHO: "Contradicho",
   DESACTUALIZADO: "Desactualizado",
+  OFICIAL_AUTOMATICO: "Dato oficial, sin revisar a mano",
 };
 
 export interface Adjudicacion {
@@ -405,16 +408,19 @@ export interface Obra {
   anyo: number;
   estadoDato: EstadoDato;
   estadoEjecucion: "faltante";
-  importeLicitacion: number;
+  /** Presupuesto de licitación; null si la fuente no lo publica. */
+  importeLicitacion: number | null;
   ivaLicitacionIncluido: boolean;
   adjudicacion: Adjudicacion | null;
   ubicacion: Ubicacion | null;
   costePorHabitante: number;
   fuente: { nombre: string; url: string; fechaConsulta: string };
+  /** Limitación del dato que el vecino debe ver (p. ej. contrato con lotes). */
+  aviso?: string;
 }
 
 /** Denominador del coste por habitante (dossier §4.2: siempre explicado). */
-export const POBLACION = ${JSON.stringify(POBLACION, null, 2)} as const;
+export const POBLACION = ${JSON.stringify(POBLACION, null, 2)};
 
 export const OBRAS: Obra[] = ${JSON.stringify(obras, null, 2)};
 

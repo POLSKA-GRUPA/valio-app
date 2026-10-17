@@ -3,18 +3,28 @@
 import { useStore } from "@/lib/store";
 
 export function Info() {
-  const { municipio, obras, cambiarMunicipio } = useStore();
+  const { municipio, obras, cambiarMunicipio, esPiloto } = useStore();
   return (
     <div className="panel">
       <h2 className="panel-title display">¿VALIÓ?</h2>
       <p className="panel-intro">Lo que costó. Lo que consiguió. Tú decides.</p>
       <div style={{ display: "grid", gap: 12 }}>
-        <div className="info-note">
-          Piloto real de {municipio}: {obras.length} obras con datos oficiales de la Plataforma de
-          Contratación del Sector Público (PLACE), recogidas con el método P0 del repo valio-datos y pendientes de
-          verificación independiente (cada ficha muestra su estado). El estado
-          de ejecución no aparece en la fuente consultada: se muestra como dato faltante.
-        </div>
+        {esPiloto ? (
+          <div className="info-note">
+            Piloto real de {municipio}: {obras.length} obras con datos oficiales de la Plataforma de
+            Contratación del Sector Público (PLACE), recogidas con el método P0 del repo valio-datos y pendientes de
+            verificación independiente (cada ficha muestra su estado). El estado
+            de ejecución no aparece en la fuente consultada: se muestra como dato faltante.
+          </div>
+        ) : (
+          <div className="info-note">
+            {municipio}: {obras.length} obras adjudicadas con actividad publicada desde enero de 2024 (la adjudicación
+            puede ser anterior), cargadas automáticamente de la Plataforma de
+            Contratación del Sector Público (PLACE). Son datos oficiales tal cual los publica la fuente, sin revisar
+            a mano: cada ficha lo indica y enlaza al anuncio oficial. El estado de ejecución no aparece en la
+            fuente: se muestra como dato faltante.
+          </div>
+        )}
         <div className="info-block">
           <h3>Tu municipio: {municipio}</h3>
           <p>Solo ves las obras de tu municipio. Si te has equivocado o te mudas, puedes cambiarlo.</p>

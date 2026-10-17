@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { OBRAS } from "./obras";
+import { IDS_NACIONALES } from "./ids-nacionales";
 import { recuentoVacio, valoresDe, type Cambio, type RecuentoObra } from "./recuento";
 
 /**
@@ -21,7 +22,8 @@ const SAL = process.env.RECUENTO_SAL ?? TOKEN_REDIS ?? "desarrollo";
 /** Cambios por huella y día. Un vecino que vota todo el mazo y rectifica no llega. */
 export const LIMITE_DIARIO = 300;
 
-const IDS = new Set(OBRAS.map((o) => o.id));
+// Piloto y carga nacional: solo se cuentan votos a obras que la app publica.
+const IDS = new Set([...OBRAS.map((o) => o.id), ...IDS_NACIONALES]);
 
 export const disponible = () =>
   Boolean(URL_REDIS && TOKEN_REDIS) || process.env.NODE_ENV !== "production" || process.env.RECUENTO_MEMORIA === "1";

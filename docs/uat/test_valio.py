@@ -203,10 +203,10 @@ def with_server():
 
 parar_servidor = with_server()
 
-def _api(metodo, ruta, cuerpo=None):
+def _api(metodo, ruta, cuerpo=None, cabeceras=None):
     """(estado, json) de una llamada a la API del recuento."""
     datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
-    req = urllib.request.Request(BASE + ruta, data=datos, method=metodo, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(BASE + ruta, data=datos, method=metodo, headers={"Content-Type": "application/json", **(cabeceras or {})})
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, json.loads(r.read() or b"{}")
@@ -810,10 +810,17 @@ with sync_playwright() as p:
     p_r14 = ctx_r14.new_page()
     p_r14.goto(BASE, wait_until="networkidle")
 
-    # «¿Dónde vives?» se elige solo con teclado.
+    # «¿Dónde vives?» se elige solo con teclado: Tab al buscador, se escribe,
+    # Tab al municipio (carga nacional: ya no hay un único municipio).
     p_r14.keyboard.press("Tab")
     check(
-        "R14 ISSUE-37: Tab desde la pregunta llega al municipio",
+        "R14 ISSUE-37: Tab desde la pregunta llega al buscador de municipio",
+        p_r14.evaluate("() => document.activeElement?.type === 'search'"),
+    )
+    p_r14.keyboard.type("teu")
+    p_r14.keyboard.press("Tab")
+    check(
+        "R14 ISSUE-37: Tab desde el buscador llega al municipio",
         p_r14.evaluate(NOMBRE_FOCO).startswith("Teulada"),
         f"foco={p_r14.evaluate(NOMBRE_FOCO)!r}",
     )
@@ -1514,6 +1521,63 @@ with sync_playwright() as p:
                 {"obra": obra_v, "tipo": "senal", "valor": None, "anterior": "terminada"}] * 100
         codigos = [_api("POST", "/api/recuento", {"cambios": lote})[0] for _ in range(2)]
         check("V6 recuento: más de 300 cambios al día desde la misma conexión dan 429", codigos[-1] == 429, f"{codigos}")
+
+        # V7 — carga nacional: se cuentan votos a obras de Madrid, y un lote con
+        # una obra desconocida no pierde los cambios buenos. Se cambia de IP
+        # (X-Forwarded-For) porque V6 ya agotó el límite de esta.
+        id_madrid = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())["obras"][0]["id"]
+        cabecera_v7 = {"X-Forwarded-For": "203.0.113.77"}
+        antes_m = _recuento(id_madrid)
+        e_mixto, cuerpo_mixto = _api("POST", "/api/recuento", {"cambios": [
+            {"obra": id_madrid, "tipo": "voto", "valor": "valio", "anterior": None},
+            {"obra": "28079-000000000000", "tipo": "voto", "valor": "valio", "anterior": None},
+        ]}, cabecera_v7)
+        despues_m = _recuento(id_madrid)
+        check(
+            "V7 recuento: vota obras nacionales y descarta solo lo desconocido",
+            e_mixto == 200 and antes_m is not None and despues_m["votos"]["valio"] == antes_m["votos"]["valio"] + 1,
+            f"{e_mixto} {cuerpo_mixto} {antes_m} -> {despues_m}",
+        )
+
+    # R27 — Carga nacional (valio-app#67): municipios de valio-datos que se
+    # descargan al elegirlos, con rótulo de dato oficial y su propia población.
+    nacional = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())
+    ctx_r27 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")  # sin municipio recordado
+    p_r27 = ctx_r27.new_page()
+    errores_r27 = []
+    p_r27.on("pageerror", lambda e: errores_r27.append(str(e)))
+    p_r27.goto(BASE, wait_until="networkidle")
+    buscar = p_r27.get_by_role("searchbox", name="Busca tu municipio")
+    check("R27 NACIONAL: hay buscador de municipio", buscar.count() == 1)
+    buscar.fill("zzzz")
+    check("R27 NACIONAL: sin resultados lo dice", p_r27.get_by_text("Aún no tenemos obras").count() == 1)
+    buscar.fill("madr")
+    botones = p_r27.locator(".municipio-btn")
+    check("R27 NACIONAL: el buscador filtra (solo Madrid)", botones.count() == 1 and "Madrid" in botones.first.inner_text())
+    botones.first.click()
+    p_r27.get_by_role("button", name="Entendido, a votar").click()
+    p_r27.wait_for_selector(".stack-slot", timeout=15000)
+    badge = p_r27.locator(".brand-badge").inner_text()
+    check(
+        "R27 NACIONAL: cabecera con DATO OFICIAL y todas las obras de Madrid",
+        "DATO OFICIAL" in badge and "Madrid" in badge and f"/{len(nacional['obras'])}" in badge,
+        badge,
+    )
+    carta = p_r27.locator(".stack-slot").first
+    check(
+        "R27 NACIONAL: la tarjeta dice «Dato oficial, sin revisar a mano»",
+        carta.get_by_text("Dato oficial, sin revisar a mano").count() >= 1,
+    )
+    carta.get_by_role("button", name="Ver ficha y evidencia").click()
+    p_r27.wait_for_timeout(500)
+    ficha = p_r27.locator(".sheet")
+    check("R27 NACIONAL: coste por vecino sobre la población de Madrid",
+          "3.506.730" in ficha.inner_text(), ficha.inner_text()[:200])
+    enlace = ficha.get_by_role("link", name="Plataforma de Contratación del Sector Público (PLACE)").first.get_attribute("href") or ""
+    check("R27 NACIONAL: la ficha enlaza al anuncio oficial", enlace.startswith("https://contrataciondelestado.es/"), enlace)
+    check("R27 NACIONAL: sin errores de página", not errores_r27, str(errores_r27[:2]))
+    shot(p_r27, "30-nacional-madrid")
+    ctx_r27.close()
 
     browser.close()
 
