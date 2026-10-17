@@ -61,10 +61,29 @@ export interface SinUbicacion {
   motivo: string;
 }
 
-export type Ubicacion = UbicacionPrecisa | SinUbicacion;
+/**
+ * Situada por una máquina a partir del título (CartoCiudad), sin revisar a mano.
+ * Es aproximada: no vale como «ubicación precisa» ni para la vista aérea.
+ */
+export interface UbicacionAproximada {
+  precision: "aproximada";
+  lat: number;
+  lon: number;
+  /** «calle»: un punto de la vía que nombra el título; «lugar»: el sitio con nombre (colegio, parque…). */
+  nivel: "calle" | "lugar";
+  /** Cómo se ha situado, en una frase para el vecino. */
+  motivo: string;
+  fuente: { tipo: "cartociudad"; url: string; fechaConsulta: string };
+}
+
+export type Ubicacion = UbicacionPrecisa | UbicacionAproximada | SinUbicacion;
 
 export function tienePunto(u: Ubicacion | null): u is UbicacionPrecisa {
-  return u != null && u.precision !== "municipio" && u.precision !== "sin_ubicacion";
+  return u != null && u.precision !== "municipio" && u.precision !== "sin_ubicacion" && u.precision !== "aproximada";
+}
+
+export function esAproximada(u: Ubicacion | null): u is UbicacionAproximada {
+  return u != null && u.precision === "aproximada";
 }
 
 export interface Obra {

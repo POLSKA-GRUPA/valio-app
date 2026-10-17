@@ -1,4 +1,4 @@
-import { OBRAS, POBLACION, type Adjudicacion, type Categoria, type Obra } from "./obras";
+import { OBRAS, POBLACION, type Adjudicacion, type Categoria, type Obra, type Ubicacion } from "./obras";
 
 export interface PoblacionMunicipio {
   municipio: string;
@@ -102,6 +102,8 @@ interface ObraCompacta {
   adjudicacion: Adjudicacion;
   aviso?: true;
   url: string;
+  /** Situada automáticamente por el título (scripts/geocodificar.mjs): [lat, lon, nivel]. */
+  geo?: [number, number, "calle" | "lugar"];
 }
 
 interface MunicipioProvincia {
@@ -113,11 +115,38 @@ interface MunicipioProvincia {
 
 interface Provincia {
   fechaConsulta: string;
+  /** Fecha de la pasada de CartoCiudad («dd/mm/aaaa»), si alguna obra lleva `geo`. */
+  fechaGeo?: string;
   municipios: Record<string, MunicipioProvincia>;
 }
 
 const AVISO_LOTES =
   "Contrato con lotes o varios adjudicatarios: el importe y la empresa son solo los del primer resultado publicado.";
+
+const SIN_SITUAR: Ubicacion = {
+  precision: "municipio",
+  motivo: "es un dato cargado automáticamente de la Plataforma de Contratación y aún nadie lo ha situado en el mapa",
+};
+
+/** Ubicación de una obra nacional: la aproximada del título si la hay; si no, solo el municipio. */
+function ubicacionDe(o: ObraCompacta, fechaGeo: string): Ubicacion {
+  const g = o.geo;
+  if (!g || !Number.isFinite(g[0]) || !Number.isFinite(g[1]) || (g[2] !== "calle" && g[2] !== "lugar")) return SIN_SITUAR;
+  const [lat, lon, nivel] = g;
+  return {
+    precision: "aproximada",
+    lat,
+    lon,
+    nivel,
+    motivo: "Situada automáticamente a partir del título (CartoCiudad, IGN); sin revisar a mano",
+    fuente: {
+      tipo: "cartociudad",
+      // Reproducible: qué dirección da CartoCiudad en ese punto.
+      url: `https://www.cartociudad.es/geocoder/api/geocoder/reverseGeocode?lon=${lon}&lat=${lat}`,
+      fechaConsulta: fechaGeo,
+    },
+  };
+}
 
 const provincias = new Map<string, Promise<Provincia | null>>();
 
@@ -137,7 +166,7 @@ function cargarProvincia(cp: string): Promise<Provincia | null> {
   return p;
 }
 
-function completar(m: MunicipioProvincia, fechaConsulta: string): Obra[] {
+function completar(m: MunicipioProvincia, fechaConsulta: string, fechaGeo: string): Obra[] {
   return m.obras.map((o) => ({
     id: o.id,
     nombre: o.nombre,
@@ -151,10 +180,7 @@ function completar(m: MunicipioProvincia, fechaConsulta: string): Obra[] {
     importeLicitacion: o.importeLicitacion,
     ivaLicitacionIncluido: false,
     adjudicacion: o.adjudicacion,
-    ubicacion: {
-      precision: "municipio",
-      motivo: "es un dato cargado automáticamente de la Plataforma de Contratación y aún nadie lo ha situado en el mapa",
-    },
+    ubicacion: ubicacionDe(o, fechaGeo),
     costePorHabitante: Math.round((o.adjudicacion.importeSinIva / m.poblacion.habitantes) * 100) / 100,
     ...(o.aviso ? { aviso: AVISO_LOTES } : {}),
     fuente: { nombre: "Plataforma de Contratación del Sector Público (PLACE)", url: o.url, fechaConsulta },
@@ -171,7 +197,7 @@ export async function cargarObras(m: Municipio): Promise<ObrasMunicipio> {
   if (esPilotoIne(m.ine)) return { obras: OBRAS.filter((o) => o.municipio === "Teulada"), poblacion: POBLACION };
   const provincia = await cargarProvincia(m.ine.slice(0, 2));
   const datos = provincia?.municipios[m.ine];
-  if (datos) return { obras: completar(datos, provincia.fechaConsulta), poblacion: datos.poblacion };
+  if (datos) return { obras: completar(datos, provincia.fechaConsulta, provincia.fechaGeo ?? provincia.fechaConsulta), poblacion: datos.poblacion };
   // El buscador dice que tiene obras (o no se sabe) y no llegan: es un fallo de descarga, no «sin obras».
   if (m.numObras !== 0) throw new Error(`Faltan las obras de ${m.nombre}`);
   return { obras: [], poblacion: null };

@@ -14,3 +14,8 @@ docs/uat/capturas/[0-9][0-9]-*.png
 # Copia del worker de MapLibre (scripts/copiar-worker-mapa.mjs)
 /public/maplibre/
 __pycache__/
+
+# Geocodificación (scripts/geocodificar.mjs): respuestas crudas de CartoCiudad
+# (caché regenerable, no hace falta versionarla) y temporales de escritura.
+/datos-geo/respuestas.json
+/datos-geo/*.tmp
