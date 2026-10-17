@@ -84,6 +84,8 @@ const ANTIGUOS: Record<string, Municipio> = {
   València: { ine: "46250", nombre: "València", provincia: "Valencia/València", ccaa: "Comunitat Valenciana", numObras: 0 },
   Madrid: { ine: "28079", nombre: "Madrid", provincia: "Madrid", ccaa: "Comunidad de Madrid", numObras: 0 },
 };
+ANTIGUOS["Alacant/Alicante"] = ANTIGUOS["Alicante/Alacant"];
+ANTIGUOS["Valencia"] = ANTIGUOS["València"];
 export const municipioAntiguo = (nombre: string): Municipio | null => ANTIGUOS[nombre] ?? null;
 
 // --- obras -------------------------------------------------------------------
@@ -127,7 +129,8 @@ function cargarProvincia(cp: string): Promise<Provincia | null> {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json() as Promise<Provincia>;
     });
-    p.catch(() => provincias.delete(cp)); // que el siguiente intento vuelva a probar
+    // Solo se recuerda una provincia descargada bien: un fallo o un 404 se reintentan.
+    p.then((d) => d ?? provincias.delete(cp)).catch(() => provincias.delete(cp));
     provincias.set(cp, p);
   }
   return p;
@@ -167,7 +170,10 @@ export async function cargarObras(m: Municipio): Promise<ObrasMunicipio> {
   if (esPilotoIne(m.ine)) return { obras: OBRAS.filter((o) => o.municipio === "Teulada"), poblacion: POBLACION };
   const provincia = await cargarProvincia(m.ine.slice(0, 2));
   const datos = provincia?.municipios[m.ine];
-  return datos ? { obras: completar(datos, provincia.fechaConsulta), poblacion: datos.poblacion } : { obras: [], poblacion: null };
+  if (datos) return { obras: completar(datos, provincia.fechaConsulta), poblacion: datos.poblacion };
+  // El buscador dice que tiene obras y no llegan: es un fallo de descarga, no «sin obras».
+  if (m.numObras > 0) throw new Error(`Faltan las obras de ${m.nombre}`);
+  return { obras: [], poblacion: null };
 }
 
 /** Comunidades que publican buena parte de sus contratos en su propia plataforma (aún sin cargar, #33). */
