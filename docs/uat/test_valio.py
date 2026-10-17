@@ -1094,6 +1094,11 @@ with sync_playwright() as p:
     check("P5 PEDIR: sin respuesta prepara la reclamación (art. 24)", "artículo 24" in reclam and "artículo 20.4" in reclam, reclam[:120])
     check("P5 PEDIR: dice dónde reclamar", p_l.get_by_role("link", name=re.compile("Dónde presentarla")).count() == 1)
     shot(p_l, "32-pedir-explicaciones-reclamacion")
+    p_l.get_by_label("Me han notificado que amplían el plazo un mes").check()
+    check(
+        "P6 PEDIR: con ampliación aún están en plazo y no ofrece reclamar por silencio",
+        p_l.locator("#claim-reclamacion").count() == 0 and p_l.get_by_text("Aún están en plazo").count() == 1,
+    )
     p_l.get_by_role("button", name="Preparar otra solicitud").click()
     p_l.get_by_role("button", name="Cerrar", exact=True).last.click()
     p_l.wait_for_selector(".sheet-backdrop", state="detached")

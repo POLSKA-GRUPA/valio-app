@@ -104,11 +104,20 @@ export function dondeReclamar(ccaa: string): { nombre: string; url: string } {
 
 export type Respuesta = "silencio" | "denegada";
 
-export function reclamacion(obra: Obra, presentada: string, motivo: Respuesta, canal: Canal, ccaa: string): string {
+export function reclamacion(
+  obra: Obra,
+  presentada: string,
+  motivo: Respuesta,
+  canal: Canal,
+  ccaa: string,
+  ampliado = false,
+): string {
   const exp = obra.adjudicacion?.numExpediente ? ` (expediente ${obra.adjudicacion.numExpediente})` : "";
   const hechos =
     motivo === "silencio"
-      ? "Ha pasado el plazo máximo de un mes del artículo 20.1 de la Ley 19/2013 sin que se me haya notificado resolución ni ampliación del plazo, por lo que la solicitud se entiende desestimada (artículo 20.4)."
+      ? ampliado
+        ? "Se me notificó la ampliación del plazo para resolver en un mes más (artículo 20.1 de la Ley 19/2013) y, vencido ese plazo ampliado, no se me ha notificado resolución, por lo que la solicitud se entiende desestimada (artículo 20.4)."
+        : "Ha pasado el plazo máximo de un mes del artículo 20.1 de la Ley 19/2013 sin que se me haya notificado resolución ni ampliación del plazo, por lo que la solicitud se entiende desestimada (artículo 20.4)."
       : "La respuesta recibida deniega total o parcialmente el acceso a la información pedida.";
   return `A: ${dondeReclamar(ccaa).nombre.replace(/^el /, "El ")}
 Asunto: Reclamación en materia de acceso a información pública
@@ -198,9 +207,9 @@ export function calendario(obra: Obra, presentada: string): string {
     "PRODID:-//VALIO//Pedir explicaciones//ES",
     "CALSCALE:GREGORIAN",
     ...evento(
-      sumarMeses(presentada, 1),
+      sumarDias(vencimiento(presentada), 1),
       "¿Te han contestado? (¿VALIÓ?)",
-      `Hoy se cumple aprox. un mes de tu solicitud sobre ${obraTxt}. Si no te han contestado, ya puedes reclamar: abre la obra en ¿VALIÓ? y pulsa «No me han contestado».`,
+      `Ha pasado aprox. un mes desde tu solicitud sobre ${obraTxt}. Si no te han contestado ni te han notificado una ampliación, puedes reclamar (comprueba el plazo con tu justificante): abre la obra en ¿VALIÓ? y pulsa «No me han contestado».`,
       1,
     ),
     ...evento(
@@ -214,8 +223,20 @@ export function calendario(obra: Obra, presentada: string): string {
   return lineas.map(plegar).join("\r\n") + "\r\n";
 }
 
-/** true si ya ha pasado un mes desde la presentación (el plazo para resolver, art. 20.1). */
-export const pasoUnMes = (presentada: string) => hoyIso() > sumarMeses(presentada, 1);
+/**
+ * Último día aprox. para resolver: un mes desde la presentación (dos si
+ * notificaron ampliación, art. 20.1); si cae en sábado o domingo, el lunes
+ * (art. 30.5 Ley 39/2015). Los festivos locales no se conocen: por eso «aprox.».
+ */
+export function vencimiento(presentada: string, ampliado = false): string {
+  let v = sumarMeses(presentada, ampliado ? 2 : 1);
+  const diaSemana = () => new Date(`${v}T12:00:00Z`).getUTCDay();
+  while (diaSemana() === 0 || diaSemana() === 6) v = sumarDias(v, 1);
+  return v;
+}
+
+/** true si ya venció el plazo para resolver (desde el día siguiente al vencimiento). */
+export const vencido = (presentada: string, ampliado = false) => hoyIso() > vencimiento(presentada, ampliado);
 
 // --- lo que se recuerda (solo en el dispositivo) ------------------------------
 
@@ -223,6 +244,8 @@ const CLAVE = "valio.solicitudes.v1";
 export interface Seguimiento {
   presentada: string;
   canal: Canal;
+  /** Le notificaron que amplían el plazo un mes (art. 20.1). */
+  ampliado?: boolean;
 }
 
 function leerTodas(): Record<string, Seguimiento> {
@@ -238,7 +261,7 @@ function leerTodas(): Record<string, Seguimiento> {
 export function leerSeguimiento(obraId: string): Seguimiento | null {
   const s = leerTodas()[obraId];
   if (!s || typeof s.presentada !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s.presentada)) return null;
-  return { presentada: s.presentada, canal: s.canal in CANALES ? s.canal : "registro" };
+  return { presentada: s.presentada, canal: s.canal in CANALES ? s.canal : "registro", ampliado: s.ampliado === true };
 }
 
 export function guardarSeguimiento(obraId: string, s: Seguimiento | null) {
