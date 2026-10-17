@@ -18,10 +18,10 @@ import {
   guardarSeguimiento,
   hoyIso,
   leerSeguimiento,
-  pasoUnMes,
+  vencido,
+  vencimiento,
   reclamacion,
   solicitud,
-  sumarMeses,
   urlBuscarSede,
   type Canal,
   type Pregunta,
@@ -118,8 +118,9 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
   };
   const donde = dondeReclamar(ccaa);
   const textoReclamacion =
-    seguimiento && (respuesta === "denegada" || (respuesta === "silencio" && pasoUnMes(seguimiento.presentada)))
-      ? reclamacion(obra, seguimiento.presentada, respuesta, seguimiento.canal, ccaa)
+    seguimiento &&
+    (respuesta === "denegada" || (respuesta === "silencio" && vencido(seguimiento.presentada, seguimiento.ampliado)))
+      ? reclamacion(obra, seguimiento.presentada, respuesta, seguimiento.canal, ccaa, seguimiento.ampliado)
       : null;
 
   return (
@@ -164,10 +165,23 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
             <section className="claim-paso" aria-labelledby="claim-seguimiento">
               <h3 id="claim-seguimiento">Lo presentaste el {fechaEs(seguimiento.presentada)}</h3>
               <p className="claim-ayuda">
-                Tienen un mes para contestarte, hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. (cuenta
-                desde que lo recibe quien debe resolver, y pueden ampliarlo otro mes si te lo notifican). Si no contestan,
-                puedes reclamar cuando quieras; si te lo deniegan, tienes un mes desde que te lo notifican.
+                Tienen hasta el {fechaEs(vencimiento(seguimiento.presentada, seguimiento.ampliado))} aprox. para
+                contestarte{seguimiento.ampliado ? ", con la ampliación" : ""} (cuenta desde que lo recibe quien debe
+                resolver; comprueba la fecha con tu justificante). Si no contestan, puedes reclamar cuando quieras desde
+                entonces; si te lo deniegan, tienes un mes desde que te lo notifican.
               </p>
+              <label className="claim-chip">
+                <input
+                  type="checkbox"
+                  checked={seguimiento.ampliado === true}
+                  onChange={(e) => {
+                    const s = { ...seguimiento, ampliado: e.target.checked };
+                    guardarSeguimiento(obra.id, s);
+                    setSeguimiento(s);
+                  }}
+                />
+                Me han notificado que amplían el plazo un mes
+              </label>
               <fieldset className="claim-opciones">
                 <legend>¿Te han contestado?</legend>
                 {(
@@ -188,10 +202,11 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
                   </label>
                 ))}
               </fieldset>
-              {respuesta === "silencio" && !pasoUnMes(seguimiento.presentada) && (
+              {respuesta === "silencio" && !vencido(seguimiento.presentada, seguimiento.ampliado) && (
                 <p className="claim-ayuda" role="status">
-                  Aún no ha pasado un mes: tienen hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. para
-                  contestar. Te lo recordamos en el calendario; entonces podrás preparar aquí la reclamación.
+                  Aún están en plazo: tienen hasta el{" "}
+                  {fechaEs(vencimiento(seguimiento.presentada, seguimiento.ampliado))} aprox. para contestar. Te lo
+                  recordamos en el calendario; después podrás preparar aquí la reclamación.
                 </p>
               )}
               {respuesta === "si" && (
