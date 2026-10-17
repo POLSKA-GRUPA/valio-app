@@ -189,7 +189,7 @@ export function lugarDelTitulo(titulo, municipio) {
     // nombra el título y no una referencia («camino del…», «zona antiguo…»).
     if (!lugar.nombre) {
       const antes = plano(texto.slice(Math.max(0, v.indice - 30), v.indice + 1));
-      if (i > 0 || /\b(zona|junto|frente|cerca|antiguo|viejo|camino|calle|travesia|carretera|acceso|cami|carrer|avenida)( (al|del|de|a|el|la))*$/.test(antes)) continue;
+      if (i > 0 || /\b(zona|junto|frente|cerca|antiguo|viejo|camino|caminos|calle|calles|travesia|carretera|acceso|cami|carrer|carrers|avenida|avenidas|plaza|plazas)( (al|del|de|a|el|la|los|las))*$/.test(antes)) continue;
     }
     return lugar;
   }
@@ -231,7 +231,13 @@ function leer(texto, tipo, fin, municipio, todoMayusculas) {
   // En una vía casi todo es nombre («calle Nueva», «calle Mayor»); en un
   // sitio, «parque infantil» o «polideportivo municipal» no dicen cuál.
   const genericos = def.nivel === "calle" ? GENERICOS_VIA : GENERICOS;
-  const nombreFichas = def.nivel === "calle" ? todas : todas.filter((p) => !genericos.has(p));
+  // «Nuevo», «Vieja»… en mayúscula dentro del nombre son parte de él («Polígono
+  // Industrial Nuevo Tollo»), no un adjetivo de relleno.
+  const propias = new Set(
+    todoMayusculas ? [] : [...nombre.matchAll(/\b(Nuev[oa]|Viej[oa])\b/gu)].map((m) => plano(m[1])),
+  );
+  const nombreFichas =
+    def.nivel === "calle" ? todas : todas.filter((p) => !genericos.has(p) || (propias.has(p) && todas.length > 1));
 
   if (def.sinNombre && nombreFichas.length === 0) {
     // «Cementerio municipal»: vale si en el municipio hay uno solo (lo decide geocodificar).
