@@ -89,7 +89,7 @@ export function Info() {
           Piloto real de {municipio}: {obras.length} obras con datos oficiales de la Plataforma de
           Contratación del Sector Público (PLACE), recogidas con el método P0 del repo valio-datos y pendientes de
           verificación independiente (cada ficha muestra su estado). El estado
-          de ejecución no lo publica el ayuntamiento: se muestra como dato faltante.
+          de ejecución no aparece en la fuente consultada: se muestra como dato faltante.
         </div>
         <div className="info-block">
           <h3>Tu municipio: {municipio}</h3>
