@@ -49,9 +49,11 @@ export function Info() {
           <h3>Privacidad</h3>
           <p>
             Sin cuentas, sin rastreo y sin pedir tu ubicación. Tus votos y tus respuestas se suman de forma
-            anónima al recuento de cada obra. Solo se guardan contadores, nunca quién votó. Para frenar votos en
-            masa se guarda durante 24 horas una huella cifrada de la conexión, que no permite saber tu IP y cambia
-            cada día. Tu municipio y si ya viste el tutorial se quedan en tu dispositivo.
+            anónima al recuento de cada obra; nunca se guarda quién votó. Para poder cambiar o retirar tu voto,
+            cada uno lleva un recibo al azar que solo tiene tu dispositivo: en el servidor queda cifrado junto a lo
+            que vota, sin relación con tus otros votos ni con tu conexión. Para frenar votos en masa se guarda
+            durante 24 horas una huella cifrada de la conexión, que no permite saber tu IP y cambia cada día. Tu
+            municipio y si ya viste el tutorial se quedan en tu dispositivo.
           </p>
         </div>
         <div className="info-block">

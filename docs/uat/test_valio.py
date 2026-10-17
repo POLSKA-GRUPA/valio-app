@@ -1463,37 +1463,45 @@ with sync_playwright() as p:
         antes = _recuento(obra_v)
         check("V1 recuento: GET responde con contadores", antes is not None and "votos" in antes, f"{antes}")
         r1 = secrets.token_hex(16)
-        voto = lambda valor, recibo=r1, obra=obra_v: {"obra": obra, "tipo": "voto", "valor": valor, "recibo": recibo}
-        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio")]})
+        voto = lambda valor, rev, recibo=r1, obra=obra_v: {"obra": obra, "tipo": "voto", "valor": valor, "recibo": recibo, "rev": rev}
+        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 1)]})
         despues = _recuento(obra_v)
         check(
             "V1 recuento: un voto suma uno",
             estado == 200 and despues and despues["votos"]["valio"] == antes["votos"]["valio"] + 1,
             f"estado={estado} antes={antes} despues={despues}",
         )
-        _api("POST", "/api/recuento", {"cambios": [voto("valio")]})
+        _api("POST", "/api/recuento", {"cambios": [voto("valio", 1)]})
+        _api("POST", "/api/recuento", {"cambios": [voto("valio", 2)]})
         check("V1 recuento: reenviar el mismo recibo no suma dos veces", _recuento(obra_v) == despues, f"{_recuento(obra_v)}")
-        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("no_valio")]})
+        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("no_valio", 3)]})
         cambio = _recuento(obra_v)
         check(
             "V2 recuento: cambiar el voto mueve uno de sitio",
             estado == 200 and cambio["votos"]["valio"] == antes["votos"]["valio"] and cambio["votos"]["no_valio"] == antes["votos"]["no_valio"] + 1,
             f"{cambio}",
         )
-        e_obra, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", obra="no-existe")]})
-        e_voto, _ = _api("POST", "/api/recuento", {"cambios": [voto("me_gusta")]})
-        e_recibo, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", recibo="corto")]})
-        check("V3 recuento: rechaza obras, valores y recibos desconocidos", (e_obra, e_voto, e_recibo) == (400, 400, 400), f"{e_obra} {e_voto} {e_recibo}")
+        # Una petición atrasada (versión vieja) no deshace el cambio.
+        _api("POST", "/api/recuento", {"cambios": [voto("valio", 2)]})
+        check("V2 recuento: una petición atrasada no deshace un cambio posterior", _recuento(obra_v) == cambio, f"{_recuento(obra_v)}")
+        e_obra, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 9, obra="no-existe")]})
+        e_voto, _ = _api("POST", "/api/recuento", {"cambios": [voto("me_gusta", 9)]})
+        e_recibo, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 9, recibo="corto")]})
+        e_rev, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 0)]})
+        check("V3 recuento: rechaza obras, valores, recibos y versiones no válidas", (e_obra, e_voto, e_recibo, e_rev) == (400, 400, 400, 400), f"{e_obra} {e_voto} {e_recibo} {e_rev}")
         # Quitar votos sin su recibo no resta nada: no se pueden borrar votos ajenos.
-        _api("POST", "/api/recuento", {"cambios": [voto(None, recibo=secrets.token_hex(16)) for _ in range(5)]})
+        _api("POST", "/api/recuento", {"cambios": [voto(None, 1, recibo=secrets.token_hex(16)) for _ in range(5)]})
         check("V3 recuento: sin el recibo no se quitan votos ajenos", _recuento(obra_v) == cambio, f"{_recuento(obra_v)}")
-        _api("POST", "/api/recuento", {"cambios": [voto(None)] * 3})
+        _api("POST", "/api/recuento", {"cambios": [voto(None, 4), voto(None, 5), voto(None, 6)]})
         quitado = _recuento(obra_v)
         check(
             "V3 recuento: quitar con su recibo resta uno y ningún contador baja de cero",
             quitado["votos"]["no_valio"] == antes["votos"]["no_valio"] and min(quitado["votos"].values()) >= 0,
             f"{quitado}",
         )
+        # El voto retirado no resucita con una petición atrasada.
+        _api("POST", "/api/recuento", {"cambios": [voto("no_valio", 3)]})
+        check("V3 recuento: una petición atrasada no resucita un voto retirado", _recuento(obra_v) == quitado, f"{_recuento(obra_v)}")
 
         # V4 — votar en la app llega al recuento, y deshacer lo quita.
         ctx_v = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
@@ -1515,7 +1523,7 @@ with sync_playwright() as p:
 
         # V5 — la ficha enseña el reparto a partir de 5 votos.
         esperar_sin_vuelo(p_v)
-        _api("POST", "/api/recuento", {"cambios": [{"obra": i, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16)} for i in ids for _ in range(6)]})
+        _api("POST", "/api/recuento", {"cambios": [{"obra": i, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16), "rev": 1} for i in ids for _ in range(6)]})
         p_v.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
         seccion = p_v.locator(".recuento-vecinos")
         seccion.wait_for(timeout=5000)
@@ -1529,11 +1537,26 @@ with sync_playwright() as p:
         shot(p_v, "29-recuento-ficha")
         ctx_v.close()
 
+        # V8 — dos pestañas votando la misma obra cuentan una sola vez.
+        ctx_v8 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        pa, pb = ctx_v8.new_page(), ctx_v8.new_page()
+        for pg in (pa, pb):
+            pg.goto(BASE, wait_until="networkidle")
+            if pg.get_by_role("button", name="Entendido, a votar").count():
+                pg.get_by_role("button", name="Entendido, a votar").click()
+            esperar_sin_vuelo(pg)
+        t0 = total()
+        pa.get_by_role("button", name="Valió").first.click()
+        pa.wait_for_timeout(2500)
+        pb.get_by_role("button", name="Valió").first.click()
+        pb.wait_for_timeout(2500)
+        check("V8 recuento: dos pestañas votando la misma obra suman uno", total() == t0 + 1, f"{t0} -> {total()}")
+        ctx_v8.close()
+
         # V6 — freno de abuso: pasado el límite diario, 429.
         r6 = secrets.token_hex(16)
-        lote = [{"obra": obra_v, "tipo": "senal", "valor": "terminada", "recibo": r6},
-                {"obra": obra_v, "tipo": "senal", "valor": None, "recibo": r6}] * 100
-        codigos = [_api("POST", "/api/recuento", {"cambios": lote})[0] for _ in range(2)]
+        lote = lambda base: [{"obra": obra_v, "tipo": "senal", "valor": "terminada" if k % 2 == 0 else None, "recibo": r6, "rev": base + k + 1} for k in range(200)]
+        codigos = [_api("POST", "/api/recuento", {"cambios": lote(200 * n)})[0] for n in range(2)]
         check("V6 recuento: más de 300 cambios al día desde la misma conexión dan 429", codigos[-1] == 429, f"{codigos}")
 
         # V7 — carga nacional: se cuentan votos a obras de Madrid, y un lote con
@@ -1543,8 +1566,8 @@ with sync_playwright() as p:
         cabecera_v7 = {"X-Forwarded-For": "203.0.113.77"}
         antes_m = _recuento(id_madrid)
         e_mixto, cuerpo_mixto = _api("POST", "/api/recuento", {"cambios": [
-            {"obra": id_madrid, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16)},
-            {"obra": "28079-000000000000", "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16)},
+            {"obra": id_madrid, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16), "rev": 1},
+            {"obra": "28079-000000000000", "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16), "rev": 1},
         ]}, cabecera_v7)
         despues_m = _recuento(id_madrid)
         check(

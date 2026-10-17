@@ -23,9 +23,12 @@ export interface Cambio {
    * suma dos veces y, sin el recibo, nadie puede quitar ni cambiar el voto.
    */
   recibo: string;
+  /** Versión de este recibo, siempre creciente: el servidor ignora envíos más viejos. */
+  rev: number;
 }
 
 export const RECIBO = /^[0-9a-f]{32}$/;
+export const REV_MAXIMA = 1_000_000_000;
 
 export interface RecuentoObra {
   votos: Record<Voto, number>;

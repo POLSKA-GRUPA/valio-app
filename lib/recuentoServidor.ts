@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { OBRAS } from "./obras";
 import { IDS_NACIONALES } from "./ids-nacionales";
-import { RECIBO, recuentoVacio, valoresDe, type Cambio, type RecuentoObra } from "./recuento";
+import { RECIBO, REV_MAXIMA, recuentoVacio, valoresDe, type Cambio, type RecuentoObra } from "./recuento";
 
 /**
  * Almacén del recuento. En producción, Redis por REST (Upstash, región
@@ -10,7 +10,7 @@ import { RECIBO, recuentoVacio, valoresDe, type Cambio, type RecuentoObra } from
  *
  * Claves:
  *   r:<obra>        hash con v:<voto> y s:<señal> → contador
- *   c:<sha256>      lo que cuenta un recibo (sha256 de recibo|obra|tipo)
+ *   c:<sha256>      «versión|valor» de un recibo (sha256 de recibo|obra|tipo)
  *   l:<huella>      cambios de esa huella hoy (caduca a las 24 h)
  * La huella es sha256(sal + día + IP): no se guarda la IP, y como el día
  * entra en el hash, no se puede seguir a nadie de un día a otro. La sal es
@@ -19,9 +19,10 @@ import { RECIBO, recuentoVacio, valoresDe, type Cambio, type RecuentoObra } from
 
 const URL_REDIS = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
 const TOKEN_REDIS = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-const PRODUCCION = process.env.NODE_ENV === "production" && process.env.RECUENTO_MEMORIA !== "1";
-// `||` y no `??`: una sal vacía no es una sal. En producción no hay valor por defecto.
-const SAL = process.env.RECUENTO_SAL || (PRODUCCION ? "" : "desarrollo");
+// RECUENTO_MEMORIA=1 manda siempre: la UAT nunca escribe en el Redis de verdad.
+const EN_MEMORIA = process.env.RECUENTO_MEMORIA === "1" || !URL_REDIS || !TOKEN_REDIS;
+// `||` y no `??`: una sal vacía no es una sal. Con Redis no hay valor por defecto.
+const SAL = process.env.RECUENTO_SAL || (EN_MEMORIA ? "desarrollo" : "");
 
 /** Cambios por huella y día. Un vecino que vota todo el mazo y rectifica no llega. */
 export const LIMITE_DIARIO = 300;
@@ -29,8 +30,12 @@ export const LIMITE_DIARIO = 300;
 // Piloto y carga nacional: solo se cuentan votos a obras que la app publica.
 const IDS = new Set([...OBRAS.map((o) => o.id), ...IDS_NACIONALES]);
 
-/** En producción hacen falta Redis y una sal de verdad (32+ caracteres). */
-export const disponible = () => !PRODUCCION || Boolean(URL_REDIS && TOKEN_REDIS && SAL.length >= 32);
+/**
+ * Con Redis hace falta una sal de verdad (32+ caracteres). La memoria solo
+ * vale fuera de producción o pedida a propósito (UAT con next start).
+ */
+export const disponible = () =>
+  EN_MEMORIA ? process.env.NODE_ENV !== "production" || process.env.RECUENTO_MEMORIA === "1" : SAL.length >= 32;
 
 type Comando = (string | number)[];
 
@@ -38,7 +43,7 @@ const memoria = new Map<string, Map<string, number>>();
 const recibosEnMemoria = new Map<string, string>();
 
 async function redis(comandos: Comando[]): Promise<unknown[]> {
-  if (!URL_REDIS || !TOKEN_REDIS) return comandos.map(enMemoria);
+  if (EN_MEMORIA) return comandos.map(enMemoria);
   const res = await fetch(`${URL_REDIS}/pipeline`, {
     method: "POST",
     headers: { Authorization: `Bearer ${TOKEN_REDIS}` },
@@ -55,9 +60,9 @@ async function redis(comandos: Comando[]): Promise<unknown[]> {
 
 /** Lo justo de Redis para desarrollo: HINCRBY, HSET, HGETALL, INCR, EXPIRE y el script de abajo. */
 function enMemoria([op, clave, ...args]: Comando): unknown {
-  // EVAL: [script, nº claves, c:<recibo>, r:<obra>, prefijo, valor]
+  // EVAL: [script, nº claves, c:<recibo>, r:<obra>, prefijo, valor, rev]
   if (String(op).toUpperCase() === "EVAL")
-    return aplicarEnMemoria(String(args[1]), String(args[2]), String(args[3]), String(args[4]));
+    return aplicarEnMemoria(String(args[1]), String(args[2]), String(args[3]), String(args[4]), Number(args[5]));
   const h = memoria.get(String(clave)) ?? new Map<string, number>();
   memoria.set(String(clave), h);
   switch (String(op).toUpperCase()) {
@@ -89,12 +94,13 @@ export function huella(ip: string): string {
 /** null si el cambio no es válido. */
 export function validarCambio(raw: unknown): Cambio | null {
   if (!raw || typeof raw !== "object") return null;
-  const { obra, tipo, valor, recibo } = raw as Record<string, unknown>;
+  const { obra, tipo, valor, recibo, rev } = raw as Record<string, unknown>;
   if (typeof obra !== "string" || !IDS.has(obra)) return null;
   if (tipo !== "voto" && tipo !== "senal") return null;
   if (typeof recibo !== "string" || !RECIBO.test(recibo)) return null;
+  if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1 || rev > REV_MAXIMA) return null;
   if (!(valor === null || (typeof valor === "string" && valoresDe(tipo).includes(valor)))) return null;
-  return { obra, tipo, valor: valor as string | null, recibo };
+  return { obra, tipo, valor: valor as string | null, recibo, rev };
 }
 
 /** Cuenta cuántos cambios lleva hoy esta huella; true si aún puede. */
@@ -109,36 +115,45 @@ export async function dentroDelLimite(h: string, cuantos: number): Promise<boole
 
 /**
  * Deja el recibo contando `valor` (o nada), en un solo paso atómico: resta lo
- * que contaba antes, suma lo nuevo y guarda el estado del recibo. Repetirlo
- * no cambia nada, y un contador nunca baja de cero ni pisa sumas ajenas.
- * KEYS: c:<recibo>, r:<obra> · ARGV: prefijo (v|s), valor ("" = quitar).
+ * que contaba antes, suma lo nuevo y guarda «rev|valor». Un envío con una
+ * versión igual o más vieja que la guardada no hace nada: repetir no suma dos
+ * veces y una petición atrasada no resucita un voto retirado. Un contador
+ * nunca baja de cero ni pisa sumas ajenas. Retirado, el recibo solo guarda su
+ * versión, y caduca a los 30 días.
+ * KEYS: c:<recibo>, r:<obra> · ARGV: prefijo (v|s), valor ("" = quitar), rev.
  */
 const SCRIPT = `
-local antes = redis.call('GET', KEYS[1]) or ''
-if antes == ARGV[2] then return 0 end
-if antes ~= '' then
-  local campo = ARGV[1] .. ':' .. antes
-  if redis.call('HINCRBY', KEYS[2], campo, -1) < 0 then redis.call('HSET', KEYS[2], campo, 0) end
+local guardado = redis.call('GET', KEYS[1]) or '0|'
+local corte = string.find(guardado, '|', 1, true)
+local rev = tonumber(string.sub(guardado, 1, corte - 1)) or 0
+local antes = string.sub(guardado, corte + 1)
+local nueva = tonumber(ARGV[3])
+if nueva <= rev then return 0 end
+if antes ~= ARGV[2] then
+  if antes ~= '' then
+    local campo = ARGV[1] .. ':' .. antes
+    if redis.call('HINCRBY', KEYS[2], campo, -1) < 0 then redis.call('HSET', KEYS[2], campo, 0) end
+  end
+  if ARGV[2] ~= '' then redis.call('HINCRBY', KEYS[2], ARGV[1] .. ':' .. ARGV[2], 1) end
 end
 if ARGV[2] ~= '' then
-  redis.call('HINCRBY', KEYS[2], ARGV[1] .. ':' .. ARGV[2], 1)
-  redis.call('SET', KEYS[1], ARGV[2])
+  redis.call('SET', KEYS[1], nueva .. '|' .. ARGV[2])
 else
-  redis.call('DEL', KEYS[1])
+  redis.call('SET', KEYS[1], nueva .. '|', 'EX', ${30 * 86400})
 end
 return 1`;
 
 /** El mismo script, para el almacén en memoria (un solo hilo: ya es atómico). */
-function aplicarEnMemoria(claveRecibo: string, claveObra: string, prefijo: string, valor: string): number {
-  const antes = recibosEnMemoria.get(claveRecibo) ?? "";
-  if (antes === valor) return 0;
+function aplicarEnMemoria(claveRecibo: string, claveObra: string, prefijo: string, valor: string, nueva: number): number {
+  const [rev, antes] = (recibosEnMemoria.get(claveRecibo) ?? "0|").split("|");
+  if (nueva <= Number(rev)) return 0;
   const h = memoria.get(claveObra) ?? new Map<string, number>();
   memoria.set(claveObra, h);
-  if (antes) h.set(`${prefijo}:${antes}`, Math.max(0, (h.get(`${prefijo}:${antes}`) ?? 0) - 1));
-  if (valor) {
-    h.set(`${prefijo}:${valor}`, (h.get(`${prefijo}:${valor}`) ?? 0) + 1);
-    recibosEnMemoria.set(claveRecibo, valor);
-  } else recibosEnMemoria.delete(claveRecibo);
+  if (antes !== valor) {
+    if (antes) h.set(`${prefijo}:${antes}`, Math.max(0, (h.get(`${prefijo}:${antes}`) ?? 0) - 1));
+    if (valor) h.set(`${prefijo}:${valor}`, (h.get(`${prefijo}:${valor}`) ?? 0) + 1);
+  }
+  recibosEnMemoria.set(claveRecibo, `${nueva}|${valor}`);
   return 1;
 }
 
@@ -148,7 +163,7 @@ const claveRecibo = (c: Cambio) =>
 
 export async function aplicar(cambios: Cambio[]): Promise<void> {
   await redis(
-    cambios.map((c) => ["EVAL", SCRIPT, 2, claveRecibo(c), `r:${c.obra}`, c.tipo === "voto" ? "v" : "s", c.valor ?? ""]),
+    cambios.map((c) => ["EVAL", SCRIPT, 2, claveRecibo(c), `r:${c.obra}`, c.tipo === "voto" ? "v" : "s", c.valor ?? "", c.rev]),
   );
 }
 

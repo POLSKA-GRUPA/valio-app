@@ -5,7 +5,7 @@ import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { SENALES, type Senal, type Senales } from "./senal";
 import { buscarMunicipio, cargarObras, existeMunicipio, obrasDe, type PoblacionMunicipio } from "./municipios";
 import type { Orden } from "./orden";
-import { useSincronizar } from "./useSincronizar";
+import { useSincronizar, type Guardado } from "./useSincronizar";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
@@ -49,6 +49,16 @@ function leerVotos(): Votos {
   } catch {
     return {};
   }
+}
+
+/** Votos y respuestas tal como están guardados (los comparten las pestañas); null si no se puede leer. */
+function leerGuardado(): Guardado | null {
+  try {
+    window.localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+  return { votos: leerVotos(), senales: leerSenales() };
 }
 
 /** Solo vale un municipio que exista en los datos; si no, se vuelve a preguntar. */
@@ -219,7 +229,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const poblacion = ficha?.poblacion ?? null;
   const esPiloto = ficha ? ficha.ine === null : false;
 
-  useSincronizar(votos, senales, listo, () => setVersionRecuento((n) => n + 1));
+  useSincronizar(votos, senales, listo, leerGuardado, () => setVersionRecuento((n) => n + 1));
 
   // «Volver a empezar» borra solo los votos del municipio actual: los de
   // otros municipios se conservan, igual que al cambiar de municipio.
