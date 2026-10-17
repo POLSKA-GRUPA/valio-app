@@ -1546,12 +1546,36 @@ with sync_playwright() as p:
                 pg.get_by_role("button", name="Entendido, a votar").click()
             esperar_sin_vuelo(pg)
         t0 = total()
+        badge_b = pb.locator(".brand-badge").inner_text()
+        pa.get_by_role("button", name="Valió").first.click()
+        pa.wait_for_timeout(3500)
+        badge_b2 = pb.locator(".brand-badge").inner_text()
+        check(
+            "V8 recuento: la otra pestaña ve el voto al momento y no lo vuelve a contar",
+            total() == t0 + 1 and badge_b2 != badge_b and " 1/" in badge_b2,
+            f"{t0} -> {total()} · B: {badge_b} -> {badge_b2}",
+        )
+        ctx_v8.close()
+
+        # V9 — dos pestañas votando obras distintas: se cuentan las dos y
+        # ninguna borra el voto de la otra.
+        ctx_v9 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        pa, pb = ctx_v9.new_page(), ctx_v9.new_page()
+        for pg in (pa, pb):
+            pg.goto(BASE, wait_until="networkidle")
+            if pg.get_by_role("button", name="Entendido, a votar").count():
+                pg.get_by_role("button", name="Entendido, a votar").click()
+            esperar_sin_vuelo(pg)
+        t0 = total()
         pa.get_by_role("button", name="Valió").first.click()
         pa.wait_for_timeout(2500)
-        pb.get_by_role("button", name="Valió").first.click()
+        # Sin recargar: B se entera del voto de A y le enseña la siguiente obra.
+        esperar_sin_vuelo(pb)
+        pb.get_by_role("button", name="No valió").first.click()
         pb.wait_for_timeout(2500)
-        check("V8 recuento: dos pestañas votando la misma obra suman uno", total() == t0 + 1, f"{t0} -> {total()}")
-        ctx_v8.close()
+        votos_guardados = pa.evaluate("Object.keys(JSON.parse(localStorage.getItem('valio.votos.v1') || '{}')).length")
+        check("V9 recuento: dos pestañas, obras distintas: suman dos y se guardan las dos", total() == t0 + 2 and votos_guardados == 2, f"{t0} -> {total()}, guardados={votos_guardados}")
+        ctx_v9.close()
 
         # V6 — freno de abuso: pasado el límite diario, 429.
         r6 = secrets.token_hex(16)
