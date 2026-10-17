@@ -39,6 +39,17 @@ function PosterFicha({ obra }: { obra: Obra }) {
   );
 }
 
+/** «105 Día(s)» → «105 días»; «1 Mes(es)» → «1 mes». Lo demás, tal cual. */
+function plazoLegible(plazo: string): string {
+  const m = plazo.match(/^(\d+)\s+(Día|Mes|Año|Semana)\(e?s\)$/);
+  if (!m) return plazo;
+  const n = Number(m[1]);
+  const [uno, varios] = { Día: ["día", "días"], Mes: ["mes", "meses"], Año: ["año", "años"], Semana: ["semana", "semanas"] }[
+    m[2] as "Día" | "Mes" | "Año" | "Semana"
+  ];
+  return `${n} ${n === 1 ? uno : varios}`;
+}
+
 export function DetailSheet({
   obra,
   onClose,
@@ -104,14 +115,6 @@ export function DetailSheet({
                   {obra.municipio} ({obra.provincia})
                 </dd>
               </div>
-              <div>
-                <dt>Tipo de obra</dt>
-                <dd>{CATEGORIA_LABEL[obra.categoria]}</dd>
-              </div>
-              <div>
-                <dt>Año</dt>
-                <dd>{obra.anyo}</dd>
-              </div>
             </dl>
           </section>
 
@@ -155,7 +158,7 @@ export function DetailSheet({
                   </div>
                   <div>
                     <dt>Plazo de ejecución</dt>
-                    <dd>{adjudicacion.plazo}</dd>
+                    <dd>{plazoLegible(adjudicacion.plazo)}</dd>
                   </div>
                   {adjudicacion.numExpediente && (
                     <div>
@@ -172,7 +175,7 @@ export function DetailSheet({
               )}
               <div>
                 <dt>Estado de ejecución</dt>
-                <dd>Faltante: no localizado en la fuente oficial</dd>
+                <dd>No consta en la fuente oficial. Si sabes cómo va, cuéntalo más abajo.</dd>
               </div>
             </dl>
           </section>

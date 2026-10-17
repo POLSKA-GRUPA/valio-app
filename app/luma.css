@@ -96,6 +96,15 @@
   font-size: 24px;
 }
 
+:root button.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+:root button.brand-badge:focus-visible { outline: 3px solid var(--evidencia); outline-offset: 2px; }
+
 :root .brand-badge {
   display: inline-flex;
   align-items: center;
@@ -1017,56 +1026,91 @@
   color: var(--ink-soft);
 }
 
-:root .deslizar {
-  position: relative;
-  height: 58px;
-  width: 100%;
+:root .claim { display: flex; flex-direction: column; gap: 18px; }
+
+:root .claim-paso {
+  margin: 0;
   padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--glass-line);
-  border-radius: 999px;
-  background: var(--tile);
-  color: var(--ink-soft);
-  font: 600 15px var(--f-ui);
-  touch-action: none;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-:root .deslizar-relleno {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--ink);
-  opacity: 0.16;
-  transform-origin: left center;
-}
-
-:root .deslizar-texto {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-:root .deslizar.hecho .deslizar-texto {
+:root .claim-paso legend,
+:root .claim-paso h3 {
+  margin: 0 0 4px;
+  padding: 0;
+  font: 700 17px/1.3 var(--f-ui);
   color: var(--ink);
 }
 
-:root .deslizar-pomo {
-  position: absolute;
-  left: 4px;
-  top: 3px;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--ink);
-  color: #0b0b10;
-  pointer-events: none;
+:root .claim-opciones { flex-flow: row wrap; gap: 8px; }
+:root .claim-opciones legend { width: 100%; }
+
+:root .claim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  font: 600 14px/1.3 var(--f-ui);
+  cursor: pointer;
+}
+:root .claim-chip:has(input:checked) {
+  border-color: var(--evidencia);
+  background: var(--evidencia-fondo);
+}
+:root .claim-chip input { accent-color: var(--evidencia); width: 18px; height: 18px; }
+:root .claim-chip:has(input:focus-visible) { outline: 3px solid var(--evidencia); outline-offset: 2px; }
+
+:root .claim-otra { display: flex; flex-direction: column; gap: 6px; width: 100%; font-size: 14px; color: var(--ink-soft); }
+:root .claim-otra input,
+:root .claim-fecha input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font: 500 15px var(--f-ui);
+  color-scheme: dark;
+}
+
+:root .claim-canal {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-line);
+  border-radius: 16px;
+  cursor: pointer;
+}
+:root .claim-canal.activo { border-color: var(--evidencia); background: var(--evidencia-fondo); }
+:root .claim-canal input { margin-top: 3px; accent-color: var(--evidencia); width: 18px; height: 18px; flex: none; }
+:root .claim-canal:has(input:focus-visible) { outline: 3px solid var(--evidencia); outline-offset: 2px; }
+:root .claim-canal span { display: flex; flex-direction: column; gap: 2px; }
+:root .claim-canal b { font: 700 15px/1.3 var(--f-ui); color: var(--ink); }
+:root .claim-canal small { font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+
+:root .claim-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+:root .claim-acciones .btn { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+:root .claim-ayuda { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+:root .claim-ayuda a { color: var(--evidencia); }
+:root .claim-fecha { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--ink-soft); }
+:root .claim-secundario { align-self: flex-start; }
+:root .btn-texto {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--evidencia);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 /* --- Info ------------------------------------------------------------------ */

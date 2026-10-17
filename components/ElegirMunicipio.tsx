@@ -3,28 +3,27 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight, MapPin } from "lucide-react";
 import { buscar, cargarIndice, type Municipio } from "@/lib/municipios";
-import { OBRAS } from "@/lib/obras";
-import { eurosCompactos } from "@/lib/formato";
-import { importeDe } from "@/lib/orden";
+import type { Categoria } from "@/lib/obras";
 import { IconoTipo, slugTipo } from "./TipoObra";
 
 /**
- * Bienvenida con las tres obras de mayor importe en abanico
- * (como «Get Started» de Luma). Datos reales del piloto verificado
- * (lib/obras.ts), no de la carga nacional; decorativo para el lector, que
- * ya tiene la pregunta y la lista.
+ * Bienvenida con tres pósters en abanico (como «Get Started» de Luma): los
+ * tipos de obra que vas a juzgar, sin cifras de ningún municipio concreto.
+ * Decorativo para el lector, que ya tiene la pregunta y el buscador.
  */
+const TIPOS_ABANICO: { categoria: Categoria; texto: string }[] = [
+  { categoria: "educacion", texto: "Colegios" },
+  { categoria: "urbanismo", texto: "Calles" },
+  { categoria: "deporte", texto: "Deporte" },
+];
+
 function Abanico() {
-  const tres = [...OBRAS].sort((a, b) => importeDe(b) - importeDe(a)).slice(0, 3);
-  // Orden visual: la segunda a la izquierda, la mayor en el centro, la tercera a la derecha.
-  const colocadas = [tres[1], tres[0], tres[2]].filter(Boolean);
   return (
     <div className="abanico" aria-hidden="true">
-      {colocadas.map((o, i) => (
-        <div key={o.id} className={`mini-poster${i === 1 ? "" : " lado"}`} data-cat={slugTipo(o.categoria)} data-i={i}>
-          <IconoTipo categoria={o.categoria} size={120} className="poster-marca" />
-          <small>{o.anyo}</small>
-          <b className="num">{eurosCompactos(importeDe(o))}</b>
+      {TIPOS_ABANICO.map((t, i) => (
+        <div key={t.categoria} className={`mini-poster${i === 1 ? "" : " lado"}`} data-cat={slugTipo(t.categoria)} data-i={i}>
+          <IconoTipo categoria={t.categoria} size={120} className="poster-marca" />
+          <b className="num">{t.texto}</b>
         </div>
       ))}
     </div>
@@ -104,7 +103,7 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (m: Municipio) => void
           No encontramos ningún municipio llamado «{busqueda}».
         </p>
       )}
-      {todos && !escrito && <p className="municipio-vacio">Algunos con datos:</p>}
+      {todos && !escrito && <p className="municipio-vacio">Los que más obras tienen:</p>}
       <ul className="municipio-lista">
         {visibles.map((m) => (
           <li key={m.ine}>
