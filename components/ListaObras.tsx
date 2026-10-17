@@ -99,7 +99,10 @@ export function ListaObras() {
                           {o.aviso ? " · 1.er lote" : ""}
                         </span>
                         <span>{CATEGORIA_LABEL[o.categoria]}</span>
-                        <span className={`tag tag-${o.estadoDato}`}>{ESTADO_LABEL[o.estadoDato]}</span>
+                        {/* Dato oficial automático: lo dice la ficha y la pestaña Info; en cada fila solo es ruido. */}
+                        {o.estadoDato !== "OFICIAL_AUTOMATICO" && (
+                          <span className={`tag tag-${o.estadoDato}`}>{ESTADO_LABEL[o.estadoDato]}</span>
+                        )}
                       </span>
                     </span>
                   </button>

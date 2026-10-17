@@ -1080,10 +1080,14 @@ with sync_playwright() as p:
     check("P3 PEDIR: en papel pide nombre, DNI y firma", "[DNI/NIE]" in escrito() and "Fecha y firma" in escrito())
     p_l.locator(".claim-canal").filter(has_text="Registro Electrónico General").click()
     check("P3 PEDIR: el registro trae su enlace", p_l.get_by_role("link", name="Abrir el Registro").get_attribute("href") == "https://rec.redsara.es/")
+    p_l.locator("#claim-fecha").fill((__import__("datetime").date.today() - __import__("datetime").timedelta(days=45)).isoformat())
     with p_l.expect_download() as descarga:
         p_l.get_by_role("button", name="Ya lo presenté: avisarme").click()
-    ics = open(descarga.value.path(), encoding="utf-8").read()
+    ics = open(descarga.value.path(), encoding="utf-8", newline="").read()
     check("P4 PEDIR: avisos de calendario a uno y dos meses", ics.count("BEGIN:VEVENT") == 2 and "VALARM" in ics, ics[:120])
+    check("P4 PEDIR: calendario en formato estándar (CRLF, líneas ≤75 octetos)",
+          "\n" not in ics.replace("\r\n", "") and max(len(l.encode()) for l in ics.split("\r\n")) <= 75)
+    check("P4 PEDIR: no inventa un último día para reclamar por silencio", "último día" not in ics.lower())
     check("P4 PEDIR: recuerda que lo presentó", p_l.get_by_role("heading", name=re.compile("Lo presentaste el")).is_visible())
     p_l.get_by_label("No me han contestado").check()
     reclam = p_l.locator("#claim-reclamacion").input_value()
@@ -1669,8 +1673,8 @@ with sync_playwright() as p:
     p_r27.wait_for_selector(".stack-slot", timeout=20000)
     badge = p_r27.locator(".brand-badge").inner_text()
     check(
-        "R27 NACIONAL: cabecera con DATO OFICIAL y todas las obras de Madrid",
-        "DATO OFICIAL" in badge and "Madrid" in badge and f"/{len(madrid['obras'])}" in badge,
+        "R27 NACIONAL: cabecera con Madrid y todas sus obras",
+        "Madrid" in badge and f"/{len(madrid['obras'])}" in badge,
         badge,
     )
     carta = p_r27.locator(".stack-slot").first

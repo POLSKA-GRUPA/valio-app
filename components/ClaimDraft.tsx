@@ -18,6 +18,7 @@ import {
   guardarSeguimiento,
   hoyIso,
   leerSeguimiento,
+  pasoUnMes,
   reclamacion,
   solicitud,
   sumarMeses,
@@ -117,7 +118,7 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
   };
   const donde = dondeReclamar(ccaa);
   const textoReclamacion =
-    seguimiento && (respuesta === "silencio" || respuesta === "denegada")
+    seguimiento && (respuesta === "denegada" || (respuesta === "silencio" && pasoUnMes(seguimiento.presentada)))
       ? reclamacion(obra, seguimiento.presentada, respuesta, seguimiento.canal, ccaa)
       : null;
 
@@ -163,9 +164,9 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
             <section className="claim-paso" aria-labelledby="claim-seguimiento">
               <h3 id="claim-seguimiento">Lo presentaste el {fechaEs(seguimiento.presentada)}</h3>
               <p className="claim-ayuda">
-                Tienen hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. para contestar. Si no lo hacen,
-                puedes reclamar hasta el {fechaEs(sumarMeses(seguimiento.presentada, 2))} aprox. (el plazo exacto cuenta
-                desde tu justificante).
+                Tienen un mes para contestarte, hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. (cuenta
+                desde que lo recibe quien debe resolver, y pueden ampliarlo otro mes si te lo notifican). Si no contestan,
+                puedes reclamar cuando quieras; si te lo deniegan, tienes un mes desde que te lo notifican.
               </p>
               <fieldset className="claim-opciones">
                 <legend>¿Te han contestado?</legend>
@@ -187,6 +188,12 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
                   </label>
                 ))}
               </fieldset>
+              {respuesta === "silencio" && !pasoUnMes(seguimiento.presentada) && (
+                <p className="claim-ayuda" role="status">
+                  Aún no ha pasado un mes: tienen hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. para
+                  contestar. Te lo recordamos en el calendario; entonces podrás preparar aquí la reclamación.
+                </p>
+              )}
               {respuesta === "si" && (
                 <p className="claim-ayuda">
                   ¡Bien! Si la respuesta dice algo sobre la obra que no cuadra con lo que ves, puedes volver a votarla.

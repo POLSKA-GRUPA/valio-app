@@ -1,6 +1,6 @@
 "use client";
 
-import { Info as IconoInfo, Layers, List, type LucideIcon } from "lucide-react";
+import { Info as IconoInfo, Layers, List, MapPin, type LucideIcon } from "lucide-react";
 import { MotionConfig } from "framer-motion";
 import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
@@ -29,7 +29,7 @@ export default function Home() {
 }
 
 function Contenido() {
-  const { votos, listo, municipio, ficha, elegirMunicipio, obras, cargando, errorCarga, esPiloto, cambiarMunicipio } =
+  const { votos, listo, municipio, ficha, elegirMunicipio, obras, cargando, errorCarga, cambiarMunicipio } =
     useStore();
   const sinObras = !cargando && !errorCarga && obras.length === 0;
   const [pestaña, setPestaña] = useState<Pestaña>("votar");
@@ -81,9 +81,16 @@ function Contenido() {
     <main className="app-shell">
       <header className="topbar">
         <h1 className="brand display">¿VALIÓ?</h1>
-        <span className="brand-badge">
-          {esPiloto ? "PILOTO" : "DATO OFICIAL"} · {municipio} · {votadas}/{obras.length}
-        </span>
+        <button
+          type="button"
+          className="brand-badge"
+          onClick={cambiarMunicipio}
+          aria-label={`${municipio}: llevas ${votadas} de ${obras.length}. Elegir otro municipio`}
+        >
+          <MapPin size={14} aria-hidden="true" />
+          {municipio}
+          {obras.length > 0 && ` · ${votadas}/${obras.length}`}
+        </button>
       </header>
 
       {sinObras && ficha && (
@@ -128,7 +135,7 @@ function Contenido() {
         </div>
       ))}
 
-      <nav className="tabbar" role="tablist" aria-label="Navegación principal" onKeyDown={onTablistKey}>
+      {!sinObras && <nav className="tabbar" role="tablist" aria-label="Navegación principal" onKeyDown={onTablistKey}>
         {PESTAÑAS.map((p, i) => (
           <button
             key={p.id}
@@ -147,7 +154,7 @@ function Contenido() {
             {p.etiqueta}
           </button>
         ))}
-      </nav>
+      </nav>}
     </main>
   );
 }

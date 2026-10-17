@@ -108,7 +108,7 @@ export function reclamacion(obra: Obra, presentada: string, motivo: Respuesta, c
   const exp = obra.adjudicacion?.numExpediente ? ` (expediente ${obra.adjudicacion.numExpediente})` : "";
   const hechos =
     motivo === "silencio"
-      ? "Ha pasado el plazo de un mes del artículo 20.1 de la Ley 19/2013 sin recibir respuesta, por lo que la solicitud se entiende desestimada (artículo 20.4)."
+      ? "Ha pasado el plazo máximo de un mes del artículo 20.1 de la Ley 19/2013 sin que se me haya notificado resolución ni ampliación del plazo, por lo que la solicitud se entiende desestimada (artículo 20.4)."
       : "La respuesta recibida deniega total o parcialmente el acceso a la información pedida.";
   return `A: ${dondeReclamar(ccaa).nombre.replace(/^el /, "El ")}
 Asunto: Reclamación en materia de acceso a información pública
@@ -147,45 +147,75 @@ export const hoyIso = () => {
   return new Date(h.getTime() - h.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 };
 
-/** Calendario (.ics) con dos avisos: a un mes (pueden no haber contestado) y a dos (último día aprox. para reclamar). */
+/** Una línea de iCalendar plegada a 75 octetos (RFC 5545 §3.1), sin partir caracteres UTF-8. */
+function plegar(linea: string): string {
+  const trozos: string[] = [];
+  let actual = "";
+  let octetos = 0;
+  for (const c of linea) {
+    const n = new TextEncoder().encode(c).length;
+    // La primera línea admite 75 octetos; las de continuación, 74 más el espacio inicial.
+    if (octetos + n > (trozos.length ? 74 : 75)) {
+      trozos.push(actual);
+      actual = "";
+      octetos = 0;
+    }
+    actual += c;
+    octetos += n;
+  }
+  trozos.push(actual);
+  return trozos.join("\r\n ");
+}
+
+const textoIcs = (t: string) => t.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+
+/**
+ * Calendario (.ics) con dos avisos de seguimiento: al mes (si no han
+ * contestado, ya se puede reclamar) y a los dos meses. Ante el silencio no hay
+ * plazo para reclamar; si deniegan, es un mes desde la notificación.
+ */
 export function calendario(obra: Obra, presentada: string): string {
   const dia = (iso: string) => iso.replace(/-/g, "");
-  const evento = (iso: string, titulo: string, texto: string, n: number) => `BEGIN:VEVENT
-UID:valio-${obra.id}-${presentada}-${n}@valio
-DTSTAMP:${dia(hoyIso())}T000000Z
-DTSTART;VALUE=DATE:${dia(iso)}
-DTEND;VALUE=DATE:${dia(sumarDias(iso, 1))}
-SUMMARY:${titulo}
-DESCRIPTION:${texto.replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;")}
-BEGIN:VALARM
-TRIGGER:PT9H
-ACTION:DISPLAY
-DESCRIPTION:${titulo}
-END:VALARM
-END:VEVENT`;
   const obraTxt = `«${obra.nombre}» (${obra.organismo})`;
-  const unMes = sumarMeses(presentada, 1);
-  const dosMeses = sumarMeses(presentada, 2);
-  return [
+  const evento = (iso: string, titulo: string, texto: string, n: number) => [
+    "BEGIN:VEVENT",
+    `UID:valio-${obra.id}-${presentada}-${n}@valio`,
+    `DTSTAMP:${dia(hoyIso())}T000000Z`,
+    `DTSTART;VALUE=DATE:${dia(iso)}`,
+    `DTEND;VALUE=DATE:${dia(sumarDias(iso, 1))}`,
+    `SUMMARY:${textoIcs(titulo)}`,
+    `DESCRIPTION:${textoIcs(texto)}`,
+    "BEGIN:VALARM",
+    "TRIGGER:PT9H",
+    "ACTION:DISPLAY",
+    `DESCRIPTION:${textoIcs(titulo)}`,
+    "END:VALARM",
+    "END:VEVENT",
+  ];
+  const lineas = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//VALIO//Pedir explicaciones//ES",
     "CALSCALE:GREGORIAN",
-    evento(
-      unMes,
+    ...evento(
+      sumarMeses(presentada, 1),
       "¿Te han contestado? (¿VALIÓ?)",
-      `Hoy se cumple aprox. un mes de tu solicitud sobre ${obraTxt}. Si no te han contestado, puedes reclamar. Abre la obra en ¿VALIÓ? y pulsa «No me han contestado».`,
+      `Hoy se cumple aprox. un mes de tu solicitud sobre ${obraTxt}. Si no te han contestado, ya puedes reclamar: abre la obra en ¿VALIÓ? y pulsa «No me han contestado».`,
       1,
     ),
-    evento(
-      dosMeses,
-      "Último día aprox. para reclamar (¿VALIÓ?)",
-      `Si no te contestaron a la solicitud sobre ${obraTxt}, hoy es aprox. el último día para reclamar. El plazo exacto cuenta desde tu justificante.`,
+    ...evento(
+      sumarMeses(presentada, 2),
+      "Seguimiento de tu solicitud (¿VALIÓ?)",
+      `¿Te contestaron a la solicitud sobre ${obraTxt}? Si te lo denegaron, tienes un mes desde que te lo notificaron para reclamar. Si no contestan, puedes reclamar cuando quieras.`,
       2,
     ),
     "END:VCALENDAR",
-  ].join("\r\n");
+  ];
+  return lineas.map(plegar).join("\r\n") + "\r\n";
 }
+
+/** true si ya ha pasado un mes desde la presentación (el plazo para resolver, art. 20.1). */
+export const pasoUnMes = (presentada: string) => hoyIso() > sumarMeses(presentada, 1);
 
 // --- lo que se recuerda (solo en el dispositivo) ------------------------------
 
