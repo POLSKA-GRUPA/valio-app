@@ -1526,3 +1526,19 @@
 :root .recuento-cifra small {
   color: var(--ink-3);
 }
+
+/* Ubicación aproximada (CartoCiudad): punto en el centro de la ortofoto. */
+:root .aerea-punto {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: rgba(255, 196, 0, 0.85);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+:root .aerea-aproximada { color: #ffe08a; }

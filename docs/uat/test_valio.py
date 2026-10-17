@@ -1698,6 +1698,33 @@ with sync_playwright() as p:
     shot(p_r27, "30-nacional-madrid")
     ctx_r27.close()
 
+    # G1 — Obra situada automáticamente (CartoCiudad): aviso de aproximada,
+    # ortofoto del IGN, enlaces y atribución CC BY 4.0.
+    aldea = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "provincias", "28.json"), encoding="utf-8").read())["municipios"]["28008"]
+    con_geo = next(o for o in aldea["obras"] if o.get("geo"))
+    ctx_g1 = browser.new_context(viewport={"width": 390, "height": 844}, locale="es-ES")
+    ctx_g1.add_init_script("try { localStorage.setItem('valio.municipio.v2', %s); localStorage.setItem('valio.tutorial.visto.v1', '1'); } catch (e) {}"
+                           % json.dumps(json.dumps({"ine": "28008", "nombre": "Aldea del Fresno", "provincia": "Madrid", "ccaa": "Madrid, Comunidad de", "numObras": len(aldea["obras"])})))
+    p_g1 = ctx_g1.new_page()
+    p_g1.goto(BASE, wait_until="networkidle")
+    p_g1.get_by_role("tab", name="Obras").click()
+    p_g1.locator(".lista-item").filter(has_text=con_geo["nombre"][:40]).first.click()
+    seccion_g1 = p_g1.locator("section[aria-labelledby='ficha-aerea']")
+    seccion_g1.wait_for(timeout=10000)
+    texto_g1 = seccion_g1.inner_text()
+    check(
+        "G1 GEO: la ficha dice que la ubicación es aproximada y sin revisar, y atribuye CartoCiudad",
+        "Ubicación aproximada, sin revisar a mano" in texto_g1 and "CartoCiudad" in texto_g1 and "CC-BY 4.0" in texto_g1,
+        texto_g1[:200],
+    )
+    check(
+        "G1 GEO: ortofoto del IGN y enlace al satélite de Google en el punto",
+        "ign.es/wms-inspire/pnoa-ma" in (seccion_g1.locator("img").first.get_attribute("src") or "")
+        and f"{con_geo['geo'][0]},{con_geo['geo'][1]}" in (seccion_g1.get_by_role("link", name=re.compile("satélite de Google")).get_attribute("href") or "").replace("%2C", ","),
+    )
+    shot(p_g1, "33-ubicacion-aproximada")
+    ctx_g1.close()
+
     # R28 — Municipios sin obras cargadas y municipio guardado con la versión anterior.
     ctx_r28 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r28 = ctx_r28.new_page()
