@@ -9,6 +9,7 @@ import { useDialog } from "@/lib/useDialog";
 import { costeVecino, eurosCompactos } from "@/lib/formato";
 import { DetailSheet } from "./DetailSheet";
 import { ClaimDraft } from "./ClaimDraft";
+import { FotoTarjeta } from "./VistaAerea";
 import { FiltroTipos } from "./FiltroTipos";
 import { OrdenObras } from "./OrdenObras";
 import { importeDe, ordenar } from "@/lib/orden";
@@ -31,8 +32,9 @@ function destinoDe(voto: Voto): { x: number; y: number } {
 
 /**
  * Contenido de la tarjeta (ISSUE-39): solo datos, sin arte decorativo.
- * Arriba la obra; abajo la cifra protagonista (no hay ubicación en los datos,
- * así que no hay mapa) y una única etiqueta: el nivel de evidencia de la obra.
+ * Arriba la obra; en medio su foto aérea oficial si un documento público la
+ * sitúa (vista aérea, tras flag); abajo la cifra protagonista y una única
+ * etiqueta: el nivel de evidencia de la obra.
  */
 function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void }) {
   // Importe protagonista: el mismo que usa el orden por importe (#37).
@@ -46,6 +48,7 @@ function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void 
         {CATEGORIA_LABEL[obra.categoria]} · {obra.municipio} · {obra.anyo}
       </p>
       <h2 className="card-nombre display">{obra.nombre}</h2>
+      <FotoTarjeta obra={obra} />
       <div className="card-cifra">
         <p className="card-cifra-tipo">{tipoImporte}</p>
         <p className="card-cifra-valor num">{eurosCompactos(importe)}</p>

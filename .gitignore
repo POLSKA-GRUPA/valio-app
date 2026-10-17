@@ -10,3 +10,6 @@ npm-debug.log*
 # Capturas que genera docs/uat/test_valio.py (01-tutorial.png, 12-reg-...).
 # Las del README (mazo, match...) no empiezan por numero y se versionan.
 docs/uat/capturas/[0-9][0-9]-*.png
+
+# Copia del worker de MapLibre (scripts/copiar-worker-mapa.mjs)
+/public/maplibre/

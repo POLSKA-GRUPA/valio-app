@@ -6,6 +6,7 @@ import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras
 import { costeVecino, euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
 import { SenalVecinal } from "./SenalVecinal";
+import { SeccionAerea } from "./VistaAerea";
 
 export function DetailSheet({
   obra,
@@ -174,6 +175,8 @@ export function DetailSheet({
               </div>
             </dl>
           </section>
+
+          <SeccionAerea obra={obra} />
 
           {/* Dato alegado por vecinos: después de la evidencia oficial, para que
               la fuente (PLACE) nunca parezca respaldar lo que dicen los vecinos. */}

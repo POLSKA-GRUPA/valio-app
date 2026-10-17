@@ -1,0 +1,76 @@
+name: Vuelos nuevos del IGN
+
+# Lo más parecido a «tiempo real» que permiten las fotos aéreas oficiales:
+# cada lunes se pregunta al IGN la fecha de vuelo en el punto de cada obra y
+# al ICV si ha publicado un año nuevo que cubra la zona.
+# Si hay un vuelo más nuevo que el guardado, se vuelven a hornear las fotos y
+# se abre un PR para que una persona lo revise antes de publicarlo.
+#
+# Ojo: un PR abierto con GITHUB_TOKEN no dispara el CI. Para fusionarlo,
+# cerrar y reabrir el PR (o empujar un commit) para que corran los checks.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ¿Hay vuelos nuevos?
+        id: vuelos
+        run: |
+          set +e
+          node scripts/hornear-vista-aerea.mjs --comprobar | tee vuelos.txt
+          codigo=${PIPESTATUS[0]}
+          if [ "$codigo" = 3 ]; then echo "nuevos=si" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # 4 = no se pudo consultar todo: el job falla a la vista, no calla.
+          exit "$codigo"
+      - name: Hornear y abrir PR
+        if: steps.vuelos.outputs.nuevos == 'si'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Rama estable: un único PR vivo para los vuelos nuevos. Si ya hay uno
+          # abierto, no se duplica (la semana siguiente vería el mismo vuelo).
+          rama="auto/vuelos-ign"
+          abierto=$(gh pr list --head "$rama" --state open --json number --jq 'length')
+          if [ "$abierto" != "0" ]; then
+            echo "Ya hay un PR abierto desde $rama: no se duplica."; exit 0
+          fi
+          node scripts/hornear-vista-aerea.mjs
+          # Si lo único que cambia es la fecha de revisión, no hay nada que revisar.
+          cambios=$(git diff -U0 -- lib/aerea.ts | grep -E '^[+-][^+-]' | grep -v 'REVISADO' || true)
+          if [ -z "$cambios" ] && git diff --quiet -- public/aerea && [ -z "$(git ls-files --others --exclude-standard public/aerea)" ]; then
+            echo "Sin cambios en las fotos: no se abre PR."; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$rama"
+          git add public/aerea lib/aerea.ts
+          git commit -m "datos: fotos aéreas con el vuelo nuevo del IGN o del ICV"
+          # Sobrescribe una rama huérfana de un intento anterior sin PR.
+          git push --force origin "$rama"
+          {
+            echo "Hay vuelos nuevos en el punto de estas obras:"
+            echo
+            echo '```'
+            cat vuelos.txt
+            echo '```'
+            echo
+            echo "Revisar antes de fusionar: que las fotos se ven bien y que el texto de cada obra tiene sentido."
+            echo "Si el aviso es del ICV, hay que añadir el año a HISTORICO_ICV en scripts/hornear-vista-aerea.mjs."
+            echo "Para que corran los checks, cierra y reabre este PR."
+          } > cuerpo.md
+          gh pr create --title "Fotos aéreas: vuelo nuevo" --body-file cuerpo.md --base main --head "$rama"
