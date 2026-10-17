@@ -251,6 +251,7 @@ with sync_playwright() as p:
     except Exception:
         pass
     check("pregunta el municipio en la primera visita", page.get_by_role("heading", name="¿Dónde vives?").is_visible())
+    page.get_by_role("searchbox", name="Busca tu municipio").fill("teulada")
     page.get_by_role("button", name="Teulada").click()
     page.wait_for_selector(".tutorial", timeout=4000)
 
@@ -569,6 +570,7 @@ with sync_playwright() as p:
         p_r8.evaluate("() => document.activeElement?.id === 'municipio-titulo'"),
     )
     shot(p_r8, "19-reg-issue37-municipio-375")
+    p_r8.get_by_role("searchbox", name="Busca tu municipio").fill("teulada")
     p_r8.get_by_role("button", name="Teulada").click()
     p_r8.wait_for_selector(".tutorial", timeout=4000)
     check("R8 ISSUE-37: tras elegir sale el tutorial", p_r8.locator(".tutorial").is_visible())
@@ -602,6 +604,7 @@ with sync_playwright() as p:
         p_r8.get_by_role("heading", name="¿Dónde vives?").is_visible()
         and p_r8.evaluate(f"() => localStorage.getItem('{MUNICIPIO_KEY}')") is None,
     )
+    p_r8.get_by_role("searchbox", name="Busca tu municipio").fill("teulada")
     p_r8.get_by_role("button", name="Teulada").click()
     p_r8.wait_for_timeout(300)
     check(

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight, MapPin } from "lucide-react";
-import { buscar, cargarIndice, INE_PILOTO, type Municipio } from "@/lib/municipios";
+import { buscar, cargarIndice, type Municipio } from "@/lib/municipios";
 import { OBRAS } from "@/lib/obras";
 import { eurosCompactos } from "@/lib/formato";
 import { importeDe } from "@/lib/orden";
@@ -59,13 +59,8 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (m: Municipio) => void
     };
   }, [intento]);
 
-  // Sin escribir: el piloto y los que más obras tienen. Escribiendo: los que encajan.
-  const destacados = todos
-    ? [
-        ...todos.filter((m) => m.ine === INE_PILOTO),
-        ...[...todos].sort((a, b) => b.numObras - a.numObras).filter((m) => m.ine !== INE_PILOTO).slice(0, 5),
-      ]
-    : [];
+  // Sin escribir: los que más obras tienen. Escribiendo: los que encajan.
+  const destacados = todos ? [...todos].sort((a, b) => b.numObras - a.numObras).slice(0, 6) : [];
   const escrito = busqueda.trim().length > 0;
   const visibles = todos ? (escrito ? buscar(todos, busqueda) : destacados) : [];
 
