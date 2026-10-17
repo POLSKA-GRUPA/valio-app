@@ -7,8 +7,11 @@
  *      de valio-datos (dato oficial automático de PLACE).
  *   2. Se queda con las obras ADJUDICADAS de verdad y con importe adjudicado
  *      conocido: VALIO pregunta si valió lo que ya se contrató.
- *   3. Escribe `public/datos/municipios/<ine>.json` (lo baja la app solo al
- *      elegir ese municipio) y `lib/municipios-nacionales.ts` (índice, pequeño).
+ *   3. Escribe `public/datos/provincias/<cp>.json` (las obras de cada
+ *      municipio de esa provincia, sin los textos que se repiten; la app baja
+ *      solo la provincia del municipio elegido), `public/datos/municipios.json`
+ *      (los 8.000 y pico municipios de España para el buscador, también los
+ *      que aún no tienen obras) y `lib/ids-nacionales.ts` (solo servidor).
  *   Teulada no se toca: sus obras son las del piloto verificado (lib/obras.ts).
  *   NO editar a mano lo generado: regenerar.
  *
@@ -24,8 +27,9 @@ import { fileURLToPath } from "node:url";
 const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
 const DIR_NACIONAL = resolve(RAIZ_DATOS, "datos/nacional");
-const SALIDA_JSON = resolve(RAIZ_APP, "public/datos/municipios");
-const SALIDA_TS = resolve(RAIZ_APP, "lib/municipios-nacionales.ts");
+const SALIDA_JSON = resolve(RAIZ_APP, "public/datos/provincias");
+const SALIDA_INDICE = resolve(RAIZ_APP, "public/datos/municipios.json");
+const PADRON = resolve(RAIZ_DATOS, "datos/referencia/municipios.csv");
 // Solo lo importa el servidor (recuento): no entra en lo que descarga el navegador.
 const SALIDA_IDS = resolve(RAIZ_APP, "lib/ids-nacionales.ts");
 const PILOTO = new Set(["03128"]); // Teulada: piloto verificado a mano
@@ -81,21 +85,20 @@ const adjudicada = (o) =>
   o.resultado === "adjudicado" ||
   (o.resultado === "" && (Boolean(o.adjudicatario) || o.importeAdjudicadoSinIva != null));
 
-function aObra(ine, doc, o) {
+/**
+ * La obra sin lo que se repite en todas (municipio, provincia, estado, fuente,
+ * ubicación, coste por vecino): la app lo repone al cargar (lib/municipios.ts).
+ */
+function aObra(ine, o) {
   const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
   return {
     id: idObra(ine, o),
     nombre: o.objeto,
     categoria: tipoDe(o.objeto),
-    municipio: doc.municipio,
-    provincia: doc.provincia,
     organismo: o.organo,
     anyo: Number(fecha.slice(0, 4)),
-    estadoDato: "OFICIAL_AUTOMATICO",
-    estadoEjecucion: "faltante",
     // Cada importe es el suyo: si PLACE no da el presupuesto, «no consta».
     importeLicitacion: o.importeLicitacionSinIva ?? null,
-    ivaLicitacionIncluido: false,
     adjudicacion: {
       adjudicataria: o.adjudicatario || "No consta en la fuente",
       cif: o.adjudicatarioCif || null,
@@ -106,31 +109,46 @@ function aObra(ine, doc, o) {
       plazo: plazoEs(o.plazo) || "No consta",
       numExpediente: o.expediente || null,
     },
-    ubicacion: {
-      precision: "municipio",
-      motivo: "es un dato cargado automáticamente de la Plataforma de Contratación y aún nadie lo ha situado en el mapa",
-    },
-    costePorHabitante: Math.round((o.importeAdjudicadoSinIva / doc.poblacion.habitantes) * 100) / 100,
-    ...(/lotes|varios adjudicatarios/.test(o.notas || "")
-      ? { aviso: "Contrato con lotes o varios adjudicatarios: el importe y la empresa son solo los del primer resultado publicado." }
-      : {}),
-    fuente: {
-      nombre: "Plataforma de Contratación del Sector Público (PLACE)",
-      url: o.urlOficial,
-      fechaConsulta: fechaEs(doc.generado),
-    },
+    ...(/lotes|varios adjudicatarios/.test(o.notas || "") ? { aviso: true } : {}),
+    url: o.urlOficial,
   };
+}
+
+/** CSV sencillo del padrón de valio-datos (sin comillas con comas dentro salvo nombres). */
+function leerPadron(ruta) {
+  const [cabecera, ...filas] = readFileSync(ruta, "utf8").trim().split("\n");
+  const campos = cabecera.split(",");
+  return filas.map((linea) => {
+    const valores = [];
+    let actual = "";
+    let comillas = false;
+    for (const c of linea) {
+      if (c === '"') comillas = !comillas;
+      else if (c === "," && !comillas) {
+        valores.push(actual);
+        actual = "";
+      } else actual += c;
+    }
+    valores.push(actual);
+    return Object.fromEntries(campos.map((k, i) => [k, valores[i] ?? ""]));
+  });
 }
 
 // --- lectura y validación ---------------------------------------------------
 
 const rutaIndice = resolve(DIR_NACIONAL, "indice.json");
 if (!existsSync(rutaIndice)) fallar(`no existe ${rutaIndice}`);
+if (!existsSync(PADRON)) fallar(`no existe ${PADRON}`);
 const indice = JSON.parse(readFileSync(rutaIndice, "utf8"));
+const padron = leerPadron(PADRON);
+// Teulada: el número de obras es el del piloto (lib/obras.ts), que se cuenta aquí.
+const obrasPiloto = (readFileSync(resolve(RAIZ_APP, "lib/obras.ts"), "utf8").match(/"municipio": "Teulada"/g) ?? []).length;
 
-const municipios = [];
-const salidas = new Map(); // se escribe todo al final, solo si todo valida
+const provincias = new Map(); // cp → { ine → municipio con sus obras }
+const numObras = new Map([["03128", obrasPiloto]]);
 const idsPublicados = []; // solo de municipios que se publican
+const generados = [];
+let sinObras = 0;
 
 for (const entrada of indice) {
   if (PILOTO.has(entrada.ine)) continue;
@@ -139,79 +157,68 @@ for (const entrada of indice) {
   if (!(doc.poblacion?.habitantes > 0)) fallar(`${entrada.nombre}: sin población`);
   const vistos = new Set();
   const obras = [];
-  let sinImporte = 0;
   for (const o of doc.obras.filter(adjudicada)) {
     const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
-    // Sin importe adjudicado no hay cifra honesta que enseñar: fuera (y se cuenta).
-    if (!(o.importeAdjudicadoSinIva > 0)) {
-      sinImporte += 1;
-      continue;
-    }
+    // Sin importe adjudicado no hay cifra honesta que enseñar: fuera.
+    if (!(o.importeAdjudicadoSinIva > 0)) continue;
     if (!/^\d{4}/.test(fecha || "") || !o.urlOficial?.startsWith("https://")) continue;
-    const obra = aObra(entrada.ine, doc, o);
+    const obra = aObra(entrada.ine, o);
     if (vistos.has(obra.id)) fallar(`${entrada.nombre}: id repetido ${obra.id}`);
     vistos.add(obra.id);
     obras.push(obra);
   }
-  // Un municipio puede no tener ninguna adjudicación (todo desierto): no sale en la lista.
+  // Un municipio sin ninguna adjudicación (todo desierto) sale en el buscador con 0.
   if (!obras.length) {
-    console.warn(`  ${doc.municipio}: 0 obras adjudicadas con importe (de ${doc.obras.length}); no se publica`);
+    sinObras += 1;
     continue;
   }
-  const poblacion = {
-    municipio: doc.municipio,
-    habitantes: doc.poblacion.habitantes,
-    referencia: fechaEs(doc.poblacion.referencia),
-    fuenteNombre: "INE — Cifras oficiales del padrón (tabla 29005)",
-    fuenteUrl: doc.poblacion.fuenteUrl,
+  const cp = entrada.ine.slice(0, 2);
+  if (!provincias.has(cp)) provincias.set(cp, {});
+  provincias.get(cp)[entrada.ine] = {
+    nombre: doc.municipio,
+    provincia: doc.provincia,
+    poblacion: {
+      municipio: doc.municipio,
+      habitantes: doc.poblacion.habitantes,
+      referencia: fechaEs(doc.poblacion.referencia),
+      fuenteNombre: "INE — Cifras oficiales del padrón (tabla 29005)",
+      fuenteUrl: doc.poblacion.fuenteUrl,
+    },
+    obras,
   };
-  salidas.set(`${entrada.ine}.json`, JSON.stringify({ ine: entrada.ine, generado: doc.generado, poblacion, obras }) + "\n");
+  numObras.set(entrada.ine, obras.length);
   idsPublicados.push(...vistos);
-  municipios.push({ ine: entrada.ine, nombre: doc.municipio, provincia: doc.provincia, numObras: obras.length, poblacion });
-  console.log(`  ${doc.municipio}: ${obras.length} obras adjudicadas (de ${doc.obras.length}; ${sinImporte} sin importe adjudicado)`);
+  generados.push(doc.generado);
 }
 
-// Regla 13: sin ningún municipio el fallo es nuestro.
-if (!salidas.size) fallar("ningún municipio con obras adjudicadas");
-// Todo validado: carpeta e índice nuevos se escriben aparte y se activan
-// juntos; si algo falla a medias se restaura lo anterior (carpeta e índice).
+// Regla 13 a escala: en la pasada de 2026-10 eran ~4.400 municipios con obras.
+if (numObras.size < 3000) fallar(`solo ${numObras.size} municipios con obras: revisa valio-datos`);
+for (const [ine, nombre] of [["28079", "Madrid"], ["46250", "València"], ["03014", "Alicante"]]) {
+  if (!numObras.get(ine)) fallar(`${nombre} sin obras: revisa valio-datos`);
+}
+const generado = generados.sort().at(-1) ?? "";
+
+// Buscador: todos los municipios del padrón, con o sin obras. Filas compactas:
+// [ine, nombre, provincia, comunidad, nº de obras].
+const filasIndice = padron
+  .filter((m) => /^\d{5}$/.test(m.ine))
+  .map((m) => [m.ine, m.nombre, m.provincia, m.ccaa, numObras.get(m.ine) ?? 0])
+  .sort((a, b) => a[1].localeCompare(b[1], "es"));
+if (filasIndice.length < 8000) fallar(`padrón con solo ${filasIndice.length} municipios`);
+
+// Todo validado: carpeta, índice e ids nuevos se escriben aparte y se activan
+// juntos; si algo falla a medias se restaura lo anterior.
 const NUEVA = `${SALIDA_JSON}.nueva`;
-const VIEJA = `${SALIDA_JSON}.vieja`;
 rmSync(NUEVA, { recursive: true, force: true });
 mkdirSync(NUEVA, { recursive: true });
-for (const [nombre, texto] of salidas) writeFileSync(resolve(NUEVA, nombre), texto);
-municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-const generado = indice.map((m) => m.generado).sort().at(-1) ?? "";
-const TS_NUEVO = `${SALIDA_TS}.nuevo`;
-writeFileSync(
-  TS_NUEVO,
-  `/**
- * ⚠️ ARCHIVO GENERADO — no editar a mano.
- * Regenerar con: node scripts/generar-nacional.mjs
- * Fuente: valio-datos/datos/nacional (dato oficial automático de PLACE) · ${generado}
- * Las obras de cada municipio están en public/datos/municipios/<ine>.json y
- * la app solo las descarga al elegir ese municipio.
- */
-
-export interface PoblacionMunicipio {
-  municipio: string;
-  habitantes: number;
-  referencia: string;
-  fuenteNombre: string;
-  fuenteUrl: string;
+let bytes = 0;
+for (const [cp, municipios] of provincias) {
+  const texto = JSON.stringify({ generado, fechaConsulta: fechaEs(generado), municipios }) + "\n";
+  bytes += texto.length;
+  writeFileSync(resolve(NUEVA, `${cp}.json`), texto);
 }
-
-export interface MunicipioNacional {
-  ine: string;
-  nombre: string;
-  provincia: string;
-  numObras: number;
-  poblacion: PoblacionMunicipio;
-}
-
-export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = ${JSON.stringify(municipios, null, 2)};
-`,
-);
+const INDICE_NUEVO = `${SALIDA_INDICE}.nuevo`;
+writeFileSync(INDICE_NUEVO, JSON.stringify({ generado, municipios: filasIndice }) + "\n");
 const IDS_NUEVO = `${SALIDA_IDS}.nuevo`;
 writeFileSync(
   IDS_NUEVO,
@@ -224,10 +231,9 @@ writeFileSync(
 export const IDS_NACIONALES: readonly string[] = ${JSON.stringify(idsPublicados.sort())};
 `,
 );
-// Carpeta, índice e ids se activan juntos; si algo falla a medias, vuelta atrás de todo.
 const activar = [
-  [NUEVA, SALIDA_JSON, VIEJA],
-  [TS_NUEVO, SALIDA_TS, `${SALIDA_TS}.viejo`],
+  [NUEVA, SALIDA_JSON, `${SALIDA_JSON}.vieja`],
+  [INDICE_NUEVO, SALIDA_INDICE, `${SALIDA_INDICE}.viejo`],
   [IDS_NUEVO, SALIDA_IDS, `${SALIDA_IDS}.viejo`],
 ];
 for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true });
@@ -255,4 +261,7 @@ try {
   fallar(`no se pudo activar la publicación nueva (se restaura la anterior): ${error.message}`);
 }
 for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true });
-console.log(`✓ ${municipios.length} municipios → ${SALIDA_TS} (${idsPublicados.length} ids → ${SALIDA_IDS})`);
+console.log(
+  `✓ ${numObras.size} municipios con obras (${sinObras} sin adjudicaciones), ${idsPublicados.length} obras, ` +
+    `${provincias.size} provincias (${(bytes / 1e6).toFixed(1)} MB) · buscador con ${filasIndice.length} municipios`,
+);

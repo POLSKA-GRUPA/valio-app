@@ -8,6 +8,7 @@ import { Deck } from "@/components/Deck";
 import { ElegirMunicipio } from "@/components/ElegirMunicipio";
 import { Info } from "@/components/Panels";
 import { ListaObras } from "@/components/ListaObras";
+import { tienePlataformaPropia } from "@/lib/municipios";
 
 type Pestaña = "votar" | "obras" | "info";
 
@@ -28,7 +29,9 @@ export default function Home() {
 }
 
 function Contenido() {
-  const { votos, listo, municipio, elegirMunicipio, obras, cargando, errorCarga, esPiloto, cambiarMunicipio } = useStore();
+  const { votos, listo, municipio, ficha, elegirMunicipio, obras, cargando, errorCarga, esPiloto, cambiarMunicipio } =
+    useStore();
+  const sinObras = !cargando && !errorCarga && obras.length === 0;
   const [pestaña, setPestaña] = useState<Pestaña>("votar");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const votadas = obras.filter((o) => votos[o.id]).length;
@@ -65,8 +68,8 @@ function Contenido() {
           <h1 className="brand display">¿VALIÓ?</h1>
         </header>
         <ElegirMunicipio
-          onElegir={(nombre) => {
-            elegirMunicipio(nombre);
+          onElegir={(m) => {
+            elegirMunicipio(m);
             setPestaña("votar");
           }}
         />
@@ -82,6 +85,22 @@ function Contenido() {
           {esPiloto ? "PILOTO" : "DATO OFICIAL"} · {municipio} · {votadas}/{obras.length}
         </span>
       </header>
+
+      {sinObras && ficha && (
+        <section className="panel" aria-live="polite">
+          <h2 className="panel-title">Aún no tenemos obras de {municipio}</h2>
+          <p className="panel-intro">
+            En la Plataforma de Contratación del Sector Público no hemos encontrado obras adjudicadas de{" "}
+            {municipio} con actividad desde enero de 2024.
+            {tienePlataformaPropia(ficha.ccaa)
+              ? ` Muchos ayuntamientos de ${ficha.ccaa} publican sus contratos en la plataforma de su comunidad, que todavía no hemos cargado: no quiere decir que no haya obras.`
+              : " Puede que haya obras de importe pequeño o publicadas en otro sitio: no quiere decir que no haya obras."}
+          </p>
+          <button type="button" className="btn" onClick={cambiarMunicipio}>
+            Elegir otro municipio
+          </button>
+        </section>
+      )}
 
       {(cargando || errorCarga) && (
         <section className="panel" aria-busy={cargando} aria-live="polite">
@@ -103,8 +122,8 @@ function Contenido() {
           hidden={pestaña !== p.id}
           className="tabpanel-wrap"
         >
-          {!cargando && !errorCarga && pestaña === "votar" && p.id === "votar" && <Deck />}
-          {!cargando && !errorCarga && pestaña === "obras" && p.id === "obras" && <ListaObras />}
+          {!cargando && !errorCarga && !sinObras && pestaña === "votar" && p.id === "votar" && <Deck />}
+          {!cargando && !errorCarga && !sinObras && pestaña === "obras" && p.id === "obras" && <ListaObras />}
           {pestaña === "info" && p.id === "info" && <Info />}
         </div>
       ))}

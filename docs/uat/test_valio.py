@@ -147,10 +147,11 @@ def nombres_pestañas(page):
 
 # Desde el #37 la app empieza por «¿Dónde vives?». Los contextos que prueban
 # otras cosas entran con el municipio ya recordado, como un usuario que vuelve.
-MUNICIPIO_KEY = "valio.municipio.v1"
+MUNICIPIO_KEY = "valio.municipio.v2"
+TEULADA_GUARDADA = '{"ine":"03128","nombre":"Teulada","provincia":"Alicante/Alacant","ccaa":"Comunitat Valenciana","numObras":21}'
 RECORDAR_TEULADA = (
-    "try { if (!localStorage.getItem('%s')) localStorage.setItem('%s', 'Teulada'); } catch (e) {}"
-    % (MUNICIPIO_KEY, MUNICIPIO_KEY)
+    "try { if (!localStorage.getItem('%s')) localStorage.setItem('%s', '%s'); } catch (e) {}"
+    % (MUNICIPIO_KEY, MUNICIPIO_KEY, TEULADA_GUARDADA)
 )
 
 def nuevo_contexto(browser, **kw):
@@ -573,7 +574,7 @@ with sync_playwright() as p:
     check("R8 ISSUE-37: tras elegir sale el tutorial", p_r8.locator(".tutorial").is_visible())
     check(
         "R8 ISSUE-37: se recuerda en el dispositivo",
-        p_r8.evaluate(f"() => localStorage.getItem('{MUNICIPIO_KEY}')") == "Teulada",
+        p_r8.evaluate(f"() => JSON.parse(localStorage.getItem('{MUNICIPIO_KEY}') || '{{}}').ine") == "03128",
     )
     p_r8.get_by_role("button", name="Entendido, a votar").click()
     p_r8.wait_for_timeout(300)
@@ -1609,7 +1610,7 @@ with sync_playwright() as p:
         # V7 — carga nacional: se cuentan votos a obras de Madrid, y un lote con
         # una obra desconocida no pierde los cambios buenos. Se cambia de IP
         # (X-Forwarded-For) porque V6 ya agotó el límite de esta.
-        id_madrid = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())["obras"][0]["id"]
+        id_madrid = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "provincias", "28.json"), encoding="utf-8").read())["municipios"]["28079"]["obras"][0]["id"]
         cabecera_v7 = {"X-Forwarded-For": "203.0.113.77"}
         antes_m = _recuento(id_madrid)
         e_mixto, cuerpo_mixto = _api("POST", "/api/recuento", {"cambios": [
@@ -1623,9 +1624,11 @@ with sync_playwright() as p:
             f"{e_mixto} {cuerpo_mixto} {antes_m} -> {despues_m}",
         )
 
-    # R27 — Carga nacional (valio-app#67): municipios de valio-datos que se
-    # descargan al elegirlos, con rótulo de dato oficial y su propia población.
-    nacional = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())
+    # R27 — Toda España: buscador con los 8.000 y pico municipios; las obras
+    # se descargan por provincia al elegir, con rótulo de dato oficial.
+    madrid = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "provincias", "28.json"), encoding="utf-8").read())["municipios"]["28079"]
+    indice_es = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios.json"), encoding="utf-8").read())["municipios"]
+    check("R27 NACIONAL: el buscador tiene todos los municipios de España", len(indice_es) > 8000, str(len(indice_es)))
     ctx_r27 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")  # sin municipio recordado
     p_r27 = ctx_r27.new_page()
     errores_r27 = []
@@ -1634,17 +1637,17 @@ with sync_playwright() as p:
     buscar = p_r27.get_by_role("searchbox", name="Busca tu municipio")
     check("R27 NACIONAL: hay buscador de municipio", buscar.count() == 1)
     buscar.fill("zzzz")
-    check("R27 NACIONAL: sin resultados lo dice", p_r27.get_by_text("Aún no tenemos obras").count() == 1)
-    buscar.fill("madr")
+    check("R27 NACIONAL: sin resultados lo dice", p_r27.get_by_text("No encontramos ningún municipio").count() == 1)
+    buscar.fill("madrid")
     botones = p_r27.locator(".municipio-btn")
-    check("R27 NACIONAL: el buscador filtra (solo Madrid)", botones.count() == 1 and "Madrid" in botones.first.inner_text())
+    check("R27 NACIONAL: el buscador pone primero Madrid", botones.count() >= 1 and botones.first.inner_text().startswith("Madrid"))
     botones.first.click()
     p_r27.get_by_role("button", name="Entendido, a votar").click()
-    p_r27.wait_for_selector(".stack-slot", timeout=15000)
+    p_r27.wait_for_selector(".stack-slot", timeout=20000)
     badge = p_r27.locator(".brand-badge").inner_text()
     check(
         "R27 NACIONAL: cabecera con DATO OFICIAL y todas las obras de Madrid",
-        "DATO OFICIAL" in badge and "Madrid" in badge and f"/{len(nacional['obras'])}" in badge,
+        "DATO OFICIAL" in badge and "Madrid" in badge and f"/{len(madrid['obras'])}" in badge,
         badge,
     )
     carta = p_r27.locator(".stack-slot").first
@@ -1662,6 +1665,35 @@ with sync_playwright() as p:
     check("R27 NACIONAL: sin errores de página", not errores_r27, str(errores_r27[:2]))
     shot(p_r27, "30-nacional-madrid")
     ctx_r27.close()
+
+    # R28 — Municipios sin obras cargadas y municipio guardado con la versión anterior.
+    ctx_r28 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r28 = ctx_r28.new_page()
+    p_r28.goto(BASE, wait_until="networkidle")
+    p_r28.get_by_role("searchbox", name="Busca tu municipio").fill("barcelona")
+    p_r28.locator(".municipio-btn").filter(has_text="sin obras cargadas").first.click()
+    if p_r28.get_by_role("button", name="Entendido, a votar").count():
+        p_r28.get_by_role("button", name="Entendido, a votar").click()
+    aviso = p_r28.get_by_role("heading", name=re.compile("Aún no tenemos obras de"))
+    aviso.wait_for(timeout=15000)
+    texto28 = p_r28.locator(".panel").filter(has=aviso).inner_text()
+    check(
+        "R28 SIN DATOS: explica que no tenemos obras y por qué, sin decir que no las hay",
+        "Cataluña" in texto28 and "no quiere decir que no haya obras" in texto28 and p_r28.locator(".card-frame").count() == 0,
+        texto28[:200],
+    )
+    shot(p_r28, "31-sin-datos-barcelona")
+    ctx_r28.close()
+    ctx_r28b = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+    ctx_r28b.add_init_script("try { localStorage.setItem('valio.municipio.v1', 'València'); } catch (e) {}")
+    p_r28b = ctx_r28b.new_page()
+    p_r28b.goto(BASE, wait_until="networkidle")
+    if p_r28b.get_by_role("button", name="Entendido, a votar").count():
+        p_r28b.get_by_role("button", name="Entendido, a votar").click()
+    p_r28b.wait_for_selector(".brand-badge", timeout=15000)
+    check("R28 MIGRACIÓN: quien eligió València con la versión anterior sigue en València",
+          "València" in p_r28b.locator(".brand-badge").inner_text(), p_r28b.locator(".brand-badge").inner_text())
+    ctx_r28b.close()
 
     browser.close()
 
