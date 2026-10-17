@@ -106,7 +106,7 @@ IGN, así que muestra el vuelo nuevo en cuanto existe.
   - comparador antes/después con `input type=range`, accesible con teclado y
     con `aria-valuetext`;
   - fechas de cada vuelo y texto honesto;
-  - enlaces a Street View, Catastro, el comparador PNOA del IGN y Google Maps
+  - enlaces a Street View, Catastro, el comparador PNOA del IGN, Google Maps y el satélite de Google (rotulado «sin fecha»: Google no publica la fecha de su foto, así que no entra en el veredicto)
     (URLs, sin claves);
   - botón «Explorar en el mapa», que carga un mapa interactivo (lazy,
     `ssr:false`) con teselas PNOA en vivo, el selector de año y el marcador.
