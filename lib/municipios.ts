@@ -15,6 +15,7 @@ export interface Municipio {
   nombre: string;
   provincia: string;
   ccaa: string;
+  /** -1 si no se sabe (municipio guardado por una versión anterior). */
   numObras: number;
 }
 
@@ -72,17 +73,17 @@ export function sanearMunicipio(raw: unknown): Municipio | null {
     nombre,
     provincia: typeof provincia === "string" ? provincia : "",
     ccaa: typeof ccaa === "string" ? ccaa : "",
-    numObras: typeof numObras === "number" ? numObras : 0,
+    numObras: typeof numObras === "number" ? numObras : -1,
   };
 }
 
 /** Los municipios que ya se podían elegir antes de abrir toda España (se guardaba el nombre). */
 const ANTIGUOS: Record<string, Municipio> = {
-  Teulada: { ine: "03128", nombre: "Teulada", provincia: "Alicante/Alacant", ccaa: "Comunitat Valenciana", numObras: 0 },
-  Benissa: { ine: "03041", nombre: "Benissa", provincia: "Alicante/Alacant", ccaa: "Comunitat Valenciana", numObras: 0 },
-  "Alicante/Alacant": { ine: "03014", nombre: "Alicante/Alacant", provincia: "Alicante/Alacant", ccaa: "Comunitat Valenciana", numObras: 0 },
-  València: { ine: "46250", nombre: "València", provincia: "Valencia/València", ccaa: "Comunitat Valenciana", numObras: 0 },
-  Madrid: { ine: "28079", nombre: "Madrid", provincia: "Madrid", ccaa: "Comunidad de Madrid", numObras: 0 },
+  Teulada: { ine: "03128", nombre: "Teulada", provincia: "Alicante/Alacant", ccaa: "Comunitat Valenciana", numObras: -1 },
+  Benissa: { ine: "03041", nombre: "Benissa", provincia: "Alicante/Alacant", ccaa: "Comunitat Valenciana", numObras: -1 },
+  "Alicante/Alacant": { ine: "03014", nombre: "Alicante/Alacant", provincia: "Alicante/Alacant", ccaa: "Comunitat Valenciana", numObras: -1 },
+  València: { ine: "46250", nombre: "València", provincia: "Valencia/València", ccaa: "Comunitat Valenciana", numObras: -1 },
+  Madrid: { ine: "28079", nombre: "Madrid", provincia: "Madrid", ccaa: "Comunidad de Madrid", numObras: -1 },
 };
 ANTIGUOS["Alacant/Alicante"] = ANTIGUOS["Alicante/Alacant"];
 ANTIGUOS["Valencia"] = ANTIGUOS["València"];
@@ -171,8 +172,8 @@ export async function cargarObras(m: Municipio): Promise<ObrasMunicipio> {
   const provincia = await cargarProvincia(m.ine.slice(0, 2));
   const datos = provincia?.municipios[m.ine];
   if (datos) return { obras: completar(datos, provincia.fechaConsulta), poblacion: datos.poblacion };
-  // El buscador dice que tiene obras y no llegan: es un fallo de descarga, no «sin obras».
-  if (m.numObras > 0) throw new Error(`Faltan las obras de ${m.nombre}`);
+  // El buscador dice que tiene obras (o no se sabe) y no llegan: es un fallo de descarga, no «sin obras».
+  if (m.numObras !== 0) throw new Error(`Faltan las obras de ${m.nombre}`);
   return { obras: [], poblacion: null };
 }
 
