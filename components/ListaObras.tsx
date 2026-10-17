@@ -12,6 +12,9 @@ import { IconoTipo, slugTipo } from "./TipoObra";
 
 type Vista = "pendientes" | "votadas";
 
+/** Filas por tanda: Madrid tiene miles de obras y el móvil no las pinta todas de golpe. */
+const TANDA = 60;
+
 /** Etiqueta corta del voto en la miniatura (el texto completo va en el nombre accesible). */
 const VOTO_CORTO = { valio: "Valió", no_valio: "No valió", explica: "Explica", no_puedo: "No sé" } as const;
 
@@ -25,16 +28,23 @@ export function ListaObras() {
   const [vista, setVista] = useState<Vista>("pendientes");
   const [fichaObra, setFichaObra] = useState<Obra | null>(null);
   const [claimObra, setClaimObra] = useState<Obra | null>(null);
+  const [mostradas, setMostradas] = useState(TANDA);
 
   const lista = useMemo(
     () => ordenar(obras.filter((o) => (vista === "votadas" ? votos[o.id] : !votos[o.id])), "recientes"),
     [obras, votos, vista],
   );
+  // Total por año sobre la lista entera; filas, solo las de las tandas mostradas.
+  const totalPorAnyo = useMemo(() => {
+    const t = new Map<number, number>();
+    for (const o of lista) t.set(o.anyo, (t.get(o.anyo) ?? 0) + 1);
+    return t;
+  }, [lista]);
   const porAnyo = useMemo(() => {
     const grupos = new Map<number, Obra[]>();
-    for (const o of lista) grupos.set(o.anyo, [...(grupos.get(o.anyo) ?? []), o]);
+    for (const o of lista.slice(0, mostradas)) grupos.set(o.anyo, [...(grupos.get(o.anyo) ?? []), o]);
     return Array.from(grupos.entries());
-  }, [lista]);
+  }, [lista, mostradas]);
 
   const votadas = obras.filter((o) => votos[o.id]).length;
 
@@ -58,7 +68,7 @@ export function ListaObras() {
       {porAnyo.map(([anyo, grupo]) => (
         <section key={anyo} aria-labelledby={`anyo-${anyo}`}>
           <h2 id={`anyo-${anyo}`} className="lista-anyo">
-            {anyo} <span>· {grupo.length} {grupo.length === 1 ? "obra" : "obras"}</span>
+            {anyo} <span>· {totalPorAnyo.get(anyo)} {totalPorAnyo.get(anyo) === 1 ? "obra" : "obras"}</span>
           </h2>
           <ul className="lista-items">
             {grupo.map((o) => {
@@ -96,6 +106,12 @@ export function ListaObras() {
           </ul>
         </section>
       ))}
+
+      {lista.length > mostradas && (
+        <button type="button" className="btn btn-secundario lista-mas" onClick={() => setMostradas((n) => n + TANDA)}>
+          Mostrar {Math.min(TANDA, lista.length - mostradas)} más · quedan {lista.length - mostradas}
+        </button>
+      )}
 
       <AnimatePresence>
         {fichaObra && (

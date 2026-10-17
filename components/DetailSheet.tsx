@@ -177,6 +177,7 @@ export function DetailSheet({
           <section className="ficha-seccion" aria-labelledby="ficha-vecino">
             <h3 id="ficha-vecino">Lo que cuesta a cada vecino</h3>
             <p className="ficha-cifra num">≈ {costeVecino(obra.costePorHabitante)}</p>
+            {obra.aviso && <p className="ficha-nota ficha-aviso">{obra.aviso}</p>}
             <p className="ficha-nota">
               Calculado sobre la{" "}
               <a href={POBLACION.fuenteUrl} target="_blank" rel="noreferrer">

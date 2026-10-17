@@ -94,7 +94,8 @@ export function Info() {
           </div>
         ) : (
           <div className="info-note">
-            {municipio}: {obras.length} obras adjudicadas desde 2024, cargadas automáticamente de la Plataforma de
+            {municipio}: {obras.length} obras adjudicadas con actividad publicada desde enero de 2024 (la adjudicación
+            puede ser anterior), cargadas automáticamente de la Plataforma de
             Contratación del Sector Público (PLACE). Son datos oficiales tal cual los publica la fuente, sin revisar
             a mano: cada ficha lo indica y enlaza al anuncio oficial. El estado de ejecución no aparece en la
             fuente: se muestra como dato faltante.

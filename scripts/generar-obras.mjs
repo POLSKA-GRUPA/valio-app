@@ -414,6 +414,8 @@ export interface Obra {
   ubicacion: Ubicacion | null;
   costePorHabitante: number;
   fuente: { nombre: string; url: string; fechaConsulta: string };
+  /** Limitación del dato que el vecino debe ver (p. ej. contrato con lotes). */
+  aviso?: string;
 }
 
 /** Denominador del coste por habitante (dossier §4.2: siempre explicado). */

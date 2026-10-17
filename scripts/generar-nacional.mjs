@@ -17,7 +17,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,13 +39,14 @@ function fallar(mensaje) {
  * El orden importa: lo más específico primero.
  */
 const REGLAS_TIPO = [
+  ["seguridad", /polic[ií]a|bomberos|sem[aá]foro|seguridad|emergencia|videovigilancia|protecci[oó]n civil/i],
+  ["medio ambiente", /residuo|depurad|saneamiento|alcantarill|abastecimiento|agua|contador|pluvial|colector|playa|litoral|medio ambiente|ecopar|vertedero|energ[ií]a|fotovolt/i],
   ["deporte", /deport|polideport|piscina|pistas? (?:deportiv|de p[aá]del|de tenis|de atletismo|multideport)|campo de f[uú]tbol|estadio|gimnas|front[oó]n|skate|p[aá]del/i],
   ["educacion", /colegio|escuela|\bc\.?\s?e\.?\s?i\.?\s?p\b|\bi\.e\.s\b|\bies\b|instituto|educa|guarder|escoleta|biblioteca|aulari/i],
-  ["parques", /parque|jard[ií]n|zona verde|arbolado|plaza|juegos infantiles|[aá]rea de juego/i],
   ["patrimonio", /patrimonio|iglesia|ermita|castillo|muralla|museo|teatro|hist[oó]ric|restauraci[oó]n|monumento|palacio/i],
-  ["medio ambiente", /residuo|depurad|saneamiento|alcantarill|abastecimiento|agua|pluvial|colector|playa|litoral|medio ambiente|ecopar|vertedero|energ[ií]a|fotovolt/i],
-  ["seguridad", /polic[ií]a|bomberos|sem[aá]foro|seguridad|emergencia|videovigilancia|protecci[oó]n civil/i],
-];
+  // «parque» sin «de bomberos/contadores/vehículos/maquinaria»: esos no son zonas verdes.
+  ["parques", /parque(?! de (?:bomberos|contadores|veh[ií]culos|maquinaria|m[oó]vil))|jard[ií]n|zona verde|arbolado|juegos infantiles|[aá]rea de juego/i],
+]
 
 function tipoDe(objeto) {
   for (const [tipo, patron] of REGLAS_TIPO) if (patron.test(objeto)) return tipo;
@@ -64,11 +65,19 @@ function plazoEs(plazo) {
 
 /** Id estable de la obra: no cambia aunque PLACE actualice sus datos. */
 function idObra(ine, o) {
-  const h = createHash("sha256").update(`${o.organo}|${o.expediente}`).digest("hex").slice(0, 12);
+  // idOrgano (ID de plataforma, DIR3…) no cambia aunque PLACE corrija el nombre.
+  const h = createHash("sha256").update(`${o.idOrgano || o.organo}|${o.expediente}`).digest("hex").slice(0, 12);
   return `${ine}-${h}`;
 }
 
-const adjudicada = (o) => o.estado === "ADJ" || o.estado === "RES" || o.importeAdjudicadoSinIva != null;
+/**
+ * Solo lo que de verdad se adjudicó: resultado «adjudicado», o sin resultado
+ * publicado pero con adjudicatario o importe adjudicado. RES («resuelta») por
+ * sí solo no basta: también lo son las desiertas y las desistidas.
+ */
+const adjudicada = (o) =>
+  o.resultado === "adjudicado" ||
+  (o.resultado === "" && (Boolean(o.adjudicatario) || o.importeAdjudicadoSinIva != null));
 
 function aObra(ine, doc, o) {
   const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
@@ -103,6 +112,9 @@ function aObra(ine, doc, o) {
       motivo: "es un dato cargado automáticamente de la Plataforma de Contratación y aún nadie lo ha situado en el mapa",
     },
     costePorHabitante: Math.round((numerador / doc.poblacion.habitantes) * 100) / 100,
+    ...(/lotes|varios adjudicatarios/.test(o.notas || "")
+      ? { aviso: "Contrato con lotes o varios adjudicatarios: el importe y la empresa son solo los del primer resultado publicado." }
+      : {}),
     fuente: {
       nombre: "Plataforma de Contratación del Sector Público (PLACE)",
       url: o.urlOficial,
@@ -118,8 +130,7 @@ if (!existsSync(rutaIndice)) fallar(`no existe ${rutaIndice}`);
 const indice = JSON.parse(readFileSync(rutaIndice, "utf8"));
 
 const municipios = [];
-rmSync(SALIDA_JSON, { recursive: true, force: true });
-mkdirSync(SALIDA_JSON, { recursive: true });
+const salidas = new Map(); // se escribe todo al final, solo si todo valida
 
 for (const entrada of indice) {
   if (PILOTO.has(entrada.ine)) continue;
@@ -146,14 +157,15 @@ for (const entrada of indice) {
     fuenteNombre: "INE — Cifras oficiales del padrón (tabla 29005)",
     fuenteUrl: doc.poblacion.fuenteUrl,
   };
-  writeFileSync(
-    resolve(SALIDA_JSON, `${entrada.ine}.json`),
-    JSON.stringify({ ine: entrada.ine, generado: doc.generado, poblacion, obras }) + "\n",
-  );
+  salidas.set(`${entrada.ine}.json`, JSON.stringify({ ine: entrada.ine, generado: doc.generado, poblacion, obras }) + "\n");
   municipios.push({ ine: entrada.ine, nombre: doc.municipio, provincia: doc.provincia, numObras: obras.length, poblacion });
   console.log(`  ${doc.municipio}: ${obras.length} obras adjudicadas (de ${doc.obras.length})`);
 }
 
+// Todo validado: ahora sí se sustituye la publicación anterior.
+rmSync(SALIDA_JSON, { recursive: true, force: true });
+mkdirSync(SALIDA_JSON, { recursive: true });
+for (const [nombre, texto] of salidas) writeFileSync(resolve(SALIDA_JSON, nombre), texto);
 municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 const generado = indice.map((m) => m.generado).sort().at(-1) ?? "";
 writeFileSync(
@@ -185,8 +197,4 @@ export interface MunicipioNacional {
 export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = ${JSON.stringify(municipios, null, 2)};
 `,
 );
-// Restos de municipios que ya no están en el índice.
-for (const f of readdirSync(SALIDA_JSON)) {
-  if (!municipios.some((m) => `${m.ine}.json` === f)) rmSync(resolve(SALIDA_JSON, f));
-}
 console.log(`✓ ${municipios.length} municipios → ${SALIDA_TS}`);
