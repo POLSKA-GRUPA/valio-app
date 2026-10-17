@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { SENALES, type Senal, type Senales } from "./senal";
-import { existeMunicipio, obrasDe } from "./municipios";
+import { buscarMunicipio, cargarObras, existeMunicipio, obrasDe, type PoblacionMunicipio } from "./municipios";
 import type { Orden } from "./orden";
 
 const KEY = "valio.votos.v1";
@@ -77,6 +77,14 @@ interface StoreValue {
   cambiarMunicipio: () => void;
   /** Obras del municipio elegido: lo único que ven el mazo y los paneles. */
   obras: Obra[];
+  /** true mientras se descargan las obras de un municipio de la carga nacional. */
+  cargando: boolean;
+  /** Error de descarga, en una frase para el vecino (null si todo bien). */
+  errorCarga: string | null;
+  /** Denominador del coste por vecino del municipio elegido. */
+  poblacion: PoblacionMunicipio | null;
+  /** true si el municipio es del piloto verificado a mano. */
+  esPiloto: boolean;
   /** Tipos marcados en los chips del mazo. Vacío = todas. Solo en memoria. */
   tipos: Categoria[];
   alternarTipo: (tipo: Categoria) => void;
@@ -176,7 +184,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const obras = useMemo(() => obrasDe(municipio), [municipio]);
+  // Piloto: obras en el código. Carga nacional: se descargan al elegir.
+  const ficha = useMemo(() => buscarMunicipio(municipio), [municipio]);
+  const [obras, setObras] = useState<Obra[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  useEffect(() => {
+    setErrorCarga(null);
+    if (!ficha) {
+      setObras([]);
+      setCargando(false);
+      return;
+    }
+    if (!ficha.ine) {
+      setObras(obrasDe(ficha.nombre));
+      setCargando(false);
+      return;
+    }
+    let vigente = true;
+    setObras([]);
+    setCargando(true);
+    cargarObras(ficha)
+      .then((lista) => vigente && setObras(lista))
+      .catch(() => vigente && setErrorCarga(`No se han podido descargar las obras de ${ficha.nombre}. Revisa la conexión y vuelve a intentarlo.`))
+      .finally(() => vigente && setCargando(false));
+    return () => {
+      vigente = false;
+    };
+  }, [ficha]);
+  const poblacion = ficha?.poblacion ?? null;
+  const esPiloto = ficha ? ficha.ine === null : false;
 
   // «Volver a empezar» borra solo los votos del municipio actual: los de
   // otros municipios se conservan, igual que al cambiar de municipio.
@@ -204,6 +241,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       elegirMunicipio,
       cambiarMunicipio,
       obras,
+      cargando,
+      errorCarga,
+      poblacion,
+      esPiloto,
       tipos,
       alternarTipo,
       verTodosLosTipos,
@@ -224,6 +265,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       elegirMunicipio,
       cambiarMunicipio,
       obras,
+      cargando,
+      errorCarga,
+      poblacion,
+      esPiloto,
       tipos,
       alternarTipo,
       verTodosLosTipos,

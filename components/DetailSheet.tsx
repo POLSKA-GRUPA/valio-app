@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
-import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
+import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION as POBLACION_PILOTO, type Obra } from "@/lib/obras";
+import { useStore } from "@/lib/store";
 import { costeVecino, euros, eurosCompactos } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
 import { useHojaArrastrable } from "@/lib/useHoja";
@@ -48,6 +49,8 @@ export function DetailSheet({
   const dialogRef = useDialog(onClose);
   const { arrastre, asa } = useHojaArrastrable(onClose);
   const adjudicacion = obra.adjudicacion;
+  // Denominador del municipio de ESTA obra (cada municipio tiene el suyo).
+  const POBLACION = useStore().poblacion ?? POBLACION_PILOTO;
   return (
     <>
       <motion.div

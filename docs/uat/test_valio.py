@@ -779,10 +779,17 @@ with sync_playwright() as p:
     p_r14 = ctx_r14.new_page()
     p_r14.goto(BASE, wait_until="networkidle")
 
-    # «¿Dónde vives?» se elige solo con teclado.
+    # «¿Dónde vives?» se elige solo con teclado: Tab al buscador, se escribe,
+    # Tab al municipio (carga nacional: ya no hay un único municipio).
     p_r14.keyboard.press("Tab")
     check(
-        "R14 ISSUE-37: Tab desde la pregunta llega al municipio",
+        "R14 ISSUE-37: Tab desde la pregunta llega al buscador de municipio",
+        p_r14.evaluate("() => document.activeElement?.type === 'search'"),
+    )
+    p_r14.keyboard.type("teu")
+    p_r14.keyboard.press("Tab")
+    check(
+        "R14 ISSUE-37: Tab desde el buscador llega al municipio",
         p_r14.evaluate(NOMBRE_FOCO).startswith("Teulada"),
         f"foco={p_r14.evaluate(NOMBRE_FOCO)!r}",
     )
@@ -1415,6 +1422,46 @@ with sync_playwright() as p:
         f"vistas={vistas} {discrepancias[:3]}",
     )
     ctx_r25.close()
+
+    # R27 — Carga nacional (valio-app#67): municipios de valio-datos que se
+    # descargan al elegirlos, con rótulo de dato oficial y su propia población.
+    nacional = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())
+    ctx_r27 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")  # sin municipio recordado
+    p_r27 = ctx_r27.new_page()
+    errores_r27 = []
+    p_r27.on("pageerror", lambda e: errores_r27.append(str(e)))
+    p_r27.goto(BASE, wait_until="networkidle")
+    buscar = p_r27.get_by_role("searchbox", name="Busca tu municipio")
+    check("R27 NACIONAL: hay buscador de municipio", buscar.count() == 1)
+    buscar.fill("zzzz")
+    check("R27 NACIONAL: sin resultados lo dice", p_r27.get_by_text("Aún no tenemos obras").count() == 1)
+    buscar.fill("madr")
+    botones = p_r27.locator(".municipio-btn")
+    check("R27 NACIONAL: el buscador filtra (solo Madrid)", botones.count() == 1 and "Madrid" in botones.first.inner_text())
+    botones.first.click()
+    p_r27.get_by_role("button", name="Entendido, a votar").click()
+    p_r27.wait_for_selector(".stack-slot", timeout=15000)
+    badge = p_r27.locator(".brand-badge").inner_text()
+    check(
+        "R27 NACIONAL: cabecera con DATO OFICIAL y todas las obras de Madrid",
+        "DATO OFICIAL" in badge and "Madrid" in badge and f"/{len(nacional['obras'])}" in badge,
+        badge,
+    )
+    carta = p_r27.locator(".stack-slot").first
+    check(
+        "R27 NACIONAL: la tarjeta dice «Dato oficial, sin revisar a mano»",
+        carta.get_by_text("Dato oficial, sin revisar a mano").count() >= 1,
+    )
+    carta.get_by_role("button", name="Ver ficha y evidencia").click()
+    p_r27.wait_for_timeout(500)
+    ficha = p_r27.locator(".sheet")
+    check("R27 NACIONAL: coste por vecino sobre la población de Madrid",
+          "3.506.730" in ficha.inner_text(), ficha.inner_text()[:200])
+    enlace = ficha.get_by_role("link", name="Plataforma de Contratación del Sector Público (PLACE)").first.get_attribute("href") or ""
+    check("R27 NACIONAL: la ficha enlaza al anuncio oficial", enlace.startswith("https://contrataciondelestado.es/"), enlace)
+    check("R27 NACIONAL: sin errores de página", not errores_r27, str(errores_r27[:2]))
+    shot(p_r27, "29-nacional-madrid")
+    ctx_r27.close()
 
     browser.close()
 
