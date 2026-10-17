@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { tienePunto, type Obra, type UbicacionPrecisa } from "@/lib/obras";
 import { REVISADO, VISTAS_AEREAS, type FotoAerea, type VistaAerea } from "@/lib/aerea";
-import { VISTA_AEREA } from "@/lib/flags";
 
 // El mapa interactivo pesa (MapLibre): solo se descarga si el vecino lo pide.
 const MapaAereo = dynamic(() => import("./MapaAereo").then((m) => m.MapaAereo), {
@@ -81,9 +80,9 @@ const vueloLargo = (f: FotoAerea) =>
 const claseVeredicto = (v: VistaAerea, visibleAire: UbicacionPrecisa["visibleAire"]) =>
   `aerea-veredicto aerea-${visibleAire === "no" ? "no-visible" : v.veredicto}`;
 
-/** Vista aérea de la obra si la función está activa y hay foto horneada. */
+/** Vista aérea de la obra si hay foto horneada. */
 export function vistaDe(obra: Obra): { u: UbicacionPrecisa; v: VistaAerea } | null {
-  if (!VISTA_AEREA || !tienePunto(obra.ubicacion)) return null;
+  if (!tienePunto(obra.ubicacion)) return null;
   const v = VISTAS_AEREAS[obra.id];
   return v ? { u: obra.ubicacion, v } : null;
 }
@@ -200,8 +199,6 @@ function enlaces(u: UbicacionPrecisa) {
 /** Sección «Desde el aire» de la ficha. */
 export function SeccionAerea({ obra }: { obra: Obra }) {
   const [mapa, setMapa] = useState(false);
-  if (!VISTA_AEREA) return null;
-
   const u = obra.ubicacion;
   if (!tienePunto(u)) {
     return (

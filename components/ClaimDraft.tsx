@@ -1,10 +1,83 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useRef, useState } from "react";
+import { animate, motion, useMotionValue, useTransform } from "framer-motion";
+import { ChevronRight, FileText } from "lucide-react";
 import type { Obra } from "@/lib/obras";
 import { euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
+import { useHojaArrastrable } from "@/lib/useHoja";
+
+const ANCHO_POMO = 58;
+
+/**
+ * «Desliza para copiar». Es un botón de verdad: Enter,
+ * Espacio, un toque o la activación de un lector de pantalla copian igual;
+ * deslizar es el gesto táctil. Copiar no envía nada.
+ */
+function DeslizarCopiar({ copiado, onCopiar }: { copiado: boolean; onCopiar: () => void }) {
+  const pistaRef = useRef<HTMLButtonElement>(null);
+  const x = useMotionValue(0);
+  const max = useRef(0);
+  const inicio = useRef<number | null>(null);
+  const ignorarClick = useRef(false);
+  const relleno = useTransform(x, (v) => (max.current ? Math.min(1, (v + ANCHO_POMO) / (max.current + ANCHO_POMO)) : 0));
+
+  const volver = () => animate(x, 0, { type: "spring", damping: 26, stiffness: 300 });
+
+  const soltar = (cancelado: boolean) => {
+    if (inicio.current == null) return;
+    inicio.current = null;
+    const recorrido = x.get();
+    // Tras un arrastre el navegador emite un clic que no debe copiar otra vez.
+    // Un pointercancel no emite clic: no se marca, o se perdería la siguiente copia.
+    ignorarClick.current = !cancelado && recorrido > 4;
+    if (!cancelado && recorrido > max.current * 0.85) {
+      animate(x, max.current, { duration: 0.12 });
+      onCopiar();
+      window.setTimeout(volver, 1200);
+    } else {
+      volver();
+    }
+  };
+
+  return (
+    <button
+      ref={pistaRef}
+      type="button"
+      className={`deslizar${copiado ? " hecho" : ""}`}
+      aria-label={copiado ? "¡Copiado!" : "Desliza para copiar borrador"}
+      onPointerDown={(e) => {
+        const pista = pistaRef.current;
+        if (!pista) return;
+        max.current = pista.clientWidth - ANCHO_POMO - 8;
+        inicio.current = e.clientX - x.get();
+        pista.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (inicio.current == null) return;
+        x.set(Math.max(0, Math.min(max.current, e.clientX - inicio.current)));
+      }}
+      onPointerUp={() => soltar(false)}
+      onPointerCancel={() => soltar(true)}
+      onClick={() => {
+        if (ignorarClick.current) {
+          ignorarClick.current = false;
+          return;
+        }
+        onCopiar();
+      }}
+    >
+      <motion.span className="deslizar-relleno" style={{ scaleX: relleno }} aria-hidden="true" />
+      <span className="deslizar-texto" aria-hidden="true">
+        {copiado ? "¡Copiado!" : "Desliza para copiar borrador"}
+      </span>
+      <motion.span className="deslizar-pomo" style={{ x }} aria-hidden="true">
+        <ChevronRight size={22} strokeWidth={2.6} />
+      </motion.span>
+    </button>
+  );
+}
 
 function borrador(obra: Obra): string {
   const adj = obra.adjudicacion;
@@ -45,6 +118,7 @@ Nota: este borrador lo ha generado la aplicación y debe revisarlo y enviarlo un
 
 export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void }) {
   const dialogRef = useDialog(onClose);
+  const { arrastre, asa } = useHojaArrastrable(onClose);
   const inicial = useMemo(() => borrador(obra), [obra]);
   const [texto, setTexto] = useState(inicial);
   const [copiado, setCopiado] = useState(false);
@@ -96,8 +170,13 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        {...arrastre}
       >
-        <div className="sheet-head">
+        <div className="asa" aria-hidden="true" {...asa} />
+        <div className="sheet-head" {...asa}>
+          <span className="ico-tile" aria-hidden="true">
+            <FileText size={24} />
+          </span>
           <h2 className="display">Tu borrador</h2>
           <button type="button" className="sheet-close" onClick={onClose} aria-label="Cerrar borrador">
             ✕
@@ -118,9 +197,8 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
             onChange={(e) => setTexto(e.target.value)}
           />
           <div className="claim-actions">
-            <button type="button" className="btn btn-primary" onClick={copiar}>
-              {copiado ? "¡Copiado!" : "Copiar borrador"}
-            </button>
+            <DeslizarCopiar copiado={copiado} onCopiar={copiar} />
+            <p className="claim-hitl">Copiar no envía nada. Lo envías tú, cuando lo hayas revisado.</p>
             <button type="button" className="btn" onClick={onClose}>
               Cerrar
             </button>

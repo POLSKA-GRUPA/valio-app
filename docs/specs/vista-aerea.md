@@ -119,6 +119,8 @@ IGN, así que muestra el vuelo nuevo en cuanto existe.
 
 - Flag `NEXT_PUBLIC_VISTA_AEREA=1`: activado en preview y apagado en producción
   hasta que Kenyi apruebe las capturas a 375 y 1440 px.
+- 2026-10-17: Kenyi la aprobó y se retiró el flag. La vista aérea está siempre
+  activa; A9 ya no aplica.
 - Revisión de Codex (gpt-6.1-sol, high) en los dos repos.
 
 ## Aceptación humana (UAT)

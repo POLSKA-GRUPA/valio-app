@@ -54,3 +54,38 @@ GOV.UK Design System. Decisiones:
 Alcance: solo tarjeta, ficha, botones de voto y barra inferior. Extenderlo al
 resto de pantallas (match, borrador, resultados, cabreo, info) espera el OK de
 Kenyi.
+
+## Diseño vigente: la gramática de Luma iOS (2026-10-17)
+
+Sustituye el aspecto del #39 (fondo claro, Source Serif y Public Sans). Kenyi lo
+aprobó y pidió una sola versión: no hay interruptor ni diseño anterior en el
+código. Se conserva lo que el #39 fijó sobre el contenido: datos reales, una
+sola etiqueta de evidencia, iconos Lucide y el verde, el rojo y el ámbar solo
+para el voto.
+
+Referencias en Mobbin, consultadas el 2026-10-17 (iOS). Se miraron las
+imágenes; no se copia código, logo, texto ni activos de Luma.
+
+| Pantalla Luma | Mobbin | Qué se toma |
+|---|---|---|
+| Evento con póster grande | https://mobbin.com/screens/fc225571-3761-4e53-96d8-ae3ad2d5ecd0 | Póster redondeado, título grande, fila de tiles, fondo teñido por el póster |
+| Evento con aviso verde arriba | https://mobbin.com/screens/ef222d28-3226-4437-b7d3-66bac22fa061 | Aviso en píldora arriba, del color del estado |
+| Hoja con deslizar para confirmar | https://mobbin.com/screens/db78c794-320c-4882-b6e4-e07c9492773f | Hoja con icono, título y control deslizante (aquí copia el borrador, no envía) |
+| Hoja de condiciones | https://mobbin.com/screens/efa77a29-7e68-4848-bf7f-8fd245f35fd5 | Icono en baldosa, título, texto y botón píldora a todo el ancho |
+| Menú contextual | https://mobbin.com/screens/ef73f813-15ff-482a-b856-0c324bb96b65 | Menú oscuro anclado a un botón redondo (orden y filtro) |
+| Bienvenida con pósters en abanico | https://mobbin.com/screens/fcb58dd5-1680-40d8-bbb1-aa116e22aae8 | Tres obras reales en abanico sobre la elección de municipio |
+| Lista por fechas | https://mobbin.com/screens/f959fe82-8c3e-4bc0-9ad1-6a289eac3845 | Pestaña Obras con «Por votar / Votadas» y grupos por año |
+| Ciudades | https://mobbin.com/screens/f2bb3188-3b87-4cb4-abb1-4ec8048eebc6 | Fila de municipio con icono redondo y recuento |
+| Barra de pestañas en píldora | https://mobbin.com/screens/fd7a7128-2c46-4574-9d0f-dbd8213ef7c2 | Píldora flotante con segmento activo |
+
+Reglas que no se rompen (detalle y contrastes medidos en `app/luma.css`):
+
+- El póster es la cifra; si la obra tiene vista aérea, la foto PNOA con su
+  licencia y su veredicto. Nada de decoración ni foto inventada.
+- El tono de cada tipo de obra tiñe la pantalla (índigo, azul, violeta,
+  ciruela, pizarra, petróleo). La evidencia va en lavanda.
+- Cuatro acciones del mismo peso, con icono y texto.
+- Nada que se arrastre lleva `backdrop-filter`; solo se animan `transform` y
+  `opacity`. El cristal queda en la barra de pestañas.
+- Tipografía: Bricolage Grotesque para cifras y titulares, Hanken Grotesk para
+  la interfaz.

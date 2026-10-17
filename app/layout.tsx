@@ -1,16 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Public_Sans, Source_Serif_4 } from "next/font/google";
+import { Bricolage_Grotesque, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
+import "./luma.css";
 import { StoreProvider } from "@/lib/store";
 
-// Titulares: serif con carácter (periodismo de datos). Datos: Public Sans,
-// neutra y con cifras tabulares (ISSUE-39).
-const sourceSerif = Source_Serif_4({
+// Cifras y titulares en Bricolage; interfaz en Hanken.
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
   variable: "--font-display",
 });
 
-const publicSans = Public_Sans({
+const hanken = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-body",
 });
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FFFFFF",
+  themeColor: "#0B0B10",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -33,7 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${sourceSerif.variable} ${publicSans.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${bricolage.variable} ${hanken.variable}`} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <StoreProvider>{children}</StoreProvider>
       </body>

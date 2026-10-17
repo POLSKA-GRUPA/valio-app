@@ -11,7 +11,7 @@ import urllib.request
 from playwright.sync_api import sync_playwright
 
 # VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
-VISTA_AEREA = os.environ.get("NEXT_PUBLIC_VISTA_AEREA") == "1"
+PESTAÑAS_ESPERADAS = ["Votar", "Obras", "Info"]
 BASE = os.environ.get("VALIO_BASE", "http://localhost:3000")
 # Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
@@ -129,6 +129,13 @@ def votar_valio_hasta_vaciar(page, maximo=60):
             timeout=4000,
         )
     page.wait_for_selector(".empty-deck", timeout=6000)
+
+def abrir_filtros(page):
+    """Con el rediseño, orden y filtro viven en un menú: lo abre si está cerrado."""
+    boton = page.get_by_role("button", name="Ordenar y filtrar")
+    if boton.get_attribute("aria-expanded") != "true":
+        boton.click()
+        page.wait_for_timeout(200)
 
 def nombres_pestañas(page):
     # Cada pestaña es «icono\netiqueta»: nos quedamos con la etiqueta.
@@ -323,7 +330,7 @@ with sync_playwright() as p:
     shot(page, "07-mazo-vacio")
 
     # 10-11. Cabreo y Resultados ocultas en P1 (#38): solo Votar e Info
-    check("pestañas solo Votar e Info", nombres_pestañas(page) == ["Votar", "Info"], f"{nombres_pestañas(page)}")
+    check("pestañas esperadas (Votar e Info; con rediseño, también Obras)", nombres_pestañas(page) == PESTAÑAS_ESPERADAS, f"{nombres_pestañas(page)}")
 
     # 12. Info
     page.get_by_role("tab", name="Info").click()
@@ -606,8 +613,10 @@ with sync_playwright() as p:
         return pg.locator(f'.deck-zone[aria-label="Quedan {n} tarjetas"]').count() == 1
 
     def chip(pg, nombre):
+        abrir_filtros(pg)
         return pg.get_by_role("group", name="Filtrar por tipo de obra").get_by_role("button", name=nombre)
 
+    abrir_filtros(p_r11)
     check("R11 ISSUE-37: chips visibles tras el tutorial", grupo.is_visible())
     check("R11 ISSUE-37: un chip por tipo con obras + «Todas»", grupo.get_by_role("button").count() == 8)
     check("R11 ISSUE-37: «Todas» marcado al empezar", chip(p_r11, "Todas").get_attribute("aria-pressed") == "true")
@@ -681,6 +690,7 @@ with sync_playwright() as p:
     p_r12.goto(BASE, wait_until="networkidle")
     p_r12.get_by_role("button", name="Entendido, a votar").click()
     p_r12.wait_for_timeout(300)
+    abrir_filtros(p_r12)
     check(
         "R12 ISSUE-37: chips sin scroll horizontal de página a 320 px",
         p_r12.evaluate("() => document.documentElement.scrollWidth <= 320"),
@@ -705,6 +715,7 @@ with sync_playwright() as p:
     p_r13.goto(BASE, wait_until="networkidle")
     p_r13.get_by_role("button", name="Entendido, a votar").click()
     p_r13.wait_for_timeout(300)
+    abrir_filtros(p_r13)
     orden = p_r13.get_by_role("radiogroup", name="Ordenar obras")
     recientes = orden.get_by_role("radio", name="Más recientes")
     importe = orden.get_by_role("radio", name="Mayor importe")
@@ -733,6 +744,7 @@ with sync_playwright() as p:
     )
 
     # Teclado: flechas dentro del grupo cambian el orden y NO votan.
+    abrir_filtros(p_r13)
     importe.focus()
     p_r13.keyboard.press("ArrowLeft")
     p_r13.wait_for_timeout(300)
@@ -790,12 +802,31 @@ with sync_playwright() as p:
     for _ in range(40):
         p_r14.keyboard.press("Tab")
         recorrido.append(p_r14.evaluate(NOMBRE_FOCO))
-    for esperado in ["Más recientes", "Todas", "Deporte, 3 obras", "Valió"]:
-        check(
-            f"R14 ISSUE-37: «{esperado}» alcanzable con Tab",
-            esperado in recorrido,
-            f"recorrido={recorrido[:14]}",
-        )
+    # Con el menú: el botón está en el Tab; al abrirlo con Enter el foco
+    # entra en el orden y desde ahí se llega a los tipos.
+    for esperado in ["Ordenar y filtrar", "Valió"]:
+        check(f"R14 Luma: «{esperado}» alcanzable con Tab", esperado in recorrido, f"recorrido={recorrido[:14]}")
+    p_r14.get_by_role("button", name="Ordenar y filtrar").focus()
+    p_r14.keyboard.press("Enter")
+    p_r14.wait_for_timeout(300)
+    check(
+        "R14 Luma: Enter abre el menú con el foco en el orden marcado",
+        p_r14.evaluate(NOMBRE_FOCO) == "Más recientes",
+        f"foco={p_r14.evaluate(NOMBRE_FOCO)!r}",
+    )
+    dentro = []
+    for _ in range(3):
+        p_r14.keyboard.press("Tab")
+        dentro.append(p_r14.evaluate(NOMBRE_FOCO))
+    recorrido += dentro
+    check("R14 Luma: Tab en el menú llega a los tipos", dentro[:2] == ["Todas", "Deporte, 3 obras"], f"{dentro}")
+    p_r14.keyboard.press("Escape")
+    p_r14.wait_for_timeout(200)
+    check(
+        "R14 Luma: Escape cierra el menú y devuelve el foco al botón",
+        p_r14.evaluate(NOMBRE_FOCO) == "Ordenar y filtrar"
+        and p_r14.get_by_role("button", name="Ordenar y filtrar").get_attribute("aria-expanded") == "false",
+    )
     check(
         "R14 ISSUE-37: «Mayor importe» no gasta un Tab (se llega con flechas)",
         "Mayor importe" not in recorrido,
@@ -812,6 +843,7 @@ with sync_playwright() as p:
     )
 
     # Un chip se activa con Espacio y se ve el foco.
+    abrir_filtros(p_r14)
     chip_deporte = p_r14.get_by_role("button", name="Deporte, 3 obras")
     chip_deporte.focus()
     check(
@@ -843,14 +875,21 @@ with sync_playwright() as p:
         });
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
       };
-      // Fondo real: sube por los padres mientras sea transparente.
+      // Fondo real: sube por los padres hasta un fondo opaco y compone
+      // encima las capas translúcidas (los tiles del rediseño son blanco al
+      // 8 %): el color que se ve, no el de la primera capa.
       const fondo = (e) => {
+        const capas = [];
+        let base = [255, 255, 255];
         for (let n = e; n; n = n.parentElement) {
-          const c = getComputedStyle(n).backgroundColor;
-          const alfa = c.match(/\\d+(\\.\\d+)?/g)[3];
-          if (alfa === undefined || Number(alfa) > 0) return c;
+          const v = getComputedStyle(n).backgroundColor.match(/\\d+(\\.\\d+)?/g).map(Number);
+          const alfa = v[3] === undefined ? 1 : v[3];
+          if (alfa >= 1) { base = v.slice(0, 3); break; }
+          if (alfa > 0) capas.push([v.slice(0, 3), alfa]);
         }
-        return "rgb(255, 255, 255)";
+        const rgb = capas.reverse().reduce(
+          (acc, [c, a]) => acc.map((x, i) => c[i] * a + x * (1 - a)), base);
+        return `rgb(${rgb.map(Math.round).join(", ")})`;
       };
       return [...document.querySelectorAll(sel)].map((e) => {
         const [a, b] = [lum(getComputedStyle(e).color), lum(fondo(e))].sort((x, y) => y - x);
@@ -888,19 +927,152 @@ with sync_playwright() as p:
         and "match ciudadano" not in p_r15.locator("body").inner_text().lower(),
     )
     aviso = p_r15.locator(".voto-guardado")
+    # Con el rediseño el aviso dice qué votaste y ofrece deshacerlo.
     check(
-        "R15 ISSUE-38: aviso «Tu voto se ha guardado en este dispositivo»",
-        aviso.is_visible() and aviso.inner_text() == "Tu voto se ha guardado en este dispositivo",
+        "R15 Luma: aviso «No valió · guardado» con «Deshacer»",
+        aviso.is_visible()
+        and "No valió · guardado" in aviso.inner_text()
+        and aviso.get_by_role("button", name="Deshacer").is_visible(),
+        f"texto={aviso.inner_text() if aviso.count() else None!r}",
     )
     shot(p_r15, "19-reg-issue38-voto-guardado")
-    p_r15.wait_for_timeout(3000)
+    p_r15.wait_for_timeout(4300)
     check("R15 ISSUE-38: el aviso desaparece solo", aviso.count() == 0)
     check(
-        "R15 ISSUE-38: navegación solo con Votar e Info",
-        nombres_pestañas(p_r15) == ["Votar", "Info"],
+        "R15 ISSUE-38: navegación con las pestañas esperadas",
+        nombres_pestañas(p_r15) == PESTAÑAS_ESPERADAS,
         f"{nombres_pestañas(p_r15)}",
     )
     ctx_r15.close()
+
+    # L1-L8 — Rediseño Luma.
+    def quedan_l(pg, n):
+        return pg.locator(f'.deck-zone[aria-label="Quedan {n} tarjetas"]').count() == 1
+
+    ctx_l = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+    ctx_l.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
+    p_l = ctx_l.new_page()
+    p_l.goto(BASE, wait_until="networkidle")
+    p_l.get_by_role("button", name="Entendido, a votar").click()
+    p_l.wait_for_timeout(300)
+    primera_l = nombre_arriba(p_l)
+
+    # L1: «Deshacer» devuelve la carta, el voto y el contador.
+    p_l.get_by_role("button", name="Valió", exact=True).click()
+    p_l.wait_for_timeout(150)
+    p_l.locator(".voto-guardado").get_by_role("button", name="Deshacer").click()
+    esperar_sin_vuelo(p_l)
+    p_l.wait_for_timeout(300)
+    check(
+        "L1 Luma: «Deshacer» devuelve la carta y quita el voto",
+        quedan_l(p_l, 21) and nombre_arriba(p_l) == primera_l and "0/21" in p_l.locator(".brand-badge").inner_text(),
+        f"arriba={nombre_arriba(p_l)!r} badge={p_l.locator('.brand-badge').inner_text()!r}",
+    )
+    check(
+        "L1 Luma: el lector anuncia que se deshizo",
+        p_l.locator('.deck-zone > [role="status"]').inner_text().startswith("Voto deshecho"),
+    )
+
+    # L2: deshacer «Pido explicaciones» cierra también su borrador.
+    p_l.get_by_role("button", name="Pido explicaciones").click()
+    p_l.wait_for_selector("#claim-texto", timeout=4000)
+    p_l.locator(".voto-guardado").get_by_role("button", name="Deshacer").click()
+    p_l.wait_for_selector("#claim-texto", state="detached", timeout=4000)
+    esperar_sin_vuelo(p_l)
+    check("L2 Luma: deshacer «Explica» cierra el borrador y devuelve la carta", quedan_l(p_l, 21))
+
+    # L3: nada que se arrastre lleva backdrop-filter (gama baja).
+    filtros = p_l.evaluate(
+        "() => [...document.querySelectorAll('.card-frame, .stack-slot')]"
+        ".map((e) => getComputedStyle(e).backdropFilter)"
+    )
+    check("L3 Luma: sin backdrop-filter en las cartas", filtros and all(f in ("none", "") for f in filtros), f"{filtros}")
+
+    # L4: contraste AA en el texto pequeño nuevo.
+    ratios_l = p_l.evaluate(
+        CONTRASTE, ".action-label, .barra-resumen, .card-mazo-kicker, .card-kicker, .tag, .card-ficha-link, .brand-badge"
+    )
+    check("L4 Luma: contraste AA en etiquetas, resumen, evidencia y contador", ratios_l and min(ratios_l) >= 4.5, f"{ratios_l}")
+
+    # L5: la ficha se cierra arrastrando el asa hacia abajo.
+    p_l.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+    p_l.wait_for_selector(".sheet .asa", timeout=4000)
+    p_l.wait_for_timeout(500)
+    asa = p_l.locator(".sheet .asa").bounding_box()
+    ax, ay = asa["x"] + asa["width"] / 2, asa["y"] + asa["height"] / 2
+    p_l.mouse.move(ax, ay)
+    p_l.mouse.down()
+    p_l.mouse.move(ax, ay + 120, steps=6)
+    p_l.mouse.move(ax, ay + 260, steps=6)
+    p_l.mouse.up()
+    p_l.wait_for_selector(".sheet", state="detached", timeout=4000)
+    check("L5 Luma: la ficha se cierra arrastrando hacia abajo", p_l.locator(".sheet").count() == 0)
+
+    # L6: «Desliza para copiar» copia el borrador entero con su aviso HITL.
+    p_l.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+    p_l.get_by_role("button", name="Pedir explicaciones").click()
+    p_l.wait_for_selector(".deslizar", timeout=4000)
+    p_l.wait_for_timeout(500)
+    pista = p_l.locator(".deslizar").bounding_box()
+    px, py = pista["x"] + 30, pista["y"] + pista["height"] / 2
+    p_l.mouse.move(px, py)
+    p_l.mouse.down()
+    p_l.mouse.move(px + pista["width"] * 0.5, py, steps=6)
+    p_l.mouse.move(px + pista["width"], py, steps=6)
+    p_l.mouse.up()
+    p_l.wait_for_timeout(300)
+    copiado_l = p_l.evaluate("() => navigator.clipboard.readText()")
+    check(
+        "L6 Luma: deslizar copia el borrador entero",
+        p_l.get_by_text("¡Copiado!").is_visible() and "nunca envía nada automáticamente" in copiado_l,
+        f"fin={copiado_l[-60:]!r}",
+    )
+    check(
+        "L6 Luma: el borrador dice que copiar no envía nada",
+        "Copiar no envía nada" in p_l.locator(".sheet").inner_text(),
+    )
+    p_l.get_by_role("button", name="Cerrar", exact=True).last.click()
+    p_l.wait_for_selector(".sheet-backdrop", state="detached")
+
+    # L7: pestaña Obras con «Por votar» y «Votadas», agrupadas por año.
+    for _ in range(2):
+        antes_l = nombre_arriba(p_l)
+        p_l.get_by_role("button", name="No valió").click()
+        esperar_nombre_distinto(p_l, antes_l)
+        esperar_sin_vuelo(p_l)
+    p_l.get_by_role("tab", name="Obras").click()
+    p_l.wait_for_timeout(300)
+    lista = p_l.locator(".lista-obras")
+    check("L7 Luma: «Por votar» lista 19 obras", lista.locator(".lista-item").count() == 19)
+    check(
+        "L7 Luma: cada fila de la lista lleva su etiqueta de evidencia",
+        lista.locator(".lista-item .tag").count() == 19,
+    )
+    p_l.get_by_role("button", name="Votadas").click()
+    p_l.wait_for_timeout(200)
+    check(
+        "L7 Luma: «Votadas» enseña las 2 con su voto",
+        lista.locator(".lista-item").count() == 2 and lista.locator(".miniatura-voto").all_inner_texts() == ["No valió", "No valió"],
+    )
+    check("L7 Luma: grupos con el año como título", lista.locator(".lista-anyo").count() >= 1)
+    shot(p_l, "27-luma-obras-votadas")
+    lista.locator(".lista-item").first.click()
+    p_l.wait_for_selector(".sheet", timeout=4000)
+    check("L7 Luma: una fila abre la ficha de la obra", "Fuente" in p_l.locator(".sheet").inner_text())
+    p_l.keyboard.press("Escape")
+    p_l.wait_for_selector(".sheet-backdrop", state="detached")
+
+    # L8: el mazo terminado resume los cuatro recuentos.
+    p_l.get_by_role("tab", name="Votar").click()
+    votar_valio_hasta_vaciar(p_l)
+    recuento = p_l.locator(".recuento li").all_inner_texts()
+    check(
+        "L8 Luma: al terminar sale el recuento (19 valió, 2 no valió)",
+        [r.split("\n")[0] for r in recuento] == ["19", "2", "0", "0"],
+        f"{recuento}",
+    )
+    shot(p_l, "28-luma-fin")
+    ctx_l.close()
 
     # R16 — ISSUE-38: arrastrar la carta hacia arriba vota «Pido explicaciones»
     # y abre el borrador (antes solo se llegaba desde el match o la ficha).
@@ -1065,148 +1237,132 @@ with sync_playwright() as p:
     shot(p_r19, "25-reg-issue39-ficha")
     ctx_r19.close()
 
-    # R20-R24 — Vista aérea (docs/specs/vista-aerea.md). Solo con el flag
-    # activo (NEXT_PUBLIC_VISTA_AEREA=1 al arrancar el servidor y los tests);
-    # sin flag se comprueba que la app queda idéntica (A9).
+    # R20-R24 — Vista aérea (docs/specs/vista-aerea.md).
     ctx_r20 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r20 = ctx_r20.new_page()
     p_r20.goto(BASE, wait_until="networkidle")
     p_r20.get_by_role("button", name="Entendido, a votar").click()
     p_r20.wait_for_timeout(300)
-    if not VISTA_AEREA:
-        # Una obra que SÍ tiene ubicación: con el flag apagado no enseña nada.
-        avanzar_hasta(p_r20, True)
+    # Avanza hasta la primera obra con ubicación (no todas la tienen).
+    check("R20 VISTA-AÉREA: hay obras con ubicación", avanzar_hasta(p_r20, True))
+    carta = p_r20.locator(".stack-slot").first.locator(".card-frame")
+    foto = carta.locator(".aerea-img")
+    check("R20 VISTA-AÉREA: la tarjeta muestra la foto aérea", foto.count() == 1)
+    alt = foto.first.get_attribute("alt") or ""
+    anyo_alt = re.search(r"\b(19|20)\d{2}\b", alt)
+    check("R20 VISTA-AÉREA: la foto tiene texto alternativo con la fecha", "Foto aérea" in alt and anyo_alt is not None, alt)
+    check("R20 VISTA-AÉREA: la foto no se arrastra sola", foto.first.get_attribute("draggable") == "false")
+    cargada = p_r20.evaluate("(img) => img.complete && img.naturalWidth > 0", foto.first.element_handle())
+    check("R20 VISTA-AÉREA: la imagen carga", cargada)
+    pastilla = carta.locator(".aerea-pastilla").inner_text()
+    check(
+        "R20 VISTA-AÉREA: fecha del vuelo y licencia visibles",
+        anyo_alt is not None and anyo_alt.group(0) in pastilla and "CC-BY" in pastilla,
+        pastilla,
+    )
+    veredicto = carta.locator(".aerea-veredicto").inner_text()
+    check(
+        "R20 VISTA-AÉREA: el texto no sugiere que la obra no se hizo",
+        veredicto != "" and "no se hizo" not in veredicto.lower() and "no existe" not in veredicto.lower(),
+        veredicto,
+    )
+    shot(p_r20, "26-vista-aerea-tarjeta")
+
+    # R21 — el gesto sigue funcionando con la foto: arrastre desde la foto.
+    antes_r21 = nombre_arriba(p_r20)
+    caja = foto.first.bounding_box()
+    cx, cy = caja["x"] + caja["width"] / 2, caja["y"] + caja["height"] / 2
+    p_r20.mouse.move(cx, cy)
+    p_r20.mouse.down()
+    for paso in range(1, 21):
+        p_r20.mouse.move(cx + paso * 20, cy, steps=3)
+        p_r20.wait_for_timeout(16)
+    p_r20.wait_for_timeout(120)
+    p_r20.mouse.up()
+    try:
+        esperar_nombre_distinto(p_r20, antes_r21)
+    except Exception:
+        pass
+    check("R21 VISTA-AÉREA: deslizar desde la foto vota", nombre_arriba(p_r20) != antes_r21)
+    esperar_sin_vuelo(p_r20)
+
+    # R22 — ficha: sección «Desde el aire» con enlaces sin claves.
+    avanzar_hasta(p_r20, True)
+    p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+    p_r20.wait_for_timeout(500)
+    seccion = p_r20.locator(".sheet section:has(#ficha-aerea)")
+    check("R22 VISTA-AÉREA: la ficha tiene «Desde el aire»", seccion.count() == 1)
+    check(
+        "R22 VISTA-AÉREA: enlace a Street View",
+        seccion.get_by_role("link", name="Ver a pie de calle (Street View)").count() == 1,
+    )
+    # El satélite debe abrirse en el mismo punto que Street View.
+    sat = seccion.get_by_role("link", name="Ver el satélite de Google (sin fecha)")
+    sv = seccion.get_by_role("link", name="Ver a pie de calle (Street View)").get_attribute("href") or ""
+    href_sat = (sat.get_attribute("href") or "") if sat.count() == 1 else ""
+    q_sat = urllib.parse.parse_qs(urllib.parse.urlsplit(href_sat).query)
+    punto = urllib.parse.parse_qs(urllib.parse.urlsplit(sv).query).get("viewpoint", [""])[0]
+    check(
+        "R22 VISTA-AÉREA: satélite de Google en el punto de la obra",
+        bool(re.fullmatch(r"-?\d+(\.\d+)?,-?\d+(\.\d+)?", punto))
+        and q_sat == {
+            "api": ["1"],
+            "map_action": ["map"],
+            "center": [punto],
+            "zoom": ["19"],
+            "basemap": ["satellite"],
+        },
+        href_sat,
+    )
+    check("R22 VISTA-AÉREA: atribución de la licencia en la ficha", "scne.es" in seccion.inner_text())
+
+    # R23 — mapa interactivo bajo demanda, sin errores de consola.
+    # Escucha en ESTA página (los listeners globales van en otra).
+    errores_mapa, teselas = [], []
+    p_r20.on("console", lambda m: m.type == "error" and errores_mapa.append(m.text))
+    p_r20.on("pageerror", lambda e: errores_mapa.append(str(e)))
+    p_r20.on(
+        "response",
+        lambda r: ("ign.es/wmts" in r.url or "terramapas.icv.gva.es" in r.url)
+        and r.status == 200
+        and teselas.append(r.url),
+    )
+    seccion.get_by_role("button", name="Explorar en el mapa").click()
+    p_r20.wait_for_selector(".aerea-mapa canvas", timeout=15000)
+    p_r20.wait_for_function("() => !document.querySelector('.aerea-mapa-caja select')?.disabled", timeout=15000)
+    p_r20.wait_for_timeout(2500)
+    check("R23 VISTA-AÉREA: el mapa carga teselas del IGN", len(teselas) > 0, f"teselas={len(teselas)}")
+    n_antes = len(teselas)
+    p_r20.select_option(".aerea-mapa-caja select", "2023")
+    p_r20.wait_for_timeout(3000)
+    check(
+        "R23 VISTA-AÉREA: al elegir 2023 llegan teselas del ICV",
+        any("terramapas.icv.gva.es" in u for u in teselas[n_antes:]),
+    )
+    check("R23 VISTA-AÉREA: sin errores al cargar el mapa", not errores_mapa, str(errores_mapa[:2]))
+    shot(p_r20, "27-vista-aerea-mapa")
+
+    # R24 — obra sin ubicación: lo dice y no pinta nada.
+    p_r20.get_by_role("button", name="Cerrar ficha").click()
+    p_r20.wait_for_selector(".sheet-backdrop", state="detached")
+    p_r20.wait_for_timeout(150)
+    visto_sin = False
+    detalle_r24 = "no se encontró una obra sin ubicación"
+    if avanzar_hasta(p_r20, False):
         check(
-            "R20 VISTA-AÉREA (flag apagado): la tarjeta queda como antes",
+            "R24 VISTA-AÉREA: la tarjeta sin ubicación no lleva foto",
             p_r20.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 0,
         )
         p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
         p_r20.wait_for_timeout(400)
-        check(
-            "R20 VISTA-AÉREA (flag apagado): la ficha no tiene «Desde el aire»",
-            p_r20.locator("#ficha-aerea").count() == 0,
-        )
-    else:
-        # Avanza hasta la primera obra con ubicación (no todas la tienen).
-        check("R20 VISTA-AÉREA: hay obras con ubicación", avanzar_hasta(p_r20, True))
-        carta = p_r20.locator(".stack-slot").first.locator(".card-frame")
-        foto = carta.locator(".aerea-img")
-        check("R20 VISTA-AÉREA: la tarjeta muestra la foto aérea", foto.count() == 1)
-        alt = foto.first.get_attribute("alt") or ""
-        anyo_alt = re.search(r"\b(19|20)\d{2}\b", alt)
-        check("R20 VISTA-AÉREA: la foto tiene texto alternativo con la fecha", "Foto aérea" in alt and anyo_alt is not None, alt)
-        check("R20 VISTA-AÉREA: la foto no se arrastra sola", foto.first.get_attribute("draggable") == "false")
-        cargada = p_r20.evaluate("(img) => img.complete && img.naturalWidth > 0", foto.first.element_handle())
-        check("R20 VISTA-AÉREA: la imagen carga", cargada)
-        pastilla = carta.locator(".aerea-pastilla").inner_text()
-        check(
-            "R20 VISTA-AÉREA: fecha del vuelo y licencia visibles",
-            anyo_alt is not None and anyo_alt.group(0) in pastilla and "CC-BY" in pastilla,
-            pastilla,
-        )
-        veredicto = carta.locator(".aerea-veredicto").inner_text()
-        check(
-            "R20 VISTA-AÉREA: el texto no sugiere que la obra no se hizo",
-            veredicto != "" and "no se hizo" not in veredicto.lower() and "no existe" not in veredicto.lower(),
-            veredicto,
-        )
-        shot(p_r20, "26-vista-aerea-tarjeta")
-
-        # R21 — el gesto sigue funcionando con la foto: arrastre desde la foto.
-        antes_r21 = nombre_arriba(p_r20)
-        caja = foto.first.bounding_box()
-        cx, cy = caja["x"] + caja["width"] / 2, caja["y"] + caja["height"] / 2
-        p_r20.mouse.move(cx, cy)
-        p_r20.mouse.down()
-        for paso in range(1, 21):
-            p_r20.mouse.move(cx + paso * 20, cy, steps=3)
-            p_r20.wait_for_timeout(16)
-        p_r20.wait_for_timeout(120)
-        p_r20.mouse.up()
-        try:
-            esperar_nombre_distinto(p_r20, antes_r21)
-        except Exception:
-            pass
-        check("R21 VISTA-AÉREA: deslizar desde la foto vota", nombre_arriba(p_r20) != antes_r21)
-        esperar_sin_vuelo(p_r20)
-
-        # R22 — ficha: sección «Desde el aire» con enlaces sin claves.
-        avanzar_hasta(p_r20, True)
-        p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
-        p_r20.wait_for_timeout(500)
-        seccion = p_r20.locator(".sheet section:has(#ficha-aerea)")
-        check("R22 VISTA-AÉREA: la ficha tiene «Desde el aire»", seccion.count() == 1)
-        check(
-            "R22 VISTA-AÉREA: enlace a Street View",
-            seccion.get_by_role("link", name="Ver a pie de calle (Street View)").count() == 1,
-        )
-        # El satélite debe abrirse en el mismo punto que Street View.
-        sat = seccion.get_by_role("link", name="Ver el satélite de Google (sin fecha)")
-        sv = seccion.get_by_role("link", name="Ver a pie de calle (Street View)").get_attribute("href") or ""
-        href_sat = (sat.get_attribute("href") or "") if sat.count() == 1 else ""
-        q_sat = urllib.parse.parse_qs(urllib.parse.urlsplit(href_sat).query)
-        punto = urllib.parse.parse_qs(urllib.parse.urlsplit(sv).query).get("viewpoint", [""])[0]
-        check(
-            "R22 VISTA-AÉREA: satélite de Google en el punto de la obra",
-            bool(re.fullmatch(r"-?\d+(\.\d+)?,-?\d+(\.\d+)?", punto))
-            and q_sat == {
-                "api": ["1"],
-                "map_action": ["map"],
-                "center": [punto],
-                "zoom": ["19"],
-                "basemap": ["satellite"],
-            },
-            href_sat,
-        )
-        check("R22 VISTA-AÉREA: atribución de la licencia en la ficha", "scne.es" in seccion.inner_text())
-
-        # R23 — mapa interactivo bajo demanda, sin errores de consola.
-        # Escucha en ESTA página (los listeners globales van en otra).
-        errores_mapa, teselas = [], []
-        p_r20.on("console", lambda m: m.type == "error" and errores_mapa.append(m.text))
-        p_r20.on("pageerror", lambda e: errores_mapa.append(str(e)))
-        p_r20.on(
-            "response",
-            lambda r: ("ign.es/wmts" in r.url or "terramapas.icv.gva.es" in r.url)
-            and r.status == 200
-            and teselas.append(r.url),
-        )
-        seccion.get_by_role("button", name="Explorar en el mapa").click()
-        p_r20.wait_for_selector(".aerea-mapa canvas", timeout=15000)
-        p_r20.wait_for_function("() => !document.querySelector('.aerea-mapa-caja select')?.disabled", timeout=15000)
-        p_r20.wait_for_timeout(2500)
-        check("R23 VISTA-AÉREA: el mapa carga teselas del IGN", len(teselas) > 0, f"teselas={len(teselas)}")
-        n_antes = len(teselas)
-        p_r20.select_option(".aerea-mapa-caja select", "2023")
-        p_r20.wait_for_timeout(3000)
-        check(
-            "R23 VISTA-AÉREA: al elegir 2023 llegan teselas del ICV",
-            any("terramapas.icv.gva.es" in u for u in teselas[n_antes:]),
-        )
-        check("R23 VISTA-AÉREA: sin errores al cargar el mapa", not errores_mapa, str(errores_mapa[:2]))
-        shot(p_r20, "27-vista-aerea-mapa")
-
-        # R24 — obra sin ubicación: lo dice y no pinta nada.
-        p_r20.get_by_role("button", name="Cerrar ficha").click()
-        p_r20.wait_for_selector(".sheet-backdrop", state="detached")
-        p_r20.wait_for_timeout(150)
-        visto_sin = False
-        detalle_r24 = "no se encontró una obra sin ubicación"
-        if avanzar_hasta(p_r20, False):
-            check(
-                "R24 VISTA-AÉREA: la tarjeta sin ubicación no lleva foto",
-                p_r20.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 0,
-            )
-            p_r20.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
-            p_r20.wait_for_timeout(400)
-            p_r20.wait_for_selector(".sheet #ficha-aerea", timeout=4000)
-            texto = p_r20.locator(".sheet").inner_text()
-            visto_sin = "Sin ubicación precisa" in texto and p_r20.locator(".sheet .aerea-img").count() == 0
-            detalle_r24 = f"sheets={p_r20.locator('.sheet').count()} imgs={p_r20.locator('.sheet .aerea-img').count()} {texto[:80]!r}"
-        check("R24 VISTA-AÉREA: obra sin ubicación lo explica y no muestra foto", visto_sin, detalle_r24)
+        p_r20.wait_for_selector(".sheet #ficha-aerea", timeout=4000)
+        texto = p_r20.locator(".sheet").inner_text()
+        visto_sin = "Sin ubicación precisa" in texto and p_r20.locator(".sheet .aerea-img").count() == 0
+        detalle_r24 = f"sheets={p_r20.locator('.sheet').count()} imgs={p_r20.locator('.sheet .aerea-img').count()} {texto[:80]!r}"
+    check("R24 VISTA-AÉREA: obra sin ubicación lo explica y no muestra foto", visto_sin, detalle_r24)
     ctx_r20.close()
 
-    if VISTA_AEREA and CON_ANTES:
+    if CON_ANTES:
         # R26 — comparador antes/después: ratón y teclado, y el lector anuncia
         # los dos años.
         ctx_r26 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
@@ -1235,31 +1391,30 @@ with sync_playwright() as p:
             shot(p_r26, "28-vista-aerea-comparador")
         ctx_r26.close()
 
-    if VISTA_AEREA:
-        # R25 — recorre el mazo entero: llevan foto exactamente las obras con
-        # ubicación precisa en los datos, ni una más ni una menos.
-        ctx_r25 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
-        p_r25 = ctx_r25.new_page()
-        p_r25.goto(BASE, wait_until="networkidle")
-        p_r25.get_by_role("button", name="Entendido, a votar").click()
-        discrepancias = []
-        vistas = 0
-        for _ in range(len(CON_PUNTO) + 2):
-            esperar_sin_vuelo(p_r25)
-            if p_r25.locator(".stack-slot").count() == 0:
-                break
-            nombre = nombre_arriba(p_r25).strip()
-            con_foto = p_r25.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 1
-            vistas += 1
-            if con_foto != CON_PUNTO.get(nombre):
-                discrepancias.append(f"{nombre[:40]} foto={con_foto}")
-            p_r25.get_by_role("button", name="No puedo valorarlo").first.click()
-        check(
-            "R25 VISTA-AÉREA: foto en todas las obras con ubicación y en ninguna más",
-            vistas == len(CON_PUNTO) and not discrepancias,
-            f"vistas={vistas} {discrepancias[:3]}",
-        )
-        ctx_r25.close()
+    # R25 — recorre el mazo entero: llevan foto exactamente las obras con
+    # ubicación precisa en los datos, ni una más ni una menos.
+    ctx_r25 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+    p_r25 = ctx_r25.new_page()
+    p_r25.goto(BASE, wait_until="networkidle")
+    p_r25.get_by_role("button", name="Entendido, a votar").click()
+    discrepancias = []
+    vistas = 0
+    for _ in range(len(CON_PUNTO) + 2):
+        esperar_sin_vuelo(p_r25)
+        if p_r25.locator(".stack-slot").count() == 0:
+            break
+        nombre = nombre_arriba(p_r25).strip()
+        con_foto = p_r25.locator(".stack-slot").first.locator(".aerea-tarjeta").count() == 1
+        vistas += 1
+        if con_foto != CON_PUNTO.get(nombre):
+            discrepancias.append(f"{nombre[:40]} foto={con_foto}")
+        p_r25.get_by_role("button", name="No puedo valorarlo").first.click()
+    check(
+        "R25 VISTA-AÉREA: foto en todas las obras con ubicación y en ninguna más",
+        vistas == len(CON_PUNTO) and not discrepancias,
+        f"vistas={vistas} {discrepancias[:3]}",
+    )
+    ctx_r25.close()
 
     browser.close()
 

@@ -63,6 +63,8 @@ function leerMunicipio(): string | null {
 interface StoreValue {
   votos: Votos;
   votar: (id: string, voto: Voto) => void;
+  /** Deshace un voto (aviso con «Deshacer» del rediseño). */
+  quitarVoto: (id: string) => void;
   reset: () => void;
   tutorialVisto: boolean;
   marcarTutorialVisto: () => void;
@@ -119,6 +121,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const votar = useCallback(
     (id: string, voto: Voto) => {
       persist({ ...votos, [id]: voto });
+    },
+    [persist, votos],
+  );
+
+  const quitarVoto = useCallback(
+    (id: string) => {
+      if (!(id in votos)) return;
+      const { [id]: _quitado, ...resto } = votos;
+      persist(resto);
     },
     [persist, votos],
   );
@@ -184,6 +195,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     () => ({
       votos,
       votar,
+      quitarVoto,
       reset,
       tutorialVisto,
       marcarTutorialVisto,
@@ -203,6 +215,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [
       votos,
       votar,
+      quitarVoto,
       reset,
       tutorialVisto,
       marcarTutorialVisto,
