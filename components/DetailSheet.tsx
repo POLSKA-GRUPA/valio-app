@@ -9,6 +9,7 @@ import { useDialog } from "@/lib/useDialog";
 import { useHojaArrastrable } from "@/lib/useHoja";
 import { importeDe } from "@/lib/orden";
 import { SenalVecinal } from "./SenalVecinal";
+import { RecuentoVecinos } from "./RecuentoVecinos";
 import { SeccionAerea } from "./VistaAerea";
 import { IconoTipo, slugTipo } from "./TipoObra";
 
@@ -222,6 +223,7 @@ export function DetailSheet({
 
           {/* Dato alegado por vecinos: después de la evidencia oficial, para que
               la fuente (PLACE) nunca parezca respaldar lo que dicen los vecinos. */}
+          <RecuentoVecinos obra={obra} />
           <SenalVecinal obra={obra} />
 
           <button type="button" className="btn btn-primary" onClick={onClaim}>

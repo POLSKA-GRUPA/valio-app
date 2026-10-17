@@ -83,7 +83,7 @@ function borrador(obra: Obra): string {
   const adj = obra.adjudicacion;
   return `A la atención del organismo competente (${obra.organismo}):
 
-Por medio de la app ¿VALIÓ?, solicito explicaciones sobre «${obra.nombre}»${
+Al amparo de la Ley 19/2013, de transparencia, acceso a la información pública y buen gobierno, solicito información sobre «${obra.nombre}»${
     adj?.numExpediente ? ` (expediente ${adj.numExpediente})` : ""
   }.
 
@@ -131,7 +131,7 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
         // Contexto seguro (https o localhost): API moderna.
         await navigator.clipboard.writeText(texto);
       } else {
-        // Contexto no seguro (p. ej. la demo por http en la red local):
+        // Contexto no seguro (p. ej. un servidor local por http en la red):
         // navigator.clipboard no existe. Plan B clásico: textarea temporal.
         const area = document.createElement("textarea");
         area.value = texto;
@@ -186,8 +186,8 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
         </div>
         <div className="sheet-body">
           <div className="info-note">
-            La app redacta; tú revisas y envías. En la demo no hay destinatario real: cuando exista organismo
-            identificado con canal verificado, este paso te llevará al formulario oficial o a tu correo.
+            La app redacta; tú revisas y envías. Preséntalo como solicitud de acceso a la información pública en
+            la sede electrónica de tu ayuntamiento o en su registro.
           </div>
           <label className="sr-only" htmlFor="claim-texto">
             Texto del borrador

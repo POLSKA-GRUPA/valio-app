@@ -943,7 +943,8 @@
   font-size: 13px;
 }
 
-:root .capa-vecinos {
+:root .capa-vecinos,
+:root .recuento-vecinos {
   padding: 16px;
   border: 1px dashed rgba(255, 255, 255, 0.24);
   border-radius: 20px;
@@ -1437,3 +1438,47 @@
 :root .aerea-enlaces a { color: var(--ink); }
 :root .aerea-nota,
 :root .aerea-atribucion { color: var(--ink-3); }
+
+/* Recuento colectivo en la ficha */
+:root .recuento-pocos {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+:root .recuento-barras {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:root .recuento-barras li {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5em) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+:root .recuento-barra {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--tile);
+  overflow: hidden;
+}
+
+:root .recuento-barra span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--nopuedo);
+}
+
+:root .recuento-barras [data-voto="valio"] .recuento-barra span { background: var(--valio); }
+:root .recuento-barras [data-voto="no_valio"] .recuento-barra span { background: var(--novalio); }
+:root .recuento-barras [data-voto="explica"] .recuento-barra span { background: var(--explica); }
+
+:root .recuento-cifra small {
+  color: var(--ink-3);
+}

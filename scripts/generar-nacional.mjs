@@ -26,6 +26,8 @@ const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
 const DIR_NACIONAL = resolve(RAIZ_DATOS, "datos/nacional");
 const SALIDA_JSON = resolve(RAIZ_APP, "public/datos/municipios");
 const SALIDA_TS = resolve(RAIZ_APP, "lib/municipios-nacionales.ts");
+// Solo lo importa el servidor (recuento): no entra en lo que descarga el navegador.
+const SALIDA_IDS = resolve(RAIZ_APP, "lib/ids-nacionales.ts");
 const PILOTO = new Set(["03128"]); // Teulada: piloto verificado a mano
 
 function fallar(mensaje) {
@@ -128,6 +130,7 @@ const indice = JSON.parse(readFileSync(rutaIndice, "utf8"));
 
 const municipios = [];
 const salidas = new Map(); // se escribe todo al final, solo si todo valida
+const idsPublicados = []; // solo de municipios que se publican
 
 for (const entrada of indice) {
   if (PILOTO.has(entrada.ine)) continue;
@@ -163,6 +166,7 @@ for (const entrada of indice) {
     fuenteUrl: doc.poblacion.fuenteUrl,
   };
   salidas.set(`${entrada.ine}.json`, JSON.stringify({ ine: entrada.ine, generado: doc.generado, poblacion, obras }) + "\n");
+  idsPublicados.push(...vistos);
   municipios.push({ ine: entrada.ine, nombre: doc.municipio, provincia: doc.provincia, numObras: obras.length, poblacion });
   console.log(`  ${doc.municipio}: ${obras.length} obras adjudicadas (de ${doc.obras.length}; ${sinImporte} sin importe adjudicado)`);
 }
@@ -208,24 +212,47 @@ export interface MunicipioNacional {
 export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = ${JSON.stringify(municipios, null, 2)};
 `,
 );
-const TS_VIEJO = `${SALIDA_TS}.viejo`;
-rmSync(VIEJA, { recursive: true, force: true });
-const habiaCarpeta = existsSync(SALIDA_JSON);
-const habiaIndice = existsSync(SALIDA_TS);
+const IDS_NUEVO = `${SALIDA_IDS}.nuevo`;
+writeFileSync(
+  IDS_NUEVO,
+  `/**
+ * ⚠️ ARCHIVO GENERADO — no editar a mano.
+ * Regenerar con: node scripts/generar-nacional.mjs · ${generado}
+ * Ids de las obras nacionales publicadas: el recuento solo acepta votos a estas.
+ */
+
+export const IDS_NACIONALES: readonly string[] = ${JSON.stringify(idsPublicados.sort())};
+`,
+);
+// Carpeta, índice e ids se activan juntos; si algo falla a medias, vuelta atrás de todo.
+const activar = [
+  [NUEVA, SALIDA_JSON, VIEJA],
+  [TS_NUEVO, SALIDA_TS, `${SALIDA_TS}.viejo`],
+  [IDS_NUEVO, SALIDA_IDS, `${SALIDA_IDS}.viejo`],
+];
+for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true });
+const habia = activar.map(([, destino]) => existsSync(destino));
+const apartados = new Set();
+const activados = new Set();
 try {
-  if (habiaCarpeta) renameSync(SALIDA_JSON, VIEJA);
-  if (habiaIndice) renameSync(SALIDA_TS, TS_VIEJO);
-  renameSync(NUEVA, SALIDA_JSON);
-  renameSync(TS_NUEVO, SALIDA_TS);
+  activar.forEach(([, destino, viejo], i) => {
+    if (habia[i]) {
+      renameSync(destino, viejo);
+      apartados.add(i);
+    }
+  });
+  activar.forEach(([nuevo, destino], i) => {
+    renameSync(nuevo, destino);
+    activados.add(i);
+  });
 } catch (error) {
-  // Vuelta atrás: lo anterior queda como estaba.
-  if (habiaCarpeta && existsSync(VIEJA)) {
-    rmSync(SALIDA_JSON, { recursive: true, force: true });
-    renameSync(VIEJA, SALIDA_JSON);
-  }
-  if (habiaIndice && existsSync(TS_VIEJO)) renameSync(TS_VIEJO, SALIDA_TS);
+  // Vuelta atrás de todo: fuera lo nuevo ya activado (aunque antes no hubiera
+  // nada) y lo anterior a su sitio. Nunca queda una mezcla publicada.
+  activar.forEach(([, destino, viejo], i) => {
+    if (activados.has(i)) rmSync(destino, { recursive: true, force: true });
+    if (apartados.has(i)) renameSync(viejo, destino);
+  });
   fallar(`no se pudo activar la publicación nueva (se restaura la anterior): ${error.message}`);
 }
-rmSync(VIEJA, { recursive: true, force: true });
-rmSync(TS_VIEJO, { force: true });
-console.log(`✓ ${municipios.length} municipios → ${SALIDA_TS}`);
+for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true });
+console.log(`✓ ${municipios.length} municipios → ${SALIDA_TS} (${idsPublicados.length} ids → ${SALIDA_IDS})`);

@@ -1,5 +1,6 @@
 """Prueba E2E de ¿VALIÓ? — piloto real de Teulada: gestos, botones, teclado, ficha, borrador, persistencia."""
 import json
+import secrets
 import os
 import re
 import subprocess
@@ -13,6 +14,9 @@ from playwright.sync_api import sync_playwright
 # VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
 PESTAÑAS_ESPERADAS = ["Votar", "Obras", "Info"]
 BASE = os.environ.get("VALIO_BASE", "http://localhost:3000")
+# Contra producción, la UAT no puede sumar sus votos al recuento real: los POST
+# a /api/recuento se interceptan y las pruebas V1-V6 solo corren en local.
+LOCAL = urllib.parse.urlparse(BASE).hostname in ("localhost", "127.0.0.1")
 # Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
 os.makedirs(SHOTS, exist_ok=True)
@@ -200,8 +204,36 @@ def with_server():
 
 parar_servidor = with_server()
 
+def _api(metodo, ruta, cuerpo=None, cabeceras=None):
+    """(estado, json) de una llamada a la API del recuento."""
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    req = urllib.request.Request(BASE + ruta, data=datos, method=metodo, headers={"Content-Type": "application/json", **(cabeceras or {})})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+
+def _recuento(obra_id):
+    estado, datos = _api("GET", f"/api/recuento?obras={urllib.parse.quote(obra_id)}")
+    return datos.get("recuento", {}).get(obra_id) if estado == 200 else None
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
+    if not LOCAL:
+        _new_context = browser.new_context
+
+        def _sin_votos_reales(**kw):
+            c = _new_context(**kw)
+            c.route(
+                "**/api/recuento",
+                lambda route: route.fulfill(status=200, content_type="application/json", body='{"aplicados":0}')
+                if route.request.method == "POST"
+                else route.continue_(),
+            )
+            return c
+
+        browser.new_context = _sin_votos_reales
     ctx = browser.new_context(viewport={"width": 375, "height": 812}, has_touch=True, locale="es-ES")
     ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
     page = ctx.new_page()
@@ -1423,6 +1455,174 @@ with sync_playwright() as p:
     )
     ctx_r25.close()
 
+    # V1-V6 — Recuento colectivo y anónimo (solo en local, almacén en memoria:
+    # RECUENTO_MEMORIA=1 con next start).
+    if LOCAL:
+        ids = [m.group(1) for m in re.finditer(r'"id": "(OBRA-[^"]+)"', open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "lib", "obras.ts"), encoding="utf-8").read())]
+        obra_v = ids[-1]
+        antes = _recuento(obra_v)
+        check("V1 recuento: GET responde con contadores", antes is not None and "votos" in antes, f"{antes}")
+        r1 = secrets.token_hex(16)
+        voto = lambda valor, rev, recibo=r1, obra=obra_v: {"obra": obra, "tipo": "voto", "valor": valor, "recibo": recibo, "rev": rev}
+        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 1)]})
+        despues = _recuento(obra_v)
+        check(
+            "V1 recuento: un voto suma uno",
+            estado == 200 and despues and despues["votos"]["valio"] == antes["votos"]["valio"] + 1,
+            f"estado={estado} antes={antes} despues={despues}",
+        )
+        _api("POST", "/api/recuento", {"cambios": [voto("valio", 1)]})
+        _api("POST", "/api/recuento", {"cambios": [voto("valio", 2)]})
+        check("V1 recuento: reenviar el mismo recibo no suma dos veces", _recuento(obra_v) == despues, f"{_recuento(obra_v)}")
+        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("no_valio", 3)]})
+        cambio = _recuento(obra_v)
+        check(
+            "V2 recuento: cambiar el voto mueve uno de sitio",
+            estado == 200 and cambio["votos"]["valio"] == antes["votos"]["valio"] and cambio["votos"]["no_valio"] == antes["votos"]["no_valio"] + 1,
+            f"{cambio}",
+        )
+        # Una petición atrasada (versión vieja) no deshace el cambio.
+        _api("POST", "/api/recuento", {"cambios": [voto("valio", 2)]})
+        check("V2 recuento: una petición atrasada no deshace un cambio posterior", _recuento(obra_v) == cambio, f"{_recuento(obra_v)}")
+        e_obra, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 9, obra="no-existe")]})
+        e_voto, _ = _api("POST", "/api/recuento", {"cambios": [voto("me_gusta", 9)]})
+        e_recibo, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 9, recibo="corto")]})
+        e_rev, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", 0)]})
+        check("V3 recuento: rechaza obras, valores, recibos y versiones no válidas", (e_obra, e_voto, e_recibo, e_rev) == (400, 400, 400, 400), f"{e_obra} {e_voto} {e_recibo} {e_rev}")
+        # Quitar votos sin su recibo no resta nada: no se pueden borrar votos ajenos.
+        _api("POST", "/api/recuento", {"cambios": [voto(None, 1, recibo=secrets.token_hex(16)) for _ in range(5)]})
+        check("V3 recuento: sin el recibo no se quitan votos ajenos", _recuento(obra_v) == cambio, f"{_recuento(obra_v)}")
+        _api("POST", "/api/recuento", {"cambios": [voto(None, 4), voto(None, 5), voto(None, 6)]})
+        quitado = _recuento(obra_v)
+        check(
+            "V3 recuento: quitar con su recibo resta uno y ningún contador baja de cero",
+            quitado["votos"]["no_valio"] == antes["votos"]["no_valio"] and min(quitado["votos"].values()) >= 0,
+            f"{quitado}",
+        )
+        # El voto retirado no resucita con una petición atrasada.
+        _api("POST", "/api/recuento", {"cambios": [voto("no_valio", 3)]})
+        check("V3 recuento: una petición atrasada no resucita un voto retirado", _recuento(obra_v) == quitado, f"{_recuento(obra_v)}")
+
+        # V4 — votar en la app llega al recuento, y deshacer lo quita.
+        ctx_v = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        p_v = ctx_v.new_page()
+        p_v.goto(BASE, wait_until="networkidle")
+        p_v.get_by_role("button", name="Entendido, a votar").click()
+        esperar_sin_vuelo(p_v)
+        nombre_v = nombre_arriba(p_v).strip()
+        # El id de la obra no está en el DOM: se mira el total de todas.
+        total = lambda: sum(sum((_recuento(i) or {"votos": {}})["votos"].values()) for i in ids)
+        t0 = total()
+        p_v.get_by_role("button", name="Valió").first.click()
+        p_v.wait_for_timeout(2500)
+        t1 = total()
+        check("V4 recuento: un voto en la app llega al recuento", t1 == t0 + 1, f"{t0} -> {t1} ({nombre_v[:30]})")
+        p_v.get_by_role("button", name=re.compile("Deshacer")).click()
+        p_v.wait_for_timeout(2500)
+        check("V4 recuento: deshacer lo quita del recuento", total() == t0, f"{t0} -> {total()}")
+
+        # V5 — la ficha enseña el reparto a partir de 5 votos.
+        esperar_sin_vuelo(p_v)
+        _api("POST", "/api/recuento", {"cambios": [{"obra": i, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16), "rev": 1} for i in ids for _ in range(6)]})
+        p_v.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+        seccion = p_v.locator(".recuento-vecinos")
+        seccion.wait_for(timeout=5000)
+        p_v.wait_for_timeout(800)
+        texto = seccion.inner_text()
+        check(
+            "V5 recuento: la ficha enseña el reparto y avisa de que no es una encuesta",
+            seccion.locator(".recuento-barras li").count() == 4 and "no una encuesta" in texto,
+            texto[:160],
+        )
+        shot(p_v, "29-recuento-ficha")
+        ctx_v.close()
+
+        # V8 — dos pestañas votando la misma obra cuentan una sola vez.
+        ctx_v8 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        pa, pb = ctx_v8.new_page(), ctx_v8.new_page()
+        for pg in (pa, pb):
+            pg.goto(BASE, wait_until="networkidle")
+            if pg.get_by_role("button", name="Entendido, a votar").count():
+                pg.get_by_role("button", name="Entendido, a votar").click()
+            esperar_sin_vuelo(pg)
+        t0 = total()
+        badge_b = pb.locator(".brand-badge").inner_text()
+        pa.get_by_role("button", name="Valió").first.click()
+        pa.wait_for_timeout(3500)
+        badge_b2 = pb.locator(".brand-badge").inner_text()
+        check(
+            "V8 recuento: la otra pestaña ve el voto al momento y no lo vuelve a contar",
+            total() == t0 + 1 and badge_b2 != badge_b and " 1/" in badge_b2,
+            f"{t0} -> {total()} · B: {badge_b} -> {badge_b2}",
+        )
+        ctx_v8.close()
+
+        # V9 — dos pestañas votando obras distintas: se cuentan las dos y
+        # ninguna borra el voto de la otra.
+        ctx_v9 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        pa, pb = ctx_v9.new_page(), ctx_v9.new_page()
+        for pg in (pa, pb):
+            pg.goto(BASE, wait_until="networkidle")
+            if pg.get_by_role("button", name="Entendido, a votar").count():
+                pg.get_by_role("button", name="Entendido, a votar").click()
+            esperar_sin_vuelo(pg)
+        t0 = total()
+        pa.get_by_role("button", name="Valió").first.click()
+        pa.wait_for_timeout(2500)
+        # Sin recargar: B se entera del voto de A y le enseña la siguiente obra.
+        esperar_sin_vuelo(pb)
+        pb.get_by_role("button", name="No valió").first.click()
+        pb.wait_for_timeout(2500)
+        votos_guardados = pa.evaluate("Object.keys(JSON.parse(localStorage.getItem('valio.votos.v1') || '{}')).length")
+        check("V9 recuento: dos pestañas, obras distintas: suman dos y se guardan las dos", total() == t0 + 2 and votos_guardados == 2, f"{t0} -> {total()}, guardados={votos_guardados}")
+        ctx_v9.close()
+
+        # V10 — almacenamiento lleno: votar dos obras seguidas no hace
+        # desaparecer la primera de la pantalla.
+        ctx_v10 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        p10 = ctx_v10.new_page()
+        p10.goto(BASE, wait_until="networkidle")
+        if p10.get_by_role("button", name="Entendido, a votar").count():
+            p10.get_by_role("button", name="Entendido, a votar").click()
+        esperar_sin_vuelo(p10)
+        p10.evaluate("""() => {
+            const original = Storage.prototype.setItem;
+            Storage.prototype.setItem = function (k, v) {
+                if (k === 'valio.votos.v1') throw new DOMException('lleno', 'QuotaExceededError');
+                return original.call(this, k, v);
+            };
+        }""")
+        p10.get_by_role("button", name="Valió").first.click()
+        esperar_sin_vuelo(p10)
+        p10.get_by_role("button", name="No valió").first.click()
+        esperar_sin_vuelo(p10)
+        badge10 = p10.locator(".brand-badge").inner_text()
+        check("V10 recuento: con el almacenamiento lleno no se pierde el primer voto", " 2/" in badge10, badge10)
+        ctx_v10.close()
+
+        # V6 — freno de abuso: pasado el límite diario, 429.
+        r6 = secrets.token_hex(16)
+        lote = lambda base: [{"obra": obra_v, "tipo": "senal", "valor": "terminada" if k % 2 == 0 else None, "recibo": r6, "rev": base + k + 1} for k in range(200)]
+        codigos = [_api("POST", "/api/recuento", {"cambios": lote(200 * n)})[0] for n in range(2)]
+        check("V6 recuento: más de 300 cambios al día desde la misma conexión dan 429", codigos[-1] == 429, f"{codigos}")
+
+        # V7 — carga nacional: se cuentan votos a obras de Madrid, y un lote con
+        # una obra desconocida no pierde los cambios buenos. Se cambia de IP
+        # (X-Forwarded-For) porque V6 ya agotó el límite de esta.
+        id_madrid = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())["obras"][0]["id"]
+        cabecera_v7 = {"X-Forwarded-For": "203.0.113.77"}
+        antes_m = _recuento(id_madrid)
+        e_mixto, cuerpo_mixto = _api("POST", "/api/recuento", {"cambios": [
+            {"obra": id_madrid, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16), "rev": 1},
+            {"obra": "28079-000000000000", "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16), "rev": 1},
+        ]}, cabecera_v7)
+        despues_m = _recuento(id_madrid)
+        check(
+            "V7 recuento: vota obras nacionales y descarta solo lo desconocido",
+            e_mixto == 200 and antes_m is not None and despues_m["votos"]["valio"] == antes_m["votos"]["valio"] + 1,
+            f"{e_mixto} {cuerpo_mixto} {antes_m} -> {despues_m}",
+        )
+
     # R27 — Carga nacional (valio-app#67): municipios de valio-datos que se
     # descargan al elegirlos, con rótulo de dato oficial y su propia población.
     nacional = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "municipios", "28079.json"), encoding="utf-8").read())
@@ -1460,7 +1660,7 @@ with sync_playwright() as p:
     enlace = ficha.get_by_role("link", name="Plataforma de Contratación del Sector Público (PLACE)").first.get_attribute("href") or ""
     check("R27 NACIONAL: la ficha enlaza al anuncio oficial", enlace.startswith("https://contrataciondelestado.es/"), enlace)
     check("R27 NACIONAL: sin errores de página", not errores_r27, str(errores_r27[:2]))
-    shot(p_r27, "29-nacional-madrid")
+    shot(p_r27, "30-nacional-madrid")
     ctx_r27.close()
 
     browser.close()

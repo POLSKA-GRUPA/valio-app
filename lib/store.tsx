@@ -1,10 +1,11 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { SENALES, type Senal, type Senales } from "./senal";
 import { buscarMunicipio, cargarObras, existeMunicipio, obrasDe, type PoblacionMunicipio } from "./municipios";
 import type { Orden } from "./orden";
+import { useSincronizar } from "./useSincronizar";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
@@ -50,6 +51,68 @@ function leerVotos(): Votos {
   }
 }
 
+/** Si se puede leer localStorage: entonces es la copia que comparten las pestañas. */
+function almacenLegible(): boolean {
+  try {
+    window.localStorage.getItem(KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Leer, cambiar y guardar una clave sin que otra pestaña se cuele en medio
+ * (Web Storage no lo garantiza). Sin Web Locks (http sin cifrar), tal cual.
+ */
+function enOrden(clave: string, fn: () => void) {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (locks) void locks.request(`valio.guardar.${clave}`, async () => fn());
+  else fn();
+}
+
+/** Mismo contenido: no se cambia el estado (ni se vuelve a pintar). */
+function iguales(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+}
+
+/** Cambios que no se pudieron guardar: id → valor (null = quitado). */
+type Pendiente = Record<string, string | null>;
+
+function superponer<T extends Record<string, string>>(disco: T, pendiente: Pendiente): T {
+  const r: Record<string, string> = { ...disco };
+  for (const [id, v] of Object.entries(pendiente)) {
+    if (v === null) delete r[id];
+    else r[id] = v;
+  }
+  return r as T;
+}
+
+/**
+ * Aplica `cambio` sobre lo guardado (más lo pendiente) y lo guarda. Si no se
+ * puede guardar, recuerda la diferencia con el disco para no perderla.
+ */
+function guardarSobreDisco<T extends Record<string, string>>(
+  clave: string,
+  disco: T,
+  pendiente: { current: Pendiente },
+  cambio: (actual: T) => T,
+): T {
+  const next = cambio(superponer(disco, pendiente.current));
+  try {
+    window.localStorage.setItem(clave, JSON.stringify(next));
+    pendiente.current = {};
+  } catch {
+    const diferencia: Pendiente = {};
+    for (const id of new Set([...Object.keys(disco), ...Object.keys(next)])) {
+      if (next[id] !== disco[id]) diferencia[id] = next[id] ?? null;
+    }
+    pendiente.current = diferencia;
+  }
+  return next;
+}
+
 /** Solo vale un municipio que exista en los datos; si no, se vuelve a preguntar. */
 function leerMunicipio(): string | null {
   try {
@@ -92,6 +155,8 @@ interface StoreValue {
   /** Orden del mazo. Solo en memoria. */
   orden: Orden;
   setOrden: (orden: Orden) => void;
+  /** Sube cada vez que el recuento colectivo recibe un cambio de aquí. */
+  versionRecuento: number;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -104,6 +169,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [municipio, setMunicipio] = useState<string | null>(null);
   const [tipos, setTipos] = useState<Categoria[]>([]);
   const [orden, setOrden] = useState<Orden>("recientes");
+  const [versionRecuento, setVersionRecuento] = useState(0);
 
   useEffect(() => {
     setVotos(leerVotos());
@@ -117,41 +183,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setListo(true);
   }, []);
 
-  const persist = useCallback((next: Votos) => {
-    setVotos(next);
-    try {
-      window.localStorage.setItem(KEY, JSON.stringify(next));
-    } catch {
-      // sin persistencia, el voto vive solo en esta sesión
-    }
+  // Cada cambio se aplica sobre lo guardado, no sobre el estado de esta
+  // pestaña: así una pestaña no borra lo que votó otra. Lo que no se pudo
+  // guardar (almacenamiento lleno) se queda aparte y se aplica siempre encima.
+  const votosRef = useRef(votos);
+  votosRef.current = votos;
+  const votosSinGuardar = useRef<Pendiente>({});
+  const modificarVotos = useCallback((cambio: (actual: Votos) => Votos) => {
+    setVotos(cambio); // en pantalla ya; el guardado, en orden entre pestañas
+    enOrden(KEY, () => {
+      const next = guardarSobreDisco(KEY, almacenLegible() ? leerVotos() : votosRef.current, votosSinGuardar, cambio);
+      setVotos((prev) => (iguales(prev, next) ? prev : next));
+    });
   }, []);
 
   const votar = useCallback(
-    (id: string, voto: Voto) => {
-      persist({ ...votos, [id]: voto });
-    },
-    [persist, votos],
+    (id: string, voto: Voto) => modificarVotos((actual) => ({ ...actual, [id]: voto })),
+    [modificarVotos],
   );
 
   const quitarVoto = useCallback(
-    (id: string) => {
-      if (!(id in votos)) return;
-      const { [id]: _quitado, ...resto } = votos;
-      persist(resto);
-    },
-    [persist, votos],
+    (id: string) =>
+      modificarVotos((actual) => {
+        const { [id]: _quitado, ...resto } = actual;
+        return resto;
+      }),
+    [modificarVotos],
   );
 
+  const senalesRef = useRef(senales);
+  senalesRef.current = senales;
+  const senalesSinGuardar = useRef<Pendiente>({});
   const responderSenal = useCallback((id: string, senal: Senal) => {
-    setSenales((prev) => {
-      const next = { ...prev, [id]: senal };
-      try {
-        window.localStorage.setItem(SENALES_KEY, JSON.stringify(next));
-      } catch {
-        // sin persistencia, la respuesta vive solo en esta sesión
-      }
-      return next;
+    const cambio = (actual: Senales) => ({ ...actual, [id]: senal });
+    setSenales(cambio);
+    enOrden(SENALES_KEY, () => {
+      const next = guardarSobreDisco(SENALES_KEY, almacenLegible() ? leerSenales() : senalesRef.current, senalesSinGuardar, cambio);
+      setSenales((prev) => (iguales(prev, next) ? prev : next));
     });
+  }, []);
+
+  // Lo que vota otra pestaña aparece también en esta.
+  useEffect(() => {
+    const alCambiar = (e: StorageEvent) => {
+      if (e.key === KEY || e.key === null) setVotos(superponer(leerVotos(), votosSinGuardar.current));
+      if (e.key === SENALES_KEY || e.key === null) setSenales(superponer(leerSenales(), senalesSinGuardar.current));
+    };
+    window.addEventListener("storage", alCambiar);
+    return () => window.removeEventListener("storage", alCambiar);
   }, []);
 
   const marcarTutorialVisto = useCallback(() => {
@@ -215,12 +294,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const poblacion = ficha?.poblacion ?? null;
   const esPiloto = ficha ? ficha.ine === null : false;
 
+  useSincronizar(votos, senales, listo, () => setVersionRecuento((n) => n + 1));
+
   // «Volver a empezar» borra solo los votos del municipio actual: los de
   // otros municipios se conservan, igual que al cambiar de municipio.
   const reset = useCallback(() => {
     const deAqui = new Set(obras.map((o) => o.id));
-    persist(Object.fromEntries(Object.entries(votos).filter(([id]) => !deAqui.has(id))));
-  }, [persist, votos, obras]);
+    modificarVotos((actual) => Object.fromEntries(Object.entries(actual).filter(([id]) => !deAqui.has(id))));
+  }, [modificarVotos, obras]);
 
   const alternarTipo = useCallback((tipo: Categoria) => {
     setTipos((actual) => (actual.includes(tipo) ? actual.filter((t) => t !== tipo) : [...actual, tipo]));
@@ -252,6 +333,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrden,
       senales,
       responderSenal,
+      versionRecuento,
     }),
     [
       votos,
@@ -275,6 +357,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       orden,
       senales,
       responderSenal,
+      versionRecuento,
     ],
   );
 

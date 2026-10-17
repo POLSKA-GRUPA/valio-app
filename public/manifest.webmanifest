@@ -1,7 +1,7 @@
 {
   "name": "¿VALIÓ? · Obras públicas, costes y voto ciudadano",
   "short_name": "¿VALIÓ?",
-  "description": "Desliza y decide: ¿valió lo que costó? Demo con tarjetas de ejemplo.",
+  "description": "Las obras que paga tu ayuntamiento, con sus datos oficiales. Desliza y decide si valió lo que costó.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B0B10",

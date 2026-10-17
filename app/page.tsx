@@ -1,32 +1,22 @@
 "use client";
 
-import { Info as IconoInfo, Layers, List, MapPin, Vote, type LucideIcon } from "lucide-react";
+import { Info as IconoInfo, Layers, List, type LucideIcon } from "lucide-react";
 import { MotionConfig } from "framer-motion";
 import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Deck } from "@/components/Deck";
 import { ElegirMunicipio } from "@/components/ElegirMunicipio";
-import { CabreoMap, Info, Results } from "@/components/Panels";
+import { Info } from "@/components/Panels";
 import { ListaObras } from "@/components/ListaObras";
 
-type Pestaña = "votar" | "obras" | "cabreo" | "resultados" | "info";
-
-// P1 (#38): Cabreo y Resultados están vacías o con relleno. Se ocultan sin
-// borrar su código; para volver a mostrarlas basta con poner esto a true.
-const MOSTRAR_CABREO_Y_RESULTADOS = false;
+type Pestaña = "votar" | "obras" | "info";
 
 // Iconos Lucide en lugar de emojis (ISSUE-39).
-const TODAS_LAS_PESTAÑAS: { id: Pestaña; Icono: LucideIcon; etiqueta: string }[] = [
+const PESTAÑAS: { id: Pestaña; Icono: LucideIcon; etiqueta: string }[] = [
   { id: "votar", Icono: Layers, etiqueta: "Votar" },
   { id: "obras", Icono: List, etiqueta: "Obras" },
-  { id: "cabreo", Icono: MapPin, etiqueta: "Cabreo" },
-  { id: "resultados", Icono: Vote, etiqueta: "Resultados" },
   { id: "info", Icono: IconoInfo, etiqueta: "Info" },
 ];
-
-const PESTAÑAS = MOSTRAR_CABREO_Y_RESULTADOS
-  ? TODAS_LAS_PESTAÑAS
-  : TODAS_LAS_PESTAÑAS.filter((p) => p.id !== "cabreo" && p.id !== "resultados");
 
 /** Framer respeta «Reducir movimiento» del sistema. */
 export default function Home() {
@@ -115,8 +105,6 @@ function Contenido() {
         >
           {!cargando && !errorCarga && pestaña === "votar" && p.id === "votar" && <Deck />}
           {!cargando && !errorCarga && pestaña === "obras" && p.id === "obras" && <ListaObras />}
-          {pestaña === "cabreo" && p.id === "cabreo" && <CabreoMap votos={votos} />}
-          {pestaña === "resultados" && p.id === "resultados" && <Results />}
           {pestaña === "info" && p.id === "info" && <Info />}
         </div>
       ))}
