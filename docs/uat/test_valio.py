@@ -1577,6 +1577,29 @@ with sync_playwright() as p:
         check("V9 recuento: dos pestañas, obras distintas: suman dos y se guardan las dos", total() == t0 + 2 and votos_guardados == 2, f"{t0} -> {total()}, guardados={votos_guardados}")
         ctx_v9.close()
 
+        # V10 — almacenamiento lleno: votar dos obras seguidas no hace
+        # desaparecer la primera de la pantalla.
+        ctx_v10 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        p10 = ctx_v10.new_page()
+        p10.goto(BASE, wait_until="networkidle")
+        if p10.get_by_role("button", name="Entendido, a votar").count():
+            p10.get_by_role("button", name="Entendido, a votar").click()
+        esperar_sin_vuelo(p10)
+        p10.evaluate("""() => {
+            const original = Storage.prototype.setItem;
+            Storage.prototype.setItem = function (k, v) {
+                if (k === 'valio.votos.v1') throw new DOMException('lleno', 'QuotaExceededError');
+                return original.call(this, k, v);
+            };
+        }""")
+        p10.get_by_role("button", name="Valió").first.click()
+        esperar_sin_vuelo(p10)
+        p10.get_by_role("button", name="No valió").first.click()
+        esperar_sin_vuelo(p10)
+        badge10 = p10.locator(".brand-badge").inner_text()
+        check("V10 recuento: con el almacenamiento lleno no se pierde el primer voto", " 2/" in badge10, badge10)
+        ctx_v10.close()
+
         # V6 — freno de abuso: pasado el límite diario, 429.
         r6 = secrets.token_hex(16)
         lote = lambda base: [{"obra": obra_v, "tipo": "senal", "valor": "terminada" if k % 2 == 0 else None, "recibo": r6, "rev": base + k + 1} for k in range(200)]
