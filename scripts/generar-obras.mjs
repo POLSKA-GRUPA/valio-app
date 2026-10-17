@@ -188,7 +188,14 @@ if (existsSync(CSV_UBICACIONES)) {
       fallar(`${id}: coordenadas fuera del término municipal (${lat}, ${lon})`);
     if (!/^https?:\/\//.test(u.fuente_url)) fallar(`${id}: coordenada sin fuente_url`);
     if (!FUENTES_TIPO.includes(u.fuente_tipo)) fallar(`${id}: fuente_tipo desconocido (${u.fuente_tipo})`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(u.fecha_consulta)) fallar(`${id}: fecha_consulta inválida (${u.fecha_consulta})`);
+    const consulta = new Date(`${u.fecha_consulta}T00:00:00Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(u.fecha_consulta) ||
+      Number.isNaN(consulta.getTime()) ||
+      consulta.toISOString().slice(0, 10) !== u.fecha_consulta ||
+      consulta > new Date()
+    )
+      fallar(`${id}: fecha_consulta inválida (${u.fecha_consulta})`);
     if (!u.evidencia) fallar(`${id}: coordenada sin evidencia`);
     if (!VISIBLE_AIRE.includes(u.visible_aire)) fallar(`${id}: visible_aire desconocido (${u.visible_aire})`);
     const radioM = Number(u.radio_m);

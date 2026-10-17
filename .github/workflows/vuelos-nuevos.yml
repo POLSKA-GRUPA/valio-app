@@ -35,6 +35,7 @@ jobs:
           node scripts/hornear-vista-aerea.mjs --comprobar | tee vuelos.txt
           codigo=${PIPESTATUS[0]}
           if [ "$codigo" = 3 ]; then echo "nuevos=si" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # 4 = no se pudo consultar todo: el job falla a la vista, no calla.
           exit "$codigo"
       - name: Hornear y abrir PR
         if: steps.vuelos.outputs.nuevos == 'si'
@@ -49,6 +50,11 @@ jobs:
             echo "Ya hay un PR abierto desde $rama: no se duplica."; exit 0
           fi
           node scripts/hornear-vista-aerea.mjs
+          # Si lo único que cambia es la fecha de revisión, no hay nada que revisar.
+          cambios=$(git diff -U0 -- lib/aerea.ts | grep -E '^[+-][^+-]' | grep -v 'REVISADO' || true)
+          if [ -z "$cambios" ] && git diff --quiet -- public/aerea && [ -z "$(git ls-files --others --exclude-standard public/aerea)" ]; then
+            echo "Sin cambios en las fotos: no se abre PR."; exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$rama"

@@ -36,8 +36,8 @@ export function textoVeredicto(
   const fecha = fechaVuelo(v.ahora.fecha);
   if (corto) {
     const base: Record<VistaAerea["veredicto"], string> = {
-      posterior: "Foto posterior a la obra",
-      durante: "Foto tomada durante la obra",
+      posterior: "Foto posterior al plazo previsto",
+      durante: "Foto dentro del plazo previsto",
       anterior: `Así estaba en ${fecha}, antes de la obra`,
       indeterminado: "No se sabe si la foto es de antes o de después",
       sin_fechas: `Foto de ${fecha}`,
@@ -68,6 +68,14 @@ const PRECISION_TEXTO: Record<UbicacionPrecisa["precision"], string> = {
   zona: "la zona de la obra",
   tramo: "el tramo de la obra",
 };
+
+/** Licencia en una línea para la pastilla de la foto (texto completo en la ficha). */
+const licenciaCorta = (f: FotoAerea) => (f.fuente.startsWith("PNOA") ? "PNOA CC-BY 4.0 scne.es" : "ICV CC BY 4.0");
+
+/** Vuelo con su ventana si el servicio no da la fecha en el punto (ICV). */
+const vueloLargo = (f: FotoAerea) =>
+  `Vuelo de ${fechaVuelo(f.fecha)}` +
+  (f.ventana ? ` (entre el ${fechaEs(f.ventana[0])} y el ${fechaEs(f.ventana[1])})` : "");
 
 /** Vista aérea de la obra si la función está activa y hay foto horneada. */
 export function vistaDe(obra: Obra): { u: UbicacionPrecisa; v: VistaAerea } | null {
@@ -113,7 +121,7 @@ export function FotoTarjeta({ obra }: { obra: Obra }) {
         />
         <Anillo u={u} v={v} />
         <span className="aerea-pastilla">
-          {fechaVuelo(v.ahora.fecha)} · PNOA CC-BY 4.0 scne.es
+          {fechaVuelo(v.ahora.fecha)} · {licenciaCorta(v.ahora)}
         </span>
       </div>
       <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v, u.visibleAire, true)}</figcaption>
@@ -217,17 +225,14 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
         <div>
           <dt>Foto más reciente</dt>
           <dd>
-            Vuelo de {fechaVuelo(v.ahora.fecha)}
-            {v.ahora.resolucionM ? ` · ${v.ahora.resolucionM * 100} cm por píxel` : ""}
+            {vueloLargo(v.ahora)}
+            {v.ahora.resolucionM ? ` · ${Math.round(v.ahora.resolucionM * 100)} cm por píxel` : ""}
           </dd>
         </div>
         {v.antes && (
           <div>
             <dt>Foto anterior</dt>
-            <dd>
-              Vuelo de {fechaVuelo(v.antes.fecha)}
-              {v.antes.ventana ? ` (entre el ${fechaEs(v.antes.ventana[0])} y el ${fechaEs(v.antes.ventana[1])})` : ""}
-            </dd>
+            <dd>{vueloLargo(v.antes)}</dd>
           </div>
         )}
         {v.adjudicacion && (

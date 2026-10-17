@@ -88,10 +88,19 @@ async function pedir(url, intentos = 3) {
   for (let i = 1; ; i++) {
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const e = new Error(`HTTP ${r.status}`);
+        e.estado = r.status;
+        throw e;
+      }
       return r;
     } catch (e) {
-      if (i >= intentos) throw new Error(`${url}: ${e.message}`);
+      // Un 4xx no mejora reintentando (servicio o capa inexistente).
+      if (i >= intentos || (e.estado >= 400 && e.estado < 500)) {
+        const final = new Error(`${url}: ${e.message}`);
+        final.estado = e.estado;
+        throw final;
+      }
       await new Promise((ok) => setTimeout(ok, 1500 * i));
     }
   }
@@ -212,19 +221,31 @@ function finMes(aaaamm) {
 const iso = (d) => d.toISOString().slice(0, 10);
 
 /**
- * Relación temporal entre la foto «ahora» y la obra. El servicio solo da el
- * mes del vuelo, así que se trata como un intervalo [inicio, fin) del mes y
- * solo se afirma lo que vale para cualquier día de ese mes:
- *   anterior  — el mes entero es anterior a la adjudicación;
- *   posterior — el mes entero es posterior al fin previsto;
- *   durante   — el mes entero cae entre adjudicación y fin previsto;
+ * Intervalo [ini, fin) en que pudo tomarse la foto. IGN da el mes en el punto;
+ * el ICV, la ventana de vuelo de toda la Comunitat; si no se conoce, el año.
+ */
+function intervaloFoto(foto) {
+  if (/^\d{4}-\d{2}$/.test(foto.fecha)) return { ini: inicioMes(foto.fecha), fin: finMes(foto.fecha) };
+  if (foto.ventana) {
+    const fin = new Date(`${foto.ventana[1]}T00:00:00Z`);
+    fin.setUTCDate(fin.getUTCDate() + 1);
+    return { ini: new Date(`${foto.ventana[0]}T00:00:00Z`), fin };
+  }
+  const anyo = Number(foto.fecha);
+  return { ini: new Date(Date.UTC(anyo, 0, 1)), fin: new Date(Date.UTC(anyo + 1, 0, 1)) };
+}
+
+/**
+ * Relación temporal entre la foto «ahora» y la obra. Solo se afirma lo que
+ * vale para cualquier día del intervalo de la foto:
+ *   anterior  — todo el intervalo es anterior a la adjudicación;
+ *   posterior — todo el intervalo es posterior al fin previsto;
+ *   durante   — todo el intervalo cae entre adjudicación y fin previsto;
  *   indeterminado — cualquier solape con esos bordes, o sin fin previsto.
  * Que la obra se vea o no desde el aire va aparte (visibleAire).
  */
-function veredicto(fechaFoto, adjudicacion, finPrevisto) {
+function veredicto({ ini, fin }, adjudicacion, finPrevisto) {
   if (!adjudicacion) return "sin_fechas";
-  const ini = inicioMes(fechaFoto);
-  const fin = finMes(fechaFoto);
   if (fin <= adjudicacion) return "anterior";
   if (!finPrevisto) return "indeterminado";
   if (ini >= finPrevisto) return "posterior";
@@ -235,15 +256,18 @@ function veredicto(fechaFoto, adjudicacion, finPrevisto) {
 // Autocomprobación de las reglas de fechas (barata y evita regresiones).
 {
   const f = (t) => fechaEs(t);
+  const mes = (m) => intervaloFoto({ fecha: m });
   const casos = [
     [iso(sumarPlazo(f("31/01/2024"), "1 Mes(es)")), "2024-02-29"],
     [iso(sumarPlazo(f("21/11/2024"), "15 Día(s)")), "2024-12-06"],
     [iso(sumarPlazo(f("29/02/2024"), "1 Año(s)")), "2025-02-28"],
-    [veredicto("2024-06", f("20/06/2024"), f("20/08/2024")), "indeterminado"],
-    [veredicto("2024-06", f("01/07/2024"), f("01/08/2024")), "anterior"],
-    [veredicto("2024-06", f("01/03/2024"), f("01/05/2024")), "posterior"],
-    [veredicto("2024-06", f("01/05/2024"), f("01/08/2024")), "durante"],
-    [veredicto("2024-06", f("01/05/2024"), null), "indeterminado"],
+    [veredicto(mes("2024-06"), f("20/06/2024"), f("20/08/2024")), "indeterminado"],
+    [veredicto(mes("2024-06"), f("01/07/2024"), f("01/08/2024")), "anterior"],
+    [veredicto(mes("2024-06"), f("01/03/2024"), f("01/05/2024")), "posterior"],
+    [veredicto(mes("2024-06"), f("01/05/2024"), f("01/08/2024")), "durante"],
+    [veredicto(mes("2024-06"), f("01/05/2024"), null), "indeterminado"],
+    [veredicto(intervaloFoto({ fecha: "2025" }), f("01/03/2025"), f("01/04/2025")), "indeterminado"],
+    [veredicto(intervaloFoto({ fecha: "2025", ventana: ["2025-05-01", "2025-06-30"] }), f("01/03/2025"), f("01/04/2025")), "posterior"],
   ];
   for (const [obtenido, esperado] of casos)
     if (obtenido !== esperado) fallar(`regla de fechas rota: ${obtenido} ≠ ${esperado}`);
@@ -261,6 +285,81 @@ const conPunto = OBRAS.filter(
 );
 console.log(`${conPunto.length}/${OBRAS.length} obras con ubicación precisa`);
 
+// --- fuentes por punto -------------------------------------------------------
+
+/** Fallos de consulta: si hay alguno, no se puede afirmar «sin novedades». */
+const fallos = [];
+
+/**
+ * Años del ICV posteriores a la serie conocida (HISTORICO_ICV). El ICV no da
+ * fecha en el punto: sin ventana declarada se usa el año entero, lo que hace
+ * el veredicto conservador. Servicios 0202_{AAAA}{ámbito}{resolución}; se
+ * prueban los ámbitos de toda la Comunitat y de la provincia de Alicante.
+ */
+async function icvNuevos() {
+  const ultimo = Number(HISTORICO_ICV[0].anyo);
+  const hallados = [];
+  for (let anyo = ultimo + 1; anyo <= new Date().getUTCFullYear(); anyo++) {
+    for (const ambito of ["CVAL0025", "PALI0025", "CVAL0015", "PALI0015"]) {
+      const id = `${anyo}${ambito}`;
+      const wms = `https://terramapas.icv.gva.es/0202_${id}`;
+      try {
+        await pedir(`${wms}?SERVICE=WMS&REQUEST=GetCapabilities`);
+      } catch (e) {
+        if (!(e.estado >= 400 && e.estado < 500)) fallos.push(`ICV ${id}: ${e.message}`);
+        continue;
+      }
+      hallados.push({ anyo: String(anyo), wms, capa: `${id}_RGB`, inicio: null, fin: null, id });
+    }
+  }
+  return hallados;
+}
+
+/**
+ * Foto «ahora» de un punto: el vuelo más reciente con imagen en el punto entre
+ * el IGN (fecha del mes en el punto) y los años del ICV. A igualdad de año gana
+ * el IGN: mismo vuelo, fecha más precisa y licencia más simple.
+ */
+async function elegirAhora(o, c, icvExtra) {
+  const v = await fechaVuelo(ACTUAL.wms, ACTUAL.capaFecha, c).catch((e) => {
+    fallos.push(`IGN ${o.id}: ${e.message}`);
+    return null;
+  });
+  if (!v) fallos.push(`IGN ${o.id}: el servicio no da fecha de vuelo en el punto`);
+  let mejor = v && {
+    fecha: v.fecha,
+    ventana: null,
+    fuente: ACTUAL.fuente,
+    capa: ACTUAL.capa,
+    resolucionM: v.resolucionM,
+    atribucion: atribucionPnoa(v.fecha.slice(0, 4)),
+    origen: urlMapa(ACTUAL.wms, ACTUAL.capa, c),
+  };
+  const anyoMejor = () => (mejor ? Number(mejor.fecha.slice(0, 4)) : -1);
+  for (const h of [...icvExtra, ...HISTORICO_ICV]) {
+    if (Number(h.anyo) <= anyoMejor()) continue;
+    const url = urlMapa(h.wms, h.capa, c);
+    const webp = await imagen(url).catch((e) => {
+      fallos.push(`ICV ${h.capa} ${o.id}: ${e.message}`);
+      return null;
+    });
+    if (!webp) continue;
+    mejor = {
+      fecha: h.anyo,
+      ventana: h.inicio ? [h.inicio, h.fin] : null,
+      fuente: "Ortofoto ICV",
+      capa: h.capa,
+      resolucionM: null,
+      atribucion: atribucionIcv(h.anyo),
+      origen: url,
+      webp,
+    };
+  }
+  return mejor;
+}
+
+const icvExtra = await icvNuevos();
+
 // --- modo comprobar: ¿hay un vuelo más nuevo que el guardado? ---------------
 
 if (SOLO_COMPROBAR) {
@@ -271,28 +370,17 @@ if (SOLO_COMPROBAR) {
   } catch {
     // sin manifiesto previo: todo es nuevo
   }
-  const nuevos = [];
-  // ICV: ¿ha publicado un año posterior a la serie conocida que cubra el
-  // punto? Sus servicios se llaman 0202_{AAAA}{ámbito}{resolución}; se prueban
-  // los ámbitos de toda la Comunitat y de la provincia de Alicante.
-  const ultimoIcv = Number(HISTORICO_ICV[0].anyo);
-  const muestra = conPunto[0];
-  if (muestra) {
-    const c = encuadre(muestra.ubicacion.lat, muestra.ubicacion.lon, muestra.ubicacion.radioM);
-    for (let anyo = ultimoIcv + 1; anyo <= new Date().getUTCFullYear(); anyo++) {
-      for (const ambito of ["CVAL0025", "PALI0025", "CVAL0015", "PALI0015"]) {
-        const id = `${anyo}${ambito}`;
-        const url = urlMapa(`https://terramapas.icv.gva.es/0202_${id}`, `${id}_RGB`, c);
-        const hay = await imagen(url).catch(() => null);
-        if (hay) nuevos.push(`ICV ${id}: hay imagen en el punto de ${muestra.id} (añadirlo a HISTORICO_ICV y revisar)`);
-      }
-    }
-  }
+  const nuevos = icvExtra.map((h) => `ICV ${h.id}: servicio nuevo publicado (añadir su ventana de vuelo a HISTORICO_ICV)`);
   for (const o of conPunto) {
     const c = encuadre(o.ubicacion.lat, o.ubicacion.lon, o.ubicacion.radioM);
-    const v = await fechaVuelo(ACTUAL.wms, ACTUAL.capaFecha, c);
-    const guardada = previo[o.id]?.ahora?.fecha;
-    if (v && v.fecha !== guardada) nuevos.push(`${o.id}: ${guardada ?? "—"} → ${v.fecha}`);
+    const elegida = await elegirAhora(o, c, icvExtra);
+    const guardada = previo[o.id]?.ahora;
+    if (elegida && (elegida.fecha !== guardada?.fecha || elegida.capa !== guardada?.capa))
+      nuevos.push(`${o.id}: ${guardada?.fecha ?? "—"} (${guardada?.capa ?? "—"}) → ${elegida.fecha} (${elegida.capa})`);
+  }
+  if (fallos.length) {
+    console.error(`No se pudo comprobar todo (no se afirma «sin novedades»):\n  ${fallos.join("\n  ")}`);
+    process.exit(4);
   }
   if (nuevos.length) {
     console.log(`Vuelos nuevos:\n  ${nuevos.join("\n  ")}`);
@@ -312,10 +400,10 @@ for (const o of conPunto) {
   const c = encuadre(u.lat, u.lon, u.radioM);
   const caja = [c.latMin, c.lonMin, c.latMax, c.lonMax].map(redondea);
 
-  const vAhora = await fechaVuelo(ACTUAL.wms, ACTUAL.capaFecha, c);
-  if (!vAhora) fallar(`${o.id}: el servicio no da fecha de vuelo en el punto`);
-  const urlAhora = urlMapa(ACTUAL.wms, ACTUAL.capa, c);
-  const webpAhora = await imagen(urlAhora);
+  const elegida = await elegirAhora(o, c, icvExtra);
+  if (!elegida) fallar(`${o.id}: ninguna fuente da foto en el punto (${fallos.slice(-2).join("; ")})`);
+  const { webp: webpYa, ...ahora } = elegida;
+  const webpAhora = webpYa ?? (await imagen(ahora.origen));
   if (!webpAhora) fallar(`${o.id}: la ortofoto actual sale en blanco`);
   writeFileSync(resolve(DIR_IMG, `${o.id}-ahora.webp`), webpAhora);
 
@@ -324,13 +412,13 @@ for (const o of conPunto) {
 
   // «antes»: solo tiene sentido si la foto «ahora» es posterior o durante la
   // obra. Si es anterior, la propia foto «ahora» ya es el estado previo.
-  const juicio = veredicto(vAhora.fecha, adjudicacion, finPrevisto);
+  const juicio = veredicto(intervaloFoto(ahora), adjudicacion, finPrevisto);
   let antes = null;
   if (adjudicacion && juicio !== "anterior" && juicio !== "sin_fechas") {
     for (const h of HISTORICO_ICV) {
       if (new Date(`${h.fin}T23:59:59Z`) >= adjudicacion) continue;
       // Tampoco el mismo vuelo que «ahora» (IGN e ICV 2024 son el mismo vuelo).
-      if (h.anyo >= vAhora.fecha.slice(0, 4)) continue;
+      if (h.anyo >= ahora.fecha.slice(0, 4)) continue;
       const url = urlMapa(h.wms, h.capa, c);
       const webp = await imagen(url).catch(() => null);
       if (!webp) continue;
@@ -352,25 +440,19 @@ for (const o of conPunto) {
   vistas[o.id] = {
     caja,
     metrosAncho: c.metrosAncho,
-    ahora: {
-      src: `/aerea/${o.id}-ahora.webp`,
-      fecha: vAhora.fecha,
-      ventana: null,
-      fuente: ACTUAL.fuente,
-      capa: ACTUAL.capa,
-      resolucionM: vAhora.resolucionM,
-      atribucion: atribucionPnoa(vAhora.fecha.slice(0, 4)),
-      origen: urlAhora,
-    },
+    ahora: { src: `/aerea/${o.id}-ahora.webp`, ...ahora },
     antes,
     adjudicacion: adjudicacion ? iso(adjudicacion) : null,
     finPrevisto: finPrevisto ? iso(finPrevisto) : null,
     veredicto: juicio,
   };
   console.log(
-    `  ${o.id}: ahora ${vAhora.fecha} · antes ${antes?.fecha ?? "—"} · ${vistas[o.id].veredicto}`,
+    `  ${o.id}: ahora ${ahora.fecha} (${ahora.capa}) · antes ${antes?.fecha ?? "—"} · ${vistas[o.id].veredicto}`,
   );
 }
+
+if (fallos.length)
+  fallar(`consultas fallidas; no se escribe el manifiesto para no publicar una foto que quizá no es la más reciente:\n  ${fallos.join("\n  ")}`);
 
 const encabezado = `/**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
