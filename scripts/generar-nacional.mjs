@@ -12,6 +12,9 @@
  *      solo la provincia del municipio elegido), `public/datos/municipios.json`
  *      (los 8.000 y pico municipios de España para el buscador, también los
  *      que aún no tienen obras) y `lib/ids-nacionales.ts` (solo servidor).
+ *   4. Si existe `datos-geo/geocodificado.json` (scripts/geocodificar.mjs),
+ *      añade a cada obra que CartoCiudad situó por su título un campo
+ *      compacto `geo: [lat, lon, "calle"|"lugar"]` (aproximado, sin revisar).
  *   Teulada no se toca: sus obras son las del piloto verificado (lib/obras.ts).
  *   NO editar a mano lo generado: regenerar.
  *
@@ -23,6 +26,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { claveObra, lugarDelTitulo } from "./lugar-del-titulo.mjs";
 
 const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
@@ -33,6 +37,8 @@ const PADRON = resolve(RAIZ_DATOS, "datos/referencia/municipios.csv");
 // Solo lo importa el servidor (recuento): no entra en lo que descarga el navegador.
 const SALIDA_IDS = resolve(RAIZ_APP, "lib/ids-nacionales.ts");
 const PILOTO = new Set(["03128"]); // Teulada: piloto verificado a mano
+// Obras situadas por el título (scripts/geocodificar.mjs, CartoCiudad). Opcional.
+const GEO = resolve(RAIZ_APP, "datos-geo/geocodificado.json");
 
 function fallar(mensaje) {
   console.error(`✗ ${mensaje}`);
@@ -144,6 +150,24 @@ const padron = leerPadron(PADRON);
 // Teulada: el número de obras es el del piloto (lib/obras.ts), que se cuenta aquí.
 const obrasPiloto = (readFileSync(resolve(RAIZ_APP, "lib/obras.ts"), "utf8").match(/"municipio": "Teulada"/g) ?? []).length;
 
+// La clave lleva la consulta que sale del título con las reglas de hoy: lo
+// geocodificado con otro título u otras reglas simplemente no se usa.
+const geo = existsSync(GEO) ? JSON.parse(readFileSync(GEO, "utf8")).obras ?? {} : {};
+const fechasGeo = new Map(); // cp → fecha más reciente de las obras situadas
+let situadas = 0;
+
+/** [lat, lon, nivel] si CartoCiudad situó la obra por su título; si no, null. */
+function geoDe(ine, municipio, obra) {
+  const lugar = lugarDelTitulo(obra.nombre, municipio);
+  const r = lugar && geo[claveObra(obra.id, ine, lugar.consulta)];
+  if (!r || r.sinResultado || !Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return null;
+  if (r.precision !== "calle" && r.precision !== "lugar") return null;
+  const cp = ine.slice(0, 2);
+  if (!fechasGeo.has(cp) || r.fecha > fechasGeo.get(cp)) fechasGeo.set(cp, r.fecha);
+  // 5 decimales: ~1 m, de sobra para una ubicación aproximada.
+  return [Math.round(r.lat * 1e5) / 1e5, Math.round(r.lon * 1e5) / 1e5, r.precision];
+}
+
 const provincias = new Map(); // cp → { ine → municipio con sus obras }
 const numObras = new Map([["03128", obrasPiloto]]);
 const idsPublicados = []; // solo de municipios que se publican
@@ -163,6 +187,11 @@ for (const entrada of indice) {
     if (!(o.importeAdjudicadoSinIva > 0)) continue;
     if (!/^\d{4}/.test(fecha || "") || !o.urlOficial?.startsWith("https://")) continue;
     const obra = aObra(entrada.ine, o);
+    const g = geoDe(entrada.ine, doc.municipio, obra);
+    if (g) {
+      obra.geo = g;
+      situadas += 1;
+    }
     if (vistos.has(obra.id)) fallar(`${entrada.nombre}: id repetido ${obra.id}`);
     vistos.add(obra.id);
     obras.push(obra);
@@ -213,7 +242,8 @@ rmSync(NUEVA, { recursive: true, force: true });
 mkdirSync(NUEVA, { recursive: true });
 let bytes = 0;
 for (const [cp, municipios] of provincias) {
-  const texto = JSON.stringify({ generado, fechaConsulta: fechaEs(generado), municipios }) + "\n";
+  const fechaGeo = fechasGeo.has(cp) ? { fechaGeo: fechaEs(fechasGeo.get(cp)) } : {};
+  const texto = JSON.stringify({ generado, fechaConsulta: fechaEs(generado), ...fechaGeo, municipios }) + "\n";
   bytes += texto.length;
   writeFileSync(resolve(NUEVA, `${cp}.json`), texto);
 }
@@ -263,5 +293,6 @@ try {
 for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true });
 console.log(
   `✓ ${numObras.size} municipios con obras (${sinObras} sin adjudicaciones), ${idsPublicados.length} obras, ` +
-    `${provincias.size} provincias (${(bytes / 1e6).toFixed(1)} MB) · buscador con ${filasIndice.length} municipios`,
+    `${provincias.size} provincias (${(bytes / 1e6).toFixed(1)} MB) · buscador con ${filasIndice.length} municipios · ` +
+    `${situadas} situadas por el título (CartoCiudad)`,
 );

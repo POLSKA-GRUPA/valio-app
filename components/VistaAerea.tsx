@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
-import { tienePunto, type Obra, type UbicacionPrecisa } from "@/lib/obras";
+import { esAproximada, tienePunto, type Obra, type UbicacionAproximada, type UbicacionPrecisa } from "@/lib/obras";
 import { REVISADO, VISTAS_AEREAS, type FotoAerea, type VistaAerea } from "@/lib/aerea";
 
 // El mapa interactivo pesa (MapLibre): solo se descarga si el vecino lo pide.
@@ -173,7 +173,7 @@ function Comparador({ obra, u, v }: { obra: Obra; u: UbicacionPrecisa; v: VistaA
   );
 }
 
-function enlaces(u: UbicacionPrecisa) {
+function enlaces(u: { lat: number; lon: number; referenciaCatastral?: string | null }) {
   const ll = `${u.lat},${u.lon}`;
   const lista = [
     {
@@ -197,9 +197,65 @@ function enlaces(u: UbicacionPrecisa) {
 }
 
 /** Sección «Desde el aire» de la ficha. */
+/** Ortofoto PNOA más reciente del IGN alrededor de un punto (unos 200 m de alto), 720 × 480. */
+function ortofotoIgn(lat: number, lon: number): string {
+  const dLat = 0.0009;
+  const dLon = (dLat * 1.5) / Math.cos((lat * Math.PI) / 180);
+  const bbox = [lat - dLat, lon - dLon, lat + dLat, lon + dLon].map((n) => n.toFixed(6)).join(",");
+  return `https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=${encodeURIComponent(bbox)}&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg`;
+}
+
+/**
+ * Obra situada por una máquina a partir de su título (CartoCiudad): se dice
+ * que es aproximada, se enseña la ortofoto del IGN sin dar veredicto (no
+ * comprobamos la fecha de vuelo frente a la obra) y se atribuye la fuente
+ * como pide la licencia CC BY 4.0.
+ */
+function SeccionAproximada({ obra, u }: { obra: Obra; u: UbicacionAproximada }) {
+  const anyo = u.fuente.fechaConsulta.slice(-4);
+  return (
+    <section className="ficha-seccion" aria-labelledby="ficha-aerea">
+      <h3 id="ficha-aerea">Desde el aire</h3>
+      <p className="ficha-nota aerea-aproximada">
+        Ubicación aproximada, sin revisar a mano:{" "}
+        {u.nivel === "calle"
+          ? "un punto de la calle que nombra el título. La obra puede estar en otro tramo de la calle."
+          : "el lugar que nombra el título (colegio, parque, plaza…)."}{" "}
+        Situada automáticamente con CartoCiudad (IGN).
+      </p>
+      <div className="aerea-marco">
+        <img
+          src={ortofotoIgn(u.lat, u.lon)}
+          alt={`Foto aérea del IGN alrededor de ${u.nivel === "calle" ? "la calle" : "el lugar"} de «${obra.nombre}»`}
+          width={720}
+          height={480}
+          className="aerea-img"
+          loading="lazy"
+        />
+        <span className="aerea-punto" aria-hidden="true" />
+        <span className="aerea-pastilla">Sin fecha comprobada</span>
+      </div>
+      <ul className="aerea-enlaces">
+        {enlaces(u).map((e) => (
+          <li key={e.href}>
+            <a href={e.href} target="_blank" rel="noopener noreferrer">
+              {e.texto}
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="aerea-atribucion">
+        Ubicación: obra derivada de CartoCiudad {anyo} CC-BY 4.0 scne.es · Ortofoto: PNOA cedido por © Instituto
+        Geográfico Nacional
+      </p>
+    </section>
+  );
+}
+
 export function SeccionAerea({ obra }: { obra: Obra }) {
   const [mapa, setMapa] = useState(false);
   const u = obra.ubicacion;
+  if (esAproximada(u)) return <SeccionAproximada obra={obra} u={u} />;
   if (!tienePunto(u)) {
     return (
       <section className="ficha-seccion" aria-labelledby="ficha-aerea">
