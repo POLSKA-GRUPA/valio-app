@@ -90,8 +90,8 @@ function Contenido() {
         <section className="panel" aria-live="polite">
           <h2 className="panel-title">Aún no tenemos obras de {municipio}</h2>
           <p className="panel-intro">
-            En la Plataforma de Contratación del Sector Público no hemos encontrado obras adjudicadas de{" "}
-            {municipio} con actividad desde enero de 2024.
+            En la Plataforma de Contratación del Sector Público no hemos encontrado obras de {municipio} adjudicadas
+            con importe publicado y actividad desde enero de 2024, así que todavía no podemos enseñarte ninguna.
             {tienePlataformaPropia(ficha.ccaa)
               ? ` Muchos ayuntamientos de ${ficha.ccaa} publican sus contratos en la plataforma de su comunidad, que todavía no hemos cargado: no quiere decir que no haya obras.`
               : " Puede que haya obras de importe pequeño o publicadas en otro sitio: no quiere decir que no haya obras."}

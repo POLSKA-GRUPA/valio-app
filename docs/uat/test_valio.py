@@ -1687,16 +1687,17 @@ with sync_playwright() as p:
     )
     shot(p_r28, "31-sin-datos-barcelona")
     ctx_r28.close()
-    ctx_r28b = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
-    ctx_r28b.add_init_script("try { localStorage.setItem('valio.municipio.v1', 'València'); } catch (e) {}")
-    p_r28b = ctx_r28b.new_page()
-    p_r28b.goto(BASE, wait_until="networkidle")
-    if p_r28b.get_by_role("button", name="Entendido, a votar").count():
-        p_r28b.get_by_role("button", name="Entendido, a votar").click()
-    p_r28b.wait_for_selector(".brand-badge", timeout=15000)
-    check("R28 MIGRACIÓN: quien eligió València con la versión anterior sigue en València",
-          "València" in p_r28b.locator(".brand-badge").inner_text(), p_r28b.locator(".brand-badge").inner_text())
-    ctx_r28b.close()
+    for antiguo, esperado in (("València", "València"), ("Alacant/Alicante", "Alicante")):
+        ctx_r28b = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
+        ctx_r28b.add_init_script("try { localStorage.setItem('valio.municipio.v1', %s); } catch (e) {}" % json.dumps(antiguo))
+        p_r28b = ctx_r28b.new_page()
+        p_r28b.goto(BASE, wait_until="networkidle")
+        if p_r28b.get_by_role("button", name="Entendido, a votar").count():
+            p_r28b.get_by_role("button", name="Entendido, a votar").click()
+        p_r28b.wait_for_selector(".brand-badge", timeout=15000)
+        check(f"R28 MIGRACIÓN: quien eligió {antiguo} con la versión anterior sigue ahí",
+              esperado in p_r28b.locator(".brand-badge").inner_text(), p_r28b.locator(".brand-badge").inner_text())
+        ctx_r28b.close()
 
     browser.close()
 
