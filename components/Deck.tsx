@@ -66,6 +66,7 @@ function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void 
             {cifra}
           </p>
           <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
+          {obra.aviso && <p className="card-cifra-aviso">Solo el primer lote o adjudicatario</p>}
         </div>
       </div>
       <div className="card-info">
@@ -511,7 +512,7 @@ export function Deck() {
           <div className="empty-deck">
             <h2 className="display">Ya has votado todo</h2>
             <p>
-              Has recorrido las {obras.length} obras del piloto de {municipio}. Tus votos se
+              Has recorrido las {obras.length} obras de {municipio}. Tus votos se
               guardan en este dispositivo; desde cada ficha puedes pedir explicaciones al organismo.
             </p>
             <Recuento obras={obras} votos={votos} />

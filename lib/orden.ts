@@ -12,7 +12,7 @@ export const ORDEN_LABEL: Record<Orden, string> = {
  * licitación (los dos sin IVA). Pendiente de confirmar con Kenyi (informe semana 3).
  */
 export function importeDe(obra: Obra): number {
-  return obra.adjudicacion?.importeSinIva ?? obra.importeLicitacion;
+  return obra.adjudicacion?.importeSinIva ?? obra.importeLicitacion ?? 0;
 }
 
 /**

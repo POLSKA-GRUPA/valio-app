@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight, MapPin } from "lucide-react";
-import { MUNICIPIOS } from "@/lib/municipios";
+import { MUNICIPIOS, normalizar } from "@/lib/municipios";
 import { OBRAS } from "@/lib/obras";
 import { eurosCompactos } from "@/lib/formato";
 import { importeDe } from "@/lib/orden";
@@ -10,8 +10,9 @@ import { IconoTipo, slugTipo } from "./TipoObra";
 
 /**
  * Bienvenida con las tres obras de mayor importe en abanico
- * (como «Get Started» de Luma). Datos reales de lib/obras.ts; decorativo
- * para el lector, que ya tiene la pregunta y la lista.
+ * (como «Get Started» de Luma). Datos reales del piloto verificado
+ * (lib/obras.ts), no de la carga nacional; decorativo para el lector, que
+ * ya tiene la pregunta y la lista.
  */
 function Abanico() {
   const tres = [...OBRAS].sort((a, b) => importeDe(b) - importeDe(a)).slice(0, 3);
@@ -36,6 +37,9 @@ function Abanico() {
  */
 export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => void }) {
   const tituloRef = useRef<HTMLHeadingElement>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const idBuscar = useId();
+  const visibles = MUNICIPIOS.filter((m) => normalizar(m.nombre).includes(normalizar(busqueda)));
 
   // El lector empieza por la pregunta, no por el primer botón.
   useEffect(() => {
@@ -52,8 +56,25 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => vo
         Elige tu municipio para ver sus obras. Solo te preguntamos el municipio: nunca tu ubicación. Se guarda
         en este dispositivo.
       </p>
+      <label htmlFor={idBuscar} className="sr-only">
+        Busca tu municipio
+      </label>
+      <input
+        id={idBuscar}
+        type="search"
+        className="municipio-buscar"
+        placeholder="Busca tu municipio"
+        autoComplete="off"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+      />
+      {visibles.length === 0 && (
+        <p className="municipio-vacio" role="status">
+          Aún no tenemos obras de «{busqueda}». Estamos añadiendo municipios.
+        </p>
+      )}
       <ul className="municipio-lista">
-        {MUNICIPIOS.map((m) => (
+        {visibles.map((m) => (
           <li key={m.nombre}>
             <button type="button" className="btn municipio-btn" onClick={() => onElegir(m.nombre)}>
               <span className="municipio-punto" aria-hidden="true">

@@ -440,6 +440,8 @@
 :root .tag-EVIDENCIADO { color: #ffffff; background: rgba(255, 255, 255, 0.16); }
 :root .tag-CONTRADICHO { color: #f0c8ff; background: rgba(200, 120, 255, 0.18); }
 :root .tag-DESACTUALIZADO { color: var(--ink-soft); background: rgba(255, 255, 255, 0.08); }
+/* Carga nacional: dato oficial de PLACE que nadie ha revisado a mano. */
+:root .tag-OFICIAL_AUTOMATICO { color: #ffe6a8; background: rgba(255, 196, 64, 0.16); }
 
 /* Sellos y brillo del voto al arrastrar */
 :root .stamp {
@@ -1234,6 +1236,37 @@
   grid-column: 3;
   grid-row: 1 / 3;
   color: var(--ink-3);
+}
+
+:root .card-cifra-aviso {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ffe6a8;
+}
+
+:root .ficha-aviso { color: #ffe6a8; }
+
+:root .municipio-buscar {
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 12px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+:root .municipio-buscar::placeholder { color: var(--ink-3); }
+:root .municipio-buscar:focus-visible { outline: 3px solid var(--evidencia); outline-offset: 2px; }
+
+:root .municipio-vacio {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  text-align: center;
 }
 
 /* --- Pestaña Obras --------------------------------------------------------- */

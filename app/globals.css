@@ -372,6 +372,7 @@ body {
 /* Resto de niveles (el generador ya los admite): colores tag de GOV.UK.
    Contrastes: 6,2:1 · 5,7:1 · 8,6:1. */
 .tag-EVIDENCIADO { background: #cce2d8; color: #005a30; }
+.tag-OFICIAL_AUTOMATICO { background: #fde7b0; color: #5c3d00; }
 .tag-CONTRADICHO { background: #f4cdc6; color: #942514; }
 .tag-DESACTUALIZADO { background: #e5e6e7; color: #383f43; }
 

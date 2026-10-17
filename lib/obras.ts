@@ -5,7 +5,8 @@
  * Cada dato es rastreable hasta su ficha; nada inventado.
  */
 
-export type EstadoDato = "NO_VERIFICADO" | "EVIDENCIADO" | "CONTRADICHO" | "DESACTUALIZADO";
+/** OFICIAL_AUTOMATICO: cargado de PLACE sin revisión manual (carga nacional). */
+export type EstadoDato = "NO_VERIFICADO" | "EVIDENCIADO" | "CONTRADICHO" | "DESACTUALIZADO" | "OFICIAL_AUTOMATICO";
 
 export type Categoria = "deporte" | "educacion" | "medio ambiente" | "parques" | "patrimonio" | "seguridad" | "urbanismo";
 
@@ -24,6 +25,7 @@ export const ESTADO_LABEL: Record<EstadoDato, string> = {
   EVIDENCIADO: "Evidenciado",
   CONTRADICHO: "Contradicho",
   DESACTUALIZADO: "Desactualizado",
+  OFICIAL_AUTOMATICO: "Dato oficial, sin revisar a mano",
 };
 
 export interface Adjudicacion {
@@ -75,22 +77,25 @@ export interface Obra {
   anyo: number;
   estadoDato: EstadoDato;
   estadoEjecucion: "faltante";
-  importeLicitacion: number;
+  /** Presupuesto de licitación; null si la fuente no lo publica. */
+  importeLicitacion: number | null;
   ivaLicitacionIncluido: boolean;
   adjudicacion: Adjudicacion | null;
   ubicacion: Ubicacion | null;
   costePorHabitante: number;
   fuente: { nombre: string; url: string; fechaConsulta: string };
+  /** Limitación del dato que el vecino debe ver (p. ej. contrato con lotes). */
+  aviso?: string;
 }
 
 /** Denominador del coste por habitante (dossier §4.2: siempre explicado). */
 export const POBLACION = {
   "municipio": "Teulada",
-  "habitantes": 12932,
-  "referencia": "1 de enero de 2025",
-  "fuenteNombre": "INE — Nomenclátor (Censo Continuo)",
-  "fuenteUrl": "https://www.ine.es/nomen2/tabla.do?accion=busquedaRapida&nombrePoblacion=Teulada&desagregacionRapida=S&aniosRapida=2025"
-} as const;
+  "habitantes": 12912,
+  "referencia": "01/01/2025",
+  "fuenteNombre": "INE — Cifras oficiales del padrón (tabla 29005)",
+  "fuenteUrl": "https://www.ine.es/jaxiT3/Tabla.htm?t=29005"
+};
 
 export const OBRAS: Obra[] = [
   {
@@ -115,7 +120,7 @@ export const OBRAS: Obra[] = [
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/lY9LU4NAEIR_Sw5c2ckCqx4J71QwKC6EvVCbBK21WBZ5-PslCVeJzq2nuvubQQwdEGv4t_jgg1ANryddMFKa3t5x_BDDY2q4gHcupSS8SIzyq8EyHDPbZglJowAgCn13R9cWBJggtpAPrDkPv4wNf8svGNhyfY7YMgLPhqUX70GK6ciH0s68Fzt6MmC_eZ0Q2yR-SwK8BjBReuk4KamLo9Tf-anq9VZ1Q10NehZ5eeSiQoPPvtXgOPZfY3XmGviqk2PNO6E2806fHPdY5B-sczXwuq40iLlo3Ju4MlpJ6QFEImX5HNur1Q_v7O01/#Z7_AVEQAI930OBRD02JPMTPG21004",
       "fechaConsulta": "05/10/2026"
     },
-    "costePorHabitante": 13.74
+    "costePorHabitante": 13.76
   },
   {
     "id": "OBRA-02",
@@ -214,7 +219,7 @@ export const OBRAS: Obra[] = [
       "url": "https://contrataciondelestado.es/wps/portal/plataforma/buscadores/detalle/!ut/p/z1/hY9LD4IwEIR_kem2lAJHHqUUQUAeSi-ExMSQ8DDG8Psthqu6t8l-MzuLFLoiNffrcO9fwzL3o9atYh3lme-HEQG7NAIgSVDXLNokQQ26_EOUXsOXcUH71QcxDZ82cZOzUgoAGYVBUmMTBGE78COj1R2szm144UrHgMw76w5xnla5IBiAoXpenpP-p9yyhhtfR9RiajOgwDDe_UKAxJ4Aio-nAFhu8ZgX1Xbin_8xhY48tFOXVu4bCNQvNA!!/dz/d5/L2dBISEvZ0FBIS9nQSEh/",
       "fechaConsulta": "05/10/2026"
     },
-    "costePorHabitante": 2.16
+    "costePorHabitante": 2.17
   },
   {
     "id": "OBRA-05",
@@ -335,7 +340,7 @@ export const OBRAS: Obra[] = [
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=zQxIqrT8RiKLAncw3qdZkA%3D%3D",
       "fechaConsulta": "05/10/2026"
     },
-    "costePorHabitante": 2.86
+    "costePorHabitante": 2.87
   },
   {
     "id": "OBRA-08",
@@ -896,7 +901,7 @@ export const OBRAS: Obra[] = [
       "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=4%2Fpkb6LMt%2BwkJPJS%2BPS9vg%3D%3D",
       "fechaConsulta": "05/10/2026"
     },
-    "costePorHabitante": 2.55
+    "costePorHabitante": 2.56
   }
 ];
 
