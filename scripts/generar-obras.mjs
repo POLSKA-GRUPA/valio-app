@@ -156,6 +156,7 @@ function dentroDe(anillos, lon, lat) {
 const PRECISIONES = ["punto", "instalacion", "zona", "tramo", "municipio", "sin_ubicacion"];
 const VISIBLE_AIRE = ["si", "parcial", "no"];
 const ESTADOS_UBICACION = ["propuesta", "verificada"];
+const FUENTES_TIPO = ["pliego", "plano", "catastro", "cartociudad", "ortofoto"];
 
 const ubicaciones = new Map();
 const publicadas = new Set(filas.map((f) => `OBRA-${String(f.id).trim().padStart(2, "0")}`));
@@ -186,6 +187,8 @@ if (existsSync(CSV_UBICACIONES)) {
     if (!dentroDe(termino, lon, lat))
       fallar(`${id}: coordenadas fuera del término municipal (${lat}, ${lon})`);
     if (!/^https?:\/\//.test(u.fuente_url)) fallar(`${id}: coordenada sin fuente_url`);
+    if (!FUENTES_TIPO.includes(u.fuente_tipo)) fallar(`${id}: fuente_tipo desconocido (${u.fuente_tipo})`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(u.fecha_consulta)) fallar(`${id}: fecha_consulta inválida (${u.fecha_consulta})`);
     if (!u.evidencia) fallar(`${id}: coordenada sin evidencia`);
     if (!VISIBLE_AIRE.includes(u.visible_aire)) fallar(`${id}: visible_aire desconocido (${u.visible_aire})`);
     const radioM = Number(u.radio_m);

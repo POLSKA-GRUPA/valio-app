@@ -1240,6 +1240,7 @@ body {
 }
 
 .aerea-durante,
+.aerea-indeterminado,
 .aerea-anterior {
   border-left-color: var(--yellow-dark);
 }

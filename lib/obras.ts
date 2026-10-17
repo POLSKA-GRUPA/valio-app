@@ -1,7 +1,7 @@
 /**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/generar-obras.mjs
- * Fuente: valio-datos (obras-piloto.csv + ubicaciones.csv + fichas OBRA-XX.md) · 2026-10-16
+ * Fuente: valio-datos (obras-piloto.csv + ubicaciones.csv + fichas OBRA-XX.md) · 2026-10-17
  * Cada dato es rastreable hasta su ficha; nada inventado.
  */
 
@@ -361,17 +361,17 @@ export const OBRAS: Obra[] = [
     },
     "ubicacion": {
       "precision": "zona",
-      "lat": 38.686279,
-      "lon": 0.122682,
-      "radioM": 300,
+      "lat": 38.685728,
+      "lon": 0.125759,
+      "radioM": 150,
       "visibleAire": "parcial",
       "referenciaCatastral": null,
       "fuente": {
-        "tipo": "cartociudad",
-        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?q=Playetes%20Teulada&limit=10",
+        "tipo": "ortofoto",
+        "url": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG:4326&BBOX=38.684380,0.124030,38.687076,0.127488&WIDTH=640&HEIGHT=500&FORMAT=image/jpeg",
         "fechaConsulta": "2026-10-17"
       },
-      "evidencia": "Zona Les Platgetes: punto oficial de la urbanización «Playetes» (CartoCiudad, IGN). Ningún documento publica el trazado exacto de la obra. Objeto: «camino peatonal en la zona verde de platgetes». CartoCiudad (IGN NGBE) solo da el barrio «Urbanización Playetes» (38.686279,0.122682, en mitad de chalets; descartado como punto). Pista OSM (ODbL): parque way 552861850 junto a la «Platja de les Platgetes». Ortofoto PNOA: cala con zona ajardinada y sendas sobre la playa. Catastro: sin parcela (dominio público). Visibilidad: camino peatonal bajo arbolado: visible solo en parte.",
+      "evidencia": "Objeto: «camino peatonal en la zona verde de platgetes». Ningún documento publica el trazado. La zona verde con sendas junto a la cala de Les Platgetes se ve en la ortofoto PNOA 2024; el punto marca su centro (OpenStreetMap, parque 552861850, solo sirvió de pista para encontrarla). CartoCiudad solo nombra la «Urbanización Playetes», unos 280 m al oeste, entre chalets, por eso no se usa como punto. Catastro: sin parcela (dominio público). Visibilidad: camino peatonal bajo arbolado, visible solo en parte.",
       "estado": "propuesta"
     },
     "fuente": {
@@ -845,17 +845,17 @@ export const OBRAS: Obra[] = [
     },
     "ubicacion": {
       "precision": "zona",
-      "lat": 38.686279,
-      "lon": 0.122682,
-      "radioM": 300,
+      "lat": 38.685728,
+      "lon": 0.125759,
+      "radioM": 250,
       "visibleAire": "no",
       "referenciaCatastral": null,
       "fuente": {
-        "tipo": "cartociudad",
-        "url": "https://www.cartociudad.es/geocoder/api/geocoder/candidatesJsonp?q=Playetes%20Teulada&limit=10",
+        "tipo": "ortofoto",
+        "url": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG:4326&BBOX=38.684380,0.124030,38.687076,0.127488&WIDTH=640&HEIGHT=500&FORMAT=image/jpeg",
         "fechaConsulta": "2026-10-17"
       },
-      "evidencia": "Zona Les Platgetes: punto oficial de la urbanización «Playetes» (CartoCiudad, IGN). Ningún documento publica el trazado exacto de la obra. Objeto: «canalización subterránea para línea de alumbrado público en zona Les Platgetes». Misma zona que OBRA-08: cala de Les Platgetes (pista OSM «Platja de les Platgetes»; IGN NGBE «Urbanización Playetes» a ~280 m al O). Ortofoto: cala, zona verde y calles del entorno. Visibilidad: canalización eléctrica enterrada.",
+      "evidencia": "Objeto: «canalización subterránea para línea de alumbrado público en zona Les Platgetes». Ningún documento publica el trazado: se marca la zona de la cala de Les Platgetes (la misma que OBRA-08, comprobada en la ortofoto PNOA 2024) con un radio amplio. Confianza baja sobre el punto exacto. Visibilidad: canalización eléctrica enterrada.",
       "estado": "propuesta"
     },
     "fuente": {

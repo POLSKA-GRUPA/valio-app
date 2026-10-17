@@ -1,7 +1,8 @@
 name: Vuelos nuevos del IGN
 
 # Lo más parecido a «tiempo real» que permiten las fotos aéreas oficiales:
-# cada lunes se pregunta al IGN la fecha de vuelo en el punto de cada obra.
+# cada lunes se pregunta al IGN la fecha de vuelo en el punto de cada obra y
+# al ICV si ha publicado un año nuevo que cubra la zona.
 # Si hay un vuelo más nuevo que el guardado, se vuelven a hornear las fotos y
 # se abre un PR para que una persona lo revise antes de publicarlo.
 #
@@ -40,25 +41,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          rama="auto/vuelos-ign-$(date -u +%Y%m%d)"
-          if git ls-remote --exit-code origin "refs/heads/$rama" >/dev/null; then
-            echo "Ya existe $rama: no se duplica el PR."; exit 0
+          # Rama estable: un único PR vivo para los vuelos nuevos. Si ya hay uno
+          # abierto, no se duplica (la semana siguiente vería el mismo vuelo).
+          rama="auto/vuelos-ign"
+          abierto=$(gh pr list --head "$rama" --state open --json number --jq 'length')
+          if [ "$abierto" != "0" ]; then
+            echo "Ya hay un PR abierto desde $rama: no se duplica."; exit 0
           fi
           node scripts/hornear-vista-aerea.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$rama"
+          git checkout -B "$rama"
           git add public/aerea lib/aerea.ts
-          git commit -m "datos: fotos aéreas con el vuelo nuevo del IGN"
-          git push origin "$rama"
+          git commit -m "datos: fotos aéreas con el vuelo nuevo del IGN o del ICV"
+          # Sobrescribe una rama huérfana de un intento anterior sin PR.
+          git push --force origin "$rama"
           {
-            echo "El IGN ha publicado vuelos nuevos en el punto de estas obras:"
+            echo "Hay vuelos nuevos en el punto de estas obras:"
             echo
             echo '```'
             cat vuelos.txt
             echo '```'
             echo
-            echo "Revisar antes de fusionar: que las fotos se ven bien y que el texto de cada obra (anterior / durante / posterior) tiene sentido."
+            echo "Revisar antes de fusionar: que las fotos se ven bien y que el texto de cada obra tiene sentido."
+            echo "Si el aviso es del ICV, hay que añadir el año a HISTORICO_ICV en scripts/hornear-vista-aerea.mjs."
             echo "Para que corran los checks, cierra y reabre este PR."
           } > cuerpo.md
-          gh pr create --title "Fotos aéreas: vuelo nuevo del IGN" --body-file cuerpo.md --base main --head "$rama"
+          gh pr create --title "Fotos aéreas: vuelo nuevo" --body-file cuerpo.md --base main --head "$rama"

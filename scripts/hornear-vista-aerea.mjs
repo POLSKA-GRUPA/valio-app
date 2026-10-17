@@ -180,17 +180,27 @@ function fechaEs(texto) {
   return m ? new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])) : null;
 }
 
-/** Suma el plazo de PLACE («2 Mes(es)», «15 Día(s)», «1 Año(s)»). */
+/**
+ * Suma el plazo de PLACE («2 Mes(es)», «15 Día(s)», «1 Año(s)»). En meses y
+ * años, si el día no existe en el mes de destino se toma el último día del mes
+ * (31/01 + 1 mes = 29/02), no el desbordamiento de JavaScript (02/03).
+ */
 function sumarPlazo(fecha, plazo) {
   const m = plazo?.match(/(\d+)\s*(D[ií]a|Mes|A[ñn]o)/i);
   if (!fecha || !m) return null;
   const n = Number(m[1]);
-  const d = new Date(fecha);
   const unidad = m[2].toLowerCase();
-  if (unidad.startsWith("d")) d.setUTCDate(d.getUTCDate() + n);
-  else if (unidad.startsWith("m")) d.setUTCMonth(d.getUTCMonth() + n);
-  else d.setUTCFullYear(d.getUTCFullYear() + n);
-  return d;
+  if (unidad.startsWith("d")) {
+    const d = new Date(fecha);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d;
+  }
+  const meses = unidad.startsWith("m") ? n : n * 12;
+  const total = fecha.getUTCMonth() + meses;
+  const anyo = fecha.getUTCFullYear() + Math.floor(total / 12);
+  const mes = total % 12;
+  const ultimoDia = new Date(Date.UTC(anyo, mes + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(anyo, mes, Math.min(fecha.getUTCDate(), ultimoDia)));
 }
 
 const inicioMes = (aaaamm) => new Date(`${aaaamm}-01T00:00:00Z`);
@@ -202,15 +212,41 @@ function finMes(aaaamm) {
 const iso = (d) => d.toISOString().slice(0, 10);
 
 /**
- * Qué permite decir la foto «ahora» sobre la obra. Conservador: un vuelo del
- * mismo mes que la adjudicación cuenta como «durante», nunca como «después».
+ * Relación temporal entre la foto «ahora» y la obra. El servicio solo da el
+ * mes del vuelo, así que se trata como un intervalo [inicio, fin) del mes y
+ * solo se afirma lo que vale para cualquier día de ese mes:
+ *   anterior  — el mes entero es anterior a la adjudicación;
+ *   posterior — el mes entero es posterior al fin previsto;
+ *   durante   — el mes entero cae entre adjudicación y fin previsto;
+ *   indeterminado — cualquier solape con esos bordes, o sin fin previsto.
+ * Que la obra se vea o no desde el aire va aparte (visibleAire).
  */
-function veredicto(fechaFoto, adjudicacion, finPrevisto, visibleAire) {
-  if (visibleAire === "no") return "no_visible";
+function veredicto(fechaFoto, adjudicacion, finPrevisto) {
   if (!adjudicacion) return "sin_fechas";
-  if (finMes(fechaFoto) <= adjudicacion) return "anterior";
-  if (finPrevisto && inicioMes(fechaFoto) >= finPrevisto) return "posterior";
-  return "durante";
+  const ini = inicioMes(fechaFoto);
+  const fin = finMes(fechaFoto);
+  if (fin <= adjudicacion) return "anterior";
+  if (!finPrevisto) return "indeterminado";
+  if (ini >= finPrevisto) return "posterior";
+  if (ini >= adjudicacion && fin <= finPrevisto) return "durante";
+  return "indeterminado";
+}
+
+// Autocomprobación de las reglas de fechas (barata y evita regresiones).
+{
+  const f = (t) => fechaEs(t);
+  const casos = [
+    [iso(sumarPlazo(f("31/01/2024"), "1 Mes(es)")), "2024-02-29"],
+    [iso(sumarPlazo(f("21/11/2024"), "15 Día(s)")), "2024-12-06"],
+    [iso(sumarPlazo(f("29/02/2024"), "1 Año(s)")), "2025-02-28"],
+    [veredicto("2024-06", f("20/06/2024"), f("20/08/2024")), "indeterminado"],
+    [veredicto("2024-06", f("01/07/2024"), f("01/08/2024")), "anterior"],
+    [veredicto("2024-06", f("01/03/2024"), f("01/05/2024")), "posterior"],
+    [veredicto("2024-06", f("01/05/2024"), f("01/08/2024")), "durante"],
+    [veredicto("2024-06", f("01/05/2024"), null), "indeterminado"],
+  ];
+  for (const [obtenido, esperado] of casos)
+    if (obtenido !== esperado) fallar(`regla de fechas rota: ${obtenido} ≠ ${esperado}`);
 }
 
 // --- lectura de obras -------------------------------------------------------
@@ -236,6 +272,22 @@ if (SOLO_COMPROBAR) {
     // sin manifiesto previo: todo es nuevo
   }
   const nuevos = [];
+  // ICV: ¿ha publicado un año posterior a la serie conocida que cubra el
+  // punto? Sus servicios se llaman 0202_{AAAA}{ámbito}{resolución}; se prueban
+  // los ámbitos de toda la Comunitat y de la provincia de Alicante.
+  const ultimoIcv = Number(HISTORICO_ICV[0].anyo);
+  const muestra = conPunto[0];
+  if (muestra) {
+    const c = encuadre(muestra.ubicacion.lat, muestra.ubicacion.lon, muestra.ubicacion.radioM);
+    for (let anyo = ultimoIcv + 1; anyo <= new Date().getUTCFullYear(); anyo++) {
+      for (const ambito of ["CVAL0025", "PALI0025", "CVAL0015", "PALI0015"]) {
+        const id = `${anyo}${ambito}`;
+        const url = urlMapa(`https://terramapas.icv.gva.es/0202_${id}`, `${id}_RGB`, c);
+        const hay = await imagen(url).catch(() => null);
+        if (hay) nuevos.push(`ICV ${id}: hay imagen en el punto de ${muestra.id} (añadirlo a HISTORICO_ICV y revisar)`);
+      }
+    }
+  }
   for (const o of conPunto) {
     const c = encuadre(o.ubicacion.lat, o.ubicacion.lon, o.ubicacion.radioM);
     const v = await fechaVuelo(ACTUAL.wms, ACTUAL.capaFecha, c);
@@ -272,9 +324,9 @@ for (const o of conPunto) {
 
   // «antes»: solo tiene sentido si la foto «ahora» es posterior o durante la
   // obra. Si es anterior, la propia foto «ahora» ya es el estado previo.
-  const juicio = veredicto(vAhora.fecha, adjudicacion, finPrevisto, u.visibleAire);
+  const juicio = veredicto(vAhora.fecha, adjudicacion, finPrevisto);
   let antes = null;
-  if (adjudicacion && (juicio === "posterior" || juicio === "durante")) {
+  if (adjudicacion && juicio !== "anterior" && juicio !== "sin_fechas") {
     for (const h of HISTORICO_ICV) {
       if (new Date(`${h.fin}T23:59:59Z`) >= adjudicacion) continue;
       // Tampoco el mismo vuelo que «ahora» (IGN e ICV 2024 son el mismo vuelo).
@@ -329,7 +381,7 @@ const encabezado = `/**
 `;
 
 const cuerpo = `
-export type Veredicto = "posterior" | "durante" | "anterior" | "no_visible" | "sin_fechas";
+export type Veredicto = "posterior" | "durante" | "anterior" | "indeterminado" | "sin_fechas";
 
 export interface FotoAerea {
   src: string;
@@ -355,6 +407,9 @@ export interface VistaAerea {
   finPrevisto: string | null;
   veredicto: Veredicto;
 }
+
+/** Día en que se consultaron los servicios del IGN y del ICV por última vez. */
+export const REVISADO = "${new Date().toISOString().slice(0, 10)}";
 
 export const VISTAS_AEREAS: Record<string, VistaAerea> = ${JSON.stringify(vistas, null, 2)};
 `;

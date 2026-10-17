@@ -71,18 +71,25 @@ Salida:
 - `lib/aerea.ts` (generado), con fuente, capa, fecha de vuelo, caja y
   atribución de cada imagen.
 
-Comparación honesta, calculada en el generador:
+Comparación honesta, calculada al hornear. El servicio solo da el **mes** del
+vuelo, así que se trata como un intervalo y solo se afirma lo que vale para
+cualquier día de ese mes:
 
-| Caso | Texto |
+| Caso | Texto (ficha) |
 |---|---|
-| vuelo ≥ fin previsto (adjudicación + plazo) | «Foto posterior al plazo: se puede comprobar» |
-| vuelo entre adjudicación y fin previsto | «Foto tomada durante el plazo de la obra» |
-| vuelo < adjudicación | «Foto anterior a la obra: aún no sirve para comprobarla» |
-| `visible_aire = no` | «Esta obra no se ve desde el aire» |
+| el mes entero es posterior al fin previsto (adjudicación + plazo) | «Foto de …, posterior al plazo de la obra» |
+| el mes entero cae dentro del plazo | «Foto de …, tomada durante el plazo de la obra» |
+| el mes entero es anterior a la adjudicación | «Así estaba el sitio en …, antes de la obra. No consta foto oficial posterior (revisado el …)» |
+| solapa con la adjudicación o el fin, o falta el plazo | «no se puede saber si es anterior o posterior a la obra» |
 
-**«Tiempo real» honesto:** un job semanal (GitHub Actions) consulta la fecha de
-vuelo de cada punto. Si el IGN o el ICV publican un vuelo nuevo, vuelve a
-hornear las imágenes y abre un PR. El mapa interactivo usa teselas en vivo del
+Aparte, si `visible_aire = no`: «Lo contratado no se distingue desde el aire».
+La app nunca da la obra por hecha ni sugiere que no se hizo. El comparador
+antes/después solo aparece si la foto actual no es anterior a la obra.
+
+**«Tiempo real» honesto:** un job semanal (GitHub Actions) consulta al IGN la
+fecha de vuelo de cada punto y al ICV si hay un año nuevo que cubra la zona. Si
+hay novedad, vuelve a hornear las imágenes y abre un único PR (rama estable
+`auto/vuelos-ign`) para revisión humana. El mapa interactivo usa teselas en vivo del
 IGN, así que muestra el vuelo nuevo en cuanto existe.
 
 ## Interfaz
@@ -128,5 +135,5 @@ IGN, así que muestra el vuelo nuevo en cuanto existe.
 | A8 | Pulsar «Ver a pie de calle» | Street View abre en el sitio de la obra |
 | A9 | Con el flag apagado | La app es idéntica a la de hoy |
 
-Guion repetible: `docs/uat/GUION_VISTA_AEREA.md`. Pruebas automáticas: R20 en
-adelante en `docs/uat/test_valio.py`.
+Guion repetible: `docs/uat/GUION_VISTA_AEREA.md`. Pruebas automáticas: R20 a R26 en
+`docs/uat/test_valio.py`.

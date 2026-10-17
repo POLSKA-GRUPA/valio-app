@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { tienePunto, type Obra, type UbicacionPrecisa } from "@/lib/obras";
-import { VISTAS_AEREAS, type FotoAerea, type VistaAerea } from "@/lib/aerea";
+import { REVISADO, VISTAS_AEREAS, type FotoAerea, type VistaAerea } from "@/lib/aerea";
 import { VISTA_AEREA } from "@/lib/flags";
 
 // El mapa interactivo pesa (MapLibre): solo se descarga si el vecino lo pide.
@@ -24,23 +24,42 @@ export function fechaVuelo(fecha: string): string {
 const fechaEs = (iso: string) => iso.split("-").reverse().join("/");
 
 /**
- * Lo que permite decir la foto. Nunca sugiere que la obra no se hizo: si la
- * foto es anterior, es el estado previo del sitio y así se presenta.
+ * Lo que permite decir la foto. Dos ideas separadas: cuándo es la foto respecto
+ * a la obra y si lo que se hizo se distingue desde el aire. Nunca da la obra
+ * por hecha ni sugiere que no se hizo.
  */
-export function textoVeredicto(v: VistaAerea): string {
+export function textoVeredicto(
+  v: VistaAerea,
+  visibleAire: UbicacionPrecisa["visibleAire"],
+  corto = false,
+): string {
   const fecha = fechaVuelo(v.ahora.fecha);
-  switch (v.veredicto) {
-    case "posterior":
-      return `Foto de ${fecha}, posterior al plazo: sirve para comprobar la obra`;
-    case "durante":
-      return `Foto de ${fecha}, tomada durante el plazo de la obra`;
-    case "anterior":
-      return `Así estaba el sitio en ${fecha}, antes de la obra. Aún no hay foto oficial posterior`;
-    case "no_visible":
-      return "Dónde se hizo. La obra no se distingue desde el aire";
-    case "sin_fechas":
-      return `Foto de ${fecha}. Sin fecha de adjudicación para compararla`;
+  if (corto) {
+    const base: Record<VistaAerea["veredicto"], string> = {
+      posterior: "Foto posterior a la obra",
+      durante: "Foto tomada durante la obra",
+      anterior: `Así estaba en ${fecha}, antes de la obra`,
+      indeterminado: "No se sabe si la foto es de antes o de después",
+      sin_fechas: `Foto de ${fecha}`,
+    };
+    return visibleAire === "no" ? `${base[v.veredicto]} · lo contratado no se ve desde el aire` : base[v.veredicto];
   }
+  const cuando: Record<VistaAerea["veredicto"], string> = {
+    posterior: `Foto de ${fecha}, posterior al plazo de la obra`,
+    durante: `Foto de ${fecha}, tomada durante el plazo de la obra`,
+    anterior: `Así estaba el sitio en ${fecha}, antes de la obra. No consta foto oficial posterior (revisado el ${fechaEs(REVISADO)})`,
+    indeterminado: `Foto de ${fecha}: no se puede saber si es anterior o posterior a la obra`,
+    sin_fechas: `Foto de ${fecha}. Sin fecha de adjudicación para compararla`,
+  };
+  const ver =
+    visibleAire === "no"
+      ? "Lo contratado no se distingue desde el aire"
+      : v.veredicto === "posterior"
+        ? visibleAire === "parcial"
+          ? "Sirve en parte para comprobarla"
+          : "Sirve para comprobarla"
+        : null;
+  return ver ? `${cuando[v.veredicto]}. ${ver}.` : `${cuando[v.veredicto]}.`;
 }
 
 const PRECISION_TEXTO: Record<UbicacionPrecisa["precision"], string> = {
@@ -97,7 +116,7 @@ export function FotoTarjeta({ obra }: { obra: Obra }) {
           {fechaVuelo(v.ahora.fecha)} · PNOA CC-BY 4.0 scne.es
         </span>
       </div>
-      <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v)}</figcaption>
+      <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v, u.visibleAire, true)}</figcaption>
     </figure>
   );
 }
@@ -184,7 +203,7 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
   return (
     <section className="ficha-seccion" aria-labelledby="ficha-aerea">
       <h3 id="ficha-aerea">Desde el aire</h3>
-      <p className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v)}</p>
+      <p className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v, u.visibleAire)}</p>
       {v.antes ? (
         <Comparador obra={obra} u={u} v={v as VistaAerea & { antes: FotoAerea }} />
       ) : (

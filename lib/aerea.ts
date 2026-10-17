@@ -2,10 +2,10 @@
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/hornear-vista-aerea.mjs
  * Fotos aéreas oficiales de cada obra, con la fecha de vuelo que da el propio
- * servicio en el punto. Generado: 2026-10-16
+ * servicio en el punto. Generado: 2026-10-17
  */
 
-export type Veredicto = "posterior" | "durante" | "anterior" | "no_visible" | "sin_fechas";
+export type Veredicto = "posterior" | "durante" | "anterior" | "indeterminado" | "sin_fechas";
 
 export interface FotoAerea {
   src: string;
@@ -32,6 +32,9 @@ export interface VistaAerea {
   veredicto: Veredicto;
 }
 
+/** Día en que se consultaron los servicios del IGN y del ICV por última vez. */
+export const REVISADO = "2026-10-17";
+
 export const VISTAS_AEREAS: Record<string, VistaAerea> = {
   "OBRA-06": {
     "caja": [
@@ -54,7 +57,7 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
     "antes": null,
     "adjudicacion": "2024-12-05",
     "finPrevisto": "2025-01-04",
-    "veredicto": "no_visible"
+    "veredicto": "anterior"
   },
   "OBRA-07": {
     "caja": [
@@ -81,12 +84,12 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
   },
   "OBRA-08": {
     "caja": [
-      38.680889,
-      0.112325,
-      38.691669,
-      0.133039
+      38.683033,
+      0.12058,
+      38.688423,
+      0.130938
     ],
-    "metrosAncho": 1800,
+    "metrosAncho": 900,
     "ahora": {
       "src": "/aerea/OBRA-08-ahora.webp",
       "fecha": "2024-06",
@@ -95,7 +98,7 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
       "capa": "OI.OrthoimageCoverage",
       "resolucionM": 0.25,
       "atribucion": "Obra derivada de PNOA 2024 CC-BY 4.0 scne.es",
-      "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.680889%2C0.112325%2C38.691669%2C0.133039&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+      "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.683033%2C0.12058%2C38.688423%2C0.130938&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
     },
     "antes": null,
     "adjudicacion": "2024-11-21",
@@ -146,7 +149,7 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
     "antes": null,
     "adjudicacion": "2024-10-07",
     "finPrevisto": "2024-11-07",
-    "veredicto": "no_visible"
+    "veredicto": "anterior"
   },
   "OBRA-12": {
     "caja": [
@@ -189,10 +192,22 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
       "atribucion": "Obra derivada de PNOA 2024 CC-BY 4.0 scne.es",
       "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.726794%2C0.1002%2C38.731106%2C0.10849&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
     },
-    "antes": null,
+    "antes": {
+      "src": "/aerea/OBRA-13-antes.webp",
+      "fecha": "2023",
+      "ventana": [
+        "2023-04-16",
+        "2023-08-06"
+      ],
+      "fuente": "Ortofoto ICV",
+      "capa": "2023CVAL0025_RGB",
+      "resolucionM": 0.25,
+      "atribucion": "Obra derivada de Ortofoto 2023 CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat",
+      "origen": "https://terramapas.icv.gva.es/0202_2023CVAL0025?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=2023CVAL0025_RGB&STYLES=&CRS=EPSG%3A4326&BBOX=38.726794%2C0.1002%2C38.731106%2C0.10849&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+    },
     "adjudicacion": "2024-06-20",
     "finPrevisto": "2024-08-20",
-    "veredicto": "no_visible"
+    "veredicto": "indeterminado"
   },
   "OBRA-16": {
     "caja": [
@@ -212,10 +227,22 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
       "atribucion": "Obra derivada de PNOA 2024 CC-BY 4.0 scne.es",
       "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.71739%2C0.083634%2C38.737152%2C0.121634&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
     },
-    "antes": null,
+    "antes": {
+      "src": "/aerea/OBRA-16-antes.webp",
+      "fecha": "2023",
+      "ventana": [
+        "2023-04-16",
+        "2023-08-06"
+      ],
+      "fuente": "Ortofoto ICV",
+      "capa": "2023CVAL0025_RGB",
+      "resolucionM": 0.25,
+      "atribucion": "Obra derivada de Ortofoto 2023 CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat",
+      "origen": "https://terramapas.icv.gva.es/0202_2023CVAL0025?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=2023CVAL0025_RGB&STYLES=&CRS=EPSG%3A4326&BBOX=38.71739%2C0.083634%2C38.737152%2C0.121634&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+    },
     "adjudicacion": "2024-04-25",
     "finPrevisto": "2024-05-25",
-    "veredicto": "no_visible"
+    "veredicto": "posterior"
   },
   "OBRA-17": {
     "caja": [
@@ -235,10 +262,22 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
       "atribucion": "Obra derivada de PNOA 2024 CC-BY 4.0 scne.es",
       "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.727431%2C0.10269%2C38.729227%2C0.106144&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
     },
-    "antes": null,
+    "antes": {
+      "src": "/aerea/OBRA-17-antes.webp",
+      "fecha": "2023",
+      "ventana": [
+        "2023-04-16",
+        "2023-08-06"
+      ],
+      "fuente": "Ortofoto ICV",
+      "capa": "2023CVAL0025_RGB",
+      "resolucionM": 0.25,
+      "atribucion": "Obra derivada de Ortofoto 2023 CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat",
+      "origen": "https://terramapas.icv.gva.es/0202_2023CVAL0025?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=2023CVAL0025_RGB&STYLES=&CRS=EPSG%3A4326&BBOX=38.727431%2C0.10269%2C38.729227%2C0.106144&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+    },
     "adjudicacion": "2024-03-27",
     "finPrevisto": "2024-03-29",
-    "veredicto": "no_visible"
+    "veredicto": "posterior"
   },
   "OBRA-18": {
     "caja": [
@@ -258,19 +297,31 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
       "atribucion": "Obra derivada de PNOA 2024 CC-BY 4.0 scne.es",
       "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.679102%2C0.116208%2C38.683414%2C0.124494&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
     },
-    "antes": null,
+    "antes": {
+      "src": "/aerea/OBRA-18-antes.webp",
+      "fecha": "2023",
+      "ventana": [
+        "2023-04-16",
+        "2023-08-06"
+      ],
+      "fuente": "Ortofoto ICV",
+      "capa": "2023CVAL0025_RGB",
+      "resolucionM": 0.25,
+      "atribucion": "Obra derivada de Ortofoto 2023 CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat",
+      "origen": "https://terramapas.icv.gva.es/0202_2023CVAL0025?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=2023CVAL0025_RGB&STYLES=&CRS=EPSG%3A4326&BBOX=38.679102%2C0.116208%2C38.683414%2C0.124494&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+    },
     "adjudicacion": "2024-03-21",
     "finPrevisto": "2024-04-11",
-    "veredicto": "no_visible"
+    "veredicto": "posterior"
   },
   "OBRA-20": {
     "caja": [
-      38.680889,
-      0.112325,
-      38.691669,
-      0.133039
+      38.681236,
+      0.117128,
+      38.69022,
+      0.13439
     ],
-    "metrosAncho": 1800,
+    "metrosAncho": 1500,
     "ahora": {
       "src": "/aerea/OBRA-20-ahora.webp",
       "fecha": "2024-06",
@@ -279,11 +330,23 @@ export const VISTAS_AEREAS: Record<string, VistaAerea> = {
       "capa": "OI.OrthoimageCoverage",
       "resolucionM": 0.25,
       "atribucion": "Obra derivada de PNOA 2024 CC-BY 4.0 scne.es",
-      "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.680889%2C0.112325%2C38.691669%2C0.133039&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+      "origen": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&STYLES=&CRS=EPSG%3A4326&BBOX=38.681236%2C0.117128%2C38.69022%2C0.13439&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
     },
-    "antes": null,
+    "antes": {
+      "src": "/aerea/OBRA-20-antes.webp",
+      "fecha": "2023",
+      "ventana": [
+        "2023-04-16",
+        "2023-08-06"
+      ],
+      "fuente": "Ortofoto ICV",
+      "capa": "2023CVAL0025_RGB",
+      "resolucionM": 0.25,
+      "atribucion": "Obra derivada de Ortofoto 2023 CC BY 4.0 © Institut Cartogràfic Valencià, Generalitat",
+      "origen": "https://terramapas.icv.gva.es/0202_2023CVAL0025?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=2023CVAL0025_RGB&STYLES=&CRS=EPSG%3A4326&BBOX=38.681236%2C0.117128%2C38.69022%2C0.13439&WIDTH=720&HEIGHT=480&FORMAT=image%2Fjpeg"
+    },
     "adjudicacion": "2023-11-21",
     "finPrevisto": "2023-12-21",
-    "veredicto": "no_visible"
+    "veredicto": "posterior"
   }
 };

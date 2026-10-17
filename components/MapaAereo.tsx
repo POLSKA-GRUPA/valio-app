@@ -54,6 +54,9 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
   const mapa = useRef<MapaML | null>(null);
   const [capa, setCapa] = useState<string>(ACTUAL);
   const [error, setError] = useState(false);
+  // El selector de año espera a que el mapa exista: si no, un año elegido
+  // durante la carga se perdería y el mapa mostraría otro distinto.
+  const [listo, setListo] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -107,19 +110,21 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
       m.addControl(new NavigationControl({ showCompass: false }), "top-right");
       m.addControl(new AttributionControl({ compact: true }));
       m.on("error", () => setError(true));
+      m.once("load", () => vivo && setListo(true));
       mapa.current = m;
     });
     return () => {
       vivo = false;
       mapa.current?.remove();
       mapa.current = null;
+      setListo(false);
     };
   }, [u, v]);
 
   // Cambio de año: una única capa raster del ICV visible, por debajo del anillo.
   useEffect(() => {
     const m = mapa.current;
-    if (!m) return;
+    if (!m || !listo) return;
     const aplicar = () => {
       for (const [anyo] of ICV) {
         const id = `icv-${anyo}`;
@@ -138,15 +143,14 @@ export function MapaAereo({ u, v }: { u: UbicacionPrecisa; v: VistaAerea }) {
       });
       m.addLayer({ id, type: "raster", source: id }, "obra-borde");
     };
-    if (m.isStyleLoaded()) aplicar();
-    else m.once("load", aplicar);
-  }, [capa]);
+    aplicar();
+  }, [capa, listo]);
 
   return (
     <div className="aerea-mapa-caja">
       <label className="aerea-etiqueta">
         Foto del año{" "}
-        <select value={capa} onChange={(e) => setCapa(e.target.value)}>
+        <select value={capa} onChange={(e) => setCapa(e.target.value)} disabled={!listo}>
           <option value={ACTUAL}>Más reciente del IGN (guardada: {fechaVuelo(v.ahora.fecha)})</option>
           {ICV.map(([anyo]) => (
             <option key={anyo} value={anyo}>

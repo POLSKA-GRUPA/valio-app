@@ -59,6 +59,21 @@ def _con_punto_por_nombre():
 
 CON_PUNTO = _con_punto_por_nombre()
 
+def _con_antes_por_nombre():
+    """Nombres de obras cuya vista aérea trae foto «antes» (comparador)."""
+    raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(raiz, "lib", "obras.ts"), encoding="utf-8") as f:
+        fuente = f.read()
+    marca = "export const OBRAS: Obra[] = "
+    obras, _ = json.JSONDecoder().raw_decode(fuente, fuente.index(marca) + len(marca))
+    with open(os.path.join(raiz, "lib", "aerea.ts"), encoding="utf-8") as f:
+        fuente = f.read()
+    marca = "export const VISTAS_AEREAS: Record<string, VistaAerea> = "
+    vistas, _ = json.JSONDecoder().raw_decode(fuente, fuente.index(marca) + len(marca))
+    return {o["nombre"] for o in obras if (vistas.get(o["id"]) or {}).get("antes")}
+
+CON_ANTES = _con_antes_por_nombre()
+
 def nombre_arriba(page):
     """Nombre de la tarjeta de arriba del mazo. A diferencia de nombre_top, no
     puede leer una tarjeta que aún vuela (está fuera del primer hueco)."""
@@ -1077,12 +1092,17 @@ with sync_playwright() as p:
         foto = carta.locator(".aerea-img")
         check("R20 VISTA-AÉREA: la tarjeta muestra la foto aérea", foto.count() == 1)
         alt = foto.first.get_attribute("alt") or ""
-        check("R20 VISTA-AÉREA: la foto tiene texto alternativo con la fecha", "Foto aérea" in alt and "2024" in alt, alt)
+        anyo_alt = re.search(r"\b(19|20)\d{2}\b", alt)
+        check("R20 VISTA-AÉREA: la foto tiene texto alternativo con la fecha", "Foto aérea" in alt and anyo_alt is not None, alt)
         check("R20 VISTA-AÉREA: la foto no se arrastra sola", foto.first.get_attribute("draggable") == "false")
         cargada = p_r20.evaluate("(img) => img.complete && img.naturalWidth > 0", foto.first.element_handle())
         check("R20 VISTA-AÉREA: la imagen carga", cargada)
         pastilla = carta.locator(".aerea-pastilla").inner_text()
-        check("R20 VISTA-AÉREA: fecha del vuelo y licencia visibles", "2024" in pastilla and "CC-BY" in pastilla, pastilla)
+        check(
+            "R20 VISTA-AÉREA: fecha del vuelo y licencia visibles",
+            anyo_alt is not None and anyo_alt.group(0) in pastilla and "CC-BY" in pastilla,
+            pastilla,
+        )
         veredicto = carta.locator(".aerea-veredicto").inner_text()
         check(
             "R20 VISTA-AÉREA: el texto no sugiere que la obra no se hizo",
@@ -1122,16 +1142,29 @@ with sync_playwright() as p:
         check("R22 VISTA-AÉREA: atribución de la licencia en la ficha", "scne.es" in seccion.inner_text())
 
         # R23 — mapa interactivo bajo demanda, sin errores de consola.
-        errores_antes = len(console_errors)
+        # Escucha en ESTA página (los listeners globales van en otra).
+        errores_mapa, teselas = [], []
+        p_r20.on("console", lambda m: m.type == "error" and errores_mapa.append(m.text))
+        p_r20.on("pageerror", lambda e: errores_mapa.append(str(e)))
+        p_r20.on(
+            "response",
+            lambda r: ("ign.es/wmts" in r.url or "terramapas.icv.gva.es" in r.url)
+            and r.status == 200
+            and teselas.append(r.url),
+        )
         seccion.get_by_role("button", name="Explorar en el mapa").click()
         p_r20.wait_for_selector(".aerea-mapa canvas", timeout=15000)
+        p_r20.wait_for_function("() => !document.querySelector('.aerea-mapa-caja select')?.disabled", timeout=15000)
         p_r20.wait_for_timeout(2500)
-        check("R23 VISTA-AÉREA: el mapa carga", p_r20.locator(".aerea-mapa canvas").count() >= 1)
+        check("R23 VISTA-AÉREA: el mapa carga teselas del IGN", len(teselas) > 0, f"teselas={len(teselas)}")
+        n_antes = len(teselas)
+        p_r20.select_option(".aerea-mapa-caja select", "2023")
+        p_r20.wait_for_timeout(3000)
         check(
-            "R23 VISTA-AÉREA: sin errores al cargar el mapa",
-            len(console_errors) == errores_antes,
-            str(console_errors[errores_antes:][:2]),
+            "R23 VISTA-AÉREA: al elegir 2023 llegan teselas del ICV",
+            any("terramapas.icv.gva.es" in u for u in teselas[n_antes:]),
         )
+        check("R23 VISTA-AÉREA: sin errores al cargar el mapa", not errores_mapa, str(errores_mapa[:2]))
         shot(p_r20, "27-vista-aerea-mapa")
 
         # R24 — obra sin ubicación: lo dice y no pinta nada.
@@ -1153,6 +1186,35 @@ with sync_playwright() as p:
             detalle_r24 = f"sheets={p_r20.locator('.sheet').count()} imgs={p_r20.locator('.sheet .aerea-img').count()} {texto[:80]!r}"
         check("R24 VISTA-AÉREA: obra sin ubicación lo explica y no muestra foto", visto_sin, detalle_r24)
     ctx_r20.close()
+
+    if VISTA_AEREA and CON_ANTES:
+        # R26 — comparador antes/después: ratón y teclado, y el lector anuncia
+        # los dos años.
+        ctx_r26 = nuevo_contexto(browser, viewport={"width": 375, "height": 812}, locale="es-ES")
+        p_r26 = ctx_r26.new_page()
+        p_r26.goto(BASE, wait_until="networkidle")
+        p_r26.get_by_role("button", name="Entendido, a votar").click()
+        encontrada = False
+        for _ in range(len(CON_PUNTO) + 2):
+            esperar_sin_vuelo(p_r26)
+            if nombre_arriba(p_r26).strip() in CON_ANTES:
+                encontrada = True
+                break
+            p_r26.get_by_role("button", name="No puedo valorarlo").first.click()
+        check("R26 VISTA-AÉREA: hay una obra con comparador", encontrada)
+        if encontrada:
+            p_r26.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+            rango = p_r26.locator(".aerea-rango")
+            rango.wait_for(timeout=4000)
+            texto0 = rango.get_attribute("aria-valuetext") or ""
+            check("R26 VISTA-AÉREA: el comparador anuncia los dos años", len(re.findall(r"(19|20)\d{2}", texto0)) >= 2, texto0)
+            rango.focus()
+            for _ in range(4):
+                p_r26.keyboard.press("ArrowLeft")
+            estilo = p_r26.locator(".aerea-img-antes").get_attribute("style") or ""
+            check("R26 VISTA-AÉREA: las flechas mueven el comparador", "70%" in estilo, estilo)
+            shot(p_r26, "28-vista-aerea-comparador")
+        ctx_r26.close()
 
     if VISTA_AEREA:
         # R25 — recorre el mazo entero: llevan foto exactamente las obras con
