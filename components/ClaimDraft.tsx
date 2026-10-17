@@ -1,156 +1,126 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { animate, motion, useMotionValue, useTransform } from "framer-motion";
-import { ChevronRight, FileText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarPlus, Copy, Download, ExternalLink, FileText } from "lucide-react";
 import type { Obra } from "@/lib/obras";
-import { euros } from "@/lib/formato";
+import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { useHojaArrastrable } from "@/lib/useHoja";
+import {
+  CANALES,
+  ETIQUETA_PREGUNTA,
+  PREGUNTAS,
+  URL_REGISTRO,
+  calendario,
+  dondeReclamar,
+  fechaEs,
+  guardarSeguimiento,
+  hoyIso,
+  leerSeguimiento,
+  pasoUnMes,
+  reclamacion,
+  solicitud,
+  sumarMeses,
+  urlBuscarSede,
+  type Canal,
+  type Pregunta,
+  type Respuesta,
+  type Seguimiento,
+} from "@/lib/solicitud";
 
-const ANCHO_POMO = 58;
-
-/**
- * «Desliza para copiar». Es un botón de verdad: Enter,
- * Espacio, un toque o la activación de un lector de pantalla copian igual;
- * deslizar es el gesto táctil. Copiar no envía nada.
- */
-function DeslizarCopiar({ copiado, onCopiar }: { copiado: boolean; onCopiar: () => void }) {
-  const pistaRef = useRef<HTMLButtonElement>(null);
-  const x = useMotionValue(0);
-  const max = useRef(0);
-  const inicio = useRef<number | null>(null);
-  const ignorarClick = useRef(false);
-  const relleno = useTransform(x, (v) => (max.current ? Math.min(1, (v + ANCHO_POMO) / (max.current + ANCHO_POMO)) : 0));
-
-  const volver = () => animate(x, 0, { type: "spring", damping: 26, stiffness: 300 });
-
-  const soltar = (cancelado: boolean) => {
-    if (inicio.current == null) return;
-    inicio.current = null;
-    const recorrido = x.get();
-    // Tras un arrastre el navegador emite un clic que no debe copiar otra vez.
-    // Un pointercancel no emite clic: no se marca, o se perdería la siguiente copia.
-    ignorarClick.current = !cancelado && recorrido > 4;
-    if (!cancelado && recorrido > max.current * 0.85) {
-      animate(x, max.current, { duration: 0.12 });
-      onCopiar();
-      window.setTimeout(volver, 1200);
-    } else {
-      volver();
+async function copiarTexto(texto: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(texto);
+      return true;
     }
-  };
+    // Contexto no seguro (http en la red local): textarea temporal.
+    const area = document.createElement("textarea");
+    area.value = texto;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(area);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
+function descargar(nombre: string, texto: string, tipo: string) {
+  const url = URL.createObjectURL(new Blob([texto], { type: tipo }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Copiar con confirmación visible y anunciada. */
+function BotonCopiar({ texto, etiqueta }: { texto: string; etiqueta: string }) {
+  const [copiado, setCopiado] = useState(false);
   return (
     <button
-      ref={pistaRef}
       type="button"
-      className={`deslizar${copiado ? " hecho" : ""}`}
-      aria-label={copiado ? "¡Copiado!" : "Desliza para copiar borrador"}
-      onPointerDown={(e) => {
-        const pista = pistaRef.current;
-        if (!pista) return;
-        max.current = pista.clientWidth - ANCHO_POMO - 8;
-        inicio.current = e.clientX - x.get();
-        pista.setPointerCapture(e.pointerId);
-      }}
-      onPointerMove={(e) => {
-        if (inicio.current == null) return;
-        x.set(Math.max(0, Math.min(max.current, e.clientX - inicio.current)));
-      }}
-      onPointerUp={() => soltar(false)}
-      onPointerCancel={() => soltar(true)}
-      onClick={() => {
-        if (ignorarClick.current) {
-          ignorarClick.current = false;
-          return;
+      className="btn btn-primary claim-copiar"
+      onClick={async () => {
+        if (await copiarTexto(texto)) {
+          setCopiado(true);
+          window.setTimeout(() => setCopiado(false), 2500);
         }
-        onCopiar();
       }}
     >
-      <motion.span className="deslizar-relleno" style={{ scaleX: relleno }} aria-hidden="true" />
-      <span className="deslizar-texto" aria-hidden="true">
-        {copiado ? "¡Copiado!" : "Desliza para copiar borrador"}
-      </span>
-      <motion.span className="deslizar-pomo" style={{ x }} aria-hidden="true">
-        <ChevronRight size={22} strokeWidth={2.6} />
-      </motion.span>
+      <Copy size={18} aria-hidden="true" />
+      {copiado ? "¡Copiado!" : etiqueta}
     </button>
   );
 }
 
-function borrador(obra: Obra): string {
-  const adj = obra.adjudicacion;
-  return `A la atención del organismo competente (${obra.organismo}):
-
-Al amparo de la Ley 19/2013, de transparencia, acceso a la información pública y buen gobierno, solicito información sobre «${obra.nombre}»${
-    adj?.numExpediente ? ` (expediente ${adj.numExpediente})` : ""
-  }.
-
-Datos oficiales que constan (${obra.fuente.nombre}, consultada el ${obra.fuente.fechaConsulta}):
-- Presupuesto de licitación: ${
-    obra.importeLicitacion == null
-      ? "no consta en la fuente"
-      : `${euros(obra.importeLicitacion)} (IVA ${obra.ivaLicitacionIncluido ? "incluido" : "no incluido"})`
-  }.
-${
-    adj
-      ? `- Adjudicataria: ${adj.adjudicataria}${adj.cif ? ` (${adj.cif})` : ""}.
-- Importe de adjudicación: ${euros(adj.importeSinIva)} sin IVA.
-- Fecha del acuerdo de adjudicación: ${adj.fechaAcuerdo}; plazo de ejecución: ${adj.plazo}.
-`
-      : "- No he podido localizar la adjudicación en la fuente pública consultada.\n"
-  }${obra.aviso ? `- Nota: ${obra.aviso}\n` : ""}- Estado de ejecución: no localizado en las fuentes públicas consultadas.
-
-Solicitud:
-1. Informe del estado actual de ejecución y justificación de desviaciones de coste o plazo.
-2. Documentación contractual aplicable y fechas clave.
-3. Previsión de finalización o corrección.
-
-Quedo a la espera de respuesta por los canales oficiales.
-
-Atentamente,
-[NOMBRE Y APELLIDOS]
-[DNI/NIE]
-[DIRECCIÓN DE CONTACTO]
-
-Nota: este borrador lo ha generado la aplicación y debe revisarlo y enviarlo una persona.
-¿VALIÓ? nunca envía nada automáticamente.`;
-}
-
+/**
+ * Pedir explicaciones: el vecino elige qué quiere saber y cómo lo presentará,
+ * y la app le prepara el escrito (editable), le dice dónde presentarlo, le
+ * pone avisos de plazo en su calendario y, si no contestan, la reclamación.
+ * Copiar o descargar no envía nada; lo único que se guarda (en el dispositivo)
+ * es la fecha en que lo presentó.
+ */
 export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void }) {
   const dialogRef = useDialog(onClose);
   const { arrastre, asa } = useHojaArrastrable(onClose);
-  const inicial = useMemo(() => borrador(obra), [obra]);
-  const [texto, setTexto] = useState(inicial);
-  const [copiado, setCopiado] = useState(false);
+  const { ficha } = useStore();
+  const ccaa = ficha?.ccaa ?? "";
 
-  const copiar = async () => {
-    try {
-      if (navigator.clipboard) {
-        // Contexto seguro (https o localhost): API moderna.
-        await navigator.clipboard.writeText(texto);
-      } else {
-        // Contexto no seguro (p. ej. un servidor local por http en la red):
-        // navigator.clipboard no existe. Plan B clásico: textarea temporal.
-        const area = document.createElement("textarea");
-        area.value = texto;
-        area.setAttribute("readonly", "");
-        area.style.position = "fixed";
-        area.style.opacity = "0";
-        document.body.appendChild(area);
-        area.select();
-        area.setSelectionRange(0, texto.length);
-        const ok = document.execCommand("copy");
-        document.body.removeChild(area);
-        if (!ok) throw new Error("execCommand('copy') falló");
-      }
-      setCopiado(true);
-      window.setTimeout(() => setCopiado(false), 2500);
-    } catch {
-      setCopiado(false);
-    }
+  const [preguntas, setPreguntas] = useState<Pregunta[]>(["estado", "modificados"]);
+  const [otra, setOtra] = useState("");
+  const [canal, setCanal] = useState<Canal>("registro");
+  const generado = useMemo(() => solicitud(obra, preguntas, otra, canal), [obra, preguntas, otra, canal]);
+  // Si el vecino retoca el texto a mano, no se le pisa al cambiar opciones.
+  const [editado, setEditado] = useState<string | null>(null);
+  const texto = editado ?? generado;
+
+  const [seguimiento, setSeguimiento] = useState<Seguimiento | null>(null);
+  const [fecha, setFecha] = useState(hoyIso());
+  const [respuesta, setRespuesta] = useState<Respuesta | "si" | null>(null);
+  useEffect(() => setSeguimiento(leerSeguimiento(obra.id)), [obra.id]);
+
+  const alternar = (p: Pregunta) =>
+    setPreguntas((actual) => (actual.includes(p) ? actual.filter((x) => x !== p) : [...actual, p]));
+
+  const presentar = () => {
+    const s = { presentada: fecha, canal };
+    guardarSeguimiento(obra.id, s);
+    setSeguimiento(s);
   };
+  const donde = dondeReclamar(ccaa);
+  const textoReclamacion =
+    seguimiento && (respuesta === "denegada" || (respuesta === "silencio" && pasoUnMes(seguimiento.presentada)))
+      ? reclamacion(obra, seguimiento.presentada, respuesta, seguimiento.canal, ccaa)
+      : null;
 
   return (
     <>
@@ -166,7 +136,7 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Borrador de solicitud de explicaciones"
+        aria-label="Pedir explicaciones"
         className="sheet"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
@@ -179,32 +149,202 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
           <span className="ico-tile" aria-hidden="true">
             <FileText size={24} />
           </span>
-          <h2 className="display">Tu borrador</h2>
+          <h2 className="display">Pedir explicaciones</h2>
           <button type="button" className="sheet-close" onClick={onClose} aria-label="Cerrar borrador">
             ✕
           </button>
         </div>
-        <div className="sheet-body">
-          <div className="info-note">
-            La app redacta; tú revisas y envías. Preséntalo como solicitud de acceso a la información pública en
-            la sede electrónica de tu ayuntamiento o en su registro.
-          </div>
-          <label className="sr-only" htmlFor="claim-texto">
-            Texto del borrador
-          </label>
-          <textarea
-            id="claim-texto"
-            className="claim-textarea"
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-          />
-          <div className="claim-actions">
-            <DeslizarCopiar copiado={copiado} onCopiar={copiar} />
-            <p className="claim-hitl">Copiar no envía nada. Lo envías tú, cuando lo hayas revisado.</p>
-            <button type="button" className="btn" onClick={onClose}>
-              Cerrar
-            </button>
-          </div>
+        <div className="sheet-body claim">
+          <p className="info-note">
+            Tienes derecho a pedir esta información y deben contestarte en un mes. Te preparamos el escrito para{" "}
+            <b>{obra.organismo}</b>, que es quien contrató la obra. Tú lo revisas y lo presentas: copiar no envía nada.
+          </p>
+
+          {seguimiento ? (
+            <section className="claim-paso" aria-labelledby="claim-seguimiento">
+              <h3 id="claim-seguimiento">Lo presentaste el {fechaEs(seguimiento.presentada)}</h3>
+              <p className="claim-ayuda">
+                Tienen un mes para contestarte, hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. (cuenta
+                desde que lo recibe quien debe resolver, y pueden ampliarlo otro mes si te lo notifican). Si no contestan,
+                puedes reclamar cuando quieras; si te lo deniegan, tienes un mes desde que te lo notifican.
+              </p>
+              <fieldset className="claim-opciones">
+                <legend>¿Te han contestado?</legend>
+                {(
+                  [
+                    ["si", "Sí, con la información"],
+                    ["denegada", "Me lo han denegado"],
+                    ["silencio", "No me han contestado"],
+                  ] as const
+                ).map(([valor, etiqueta]) => (
+                  <label key={valor} className="claim-chip">
+                    <input
+                      type="radio"
+                      name="claim-respuesta"
+                      checked={respuesta === valor}
+                      onChange={() => setRespuesta(valor)}
+                    />
+                    {etiqueta}
+                  </label>
+                ))}
+              </fieldset>
+              {respuesta === "silencio" && !pasoUnMes(seguimiento.presentada) && (
+                <p className="claim-ayuda" role="status">
+                  Aún no ha pasado un mes: tienen hasta el {fechaEs(sumarMeses(seguimiento.presentada, 1))} aprox. para
+                  contestar. Te lo recordamos en el calendario; entonces podrás preparar aquí la reclamación.
+                </p>
+              )}
+              {respuesta === "si" && (
+                <p className="claim-ayuda">
+                  ¡Bien! Si la respuesta dice algo sobre la obra que no cuadra con lo que ves, puedes volver a votarla.
+                </p>
+              )}
+              {textoReclamacion && (
+                <>
+                  <p className="claim-ayuda">
+                    Puedes reclamar ante <b>{donde.nombre}</b>.{" "}
+                    <a href={donde.url} target="_blank" rel="noopener noreferrer">
+                      Dónde presentarla <ExternalLink size={14} aria-hidden="true" />
+                    </a>
+                  </p>
+                  <label className="sr-only" htmlFor="claim-reclamacion">
+                    Texto de la reclamación
+                  </label>
+                  <textarea id="claim-reclamacion" className="claim-textarea" readOnly value={textoReclamacion} />
+                  <div className="claim-acciones">
+                    <BotonCopiar texto={textoReclamacion} etiqueta="Copiar reclamación" />
+                  </div>
+                </>
+              )}
+              <button
+                type="button"
+                className="btn claim-secundario"
+                onClick={() => {
+                  guardarSeguimiento(obra.id, null);
+                  setSeguimiento(null);
+                  setRespuesta(null);
+                }}
+              >
+                Preparar otra solicitud
+              </button>
+            </section>
+          ) : (
+            <>
+              <fieldset className="claim-paso claim-opciones">
+                <legend>1. ¿Qué quieres saber?</legend>
+                {(Object.keys(PREGUNTAS) as Pregunta[]).map((p) => (
+                  <label key={p} className="claim-chip">
+                    <input type="checkbox" checked={preguntas.includes(p)} onChange={() => alternar(p)} />
+                    {ETIQUETA_PREGUNTA[p]}
+                  </label>
+                ))}
+                <label className="claim-otra">
+                  <span>Otra pregunta (opcional)</span>
+                  <input type="text" value={otra} onChange={(e) => setOtra(e.target.value)} maxLength={300} />
+                </label>
+              </fieldset>
+
+              <fieldset className="claim-paso claim-canales">
+                <legend>2. ¿Cómo lo vas a presentar?</legend>
+                {(Object.keys(CANALES) as Canal[]).map((c) => (
+                  <label key={c} className={`claim-canal${canal === c ? " activo" : ""}`}>
+                    <input type="radio" name="claim-canal" checked={canal === c} onChange={() => setCanal(c)} />
+                    <span>
+                      <b>
+                        {CANALES[c].titulo}
+                        {c === "registro" ? " · recomendado" : ""}
+                      </b>
+                      <small>{CANALES[c].detalle}</small>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+
+              <section className="claim-paso" aria-labelledby="claim-texto-titulo">
+                <h3 id="claim-texto-titulo">3. Tu escrito</h3>
+                {editado !== null && (
+                  <p className="claim-ayuda">
+                    Lo has retocado a mano.{" "}
+                    <button type="button" className="btn-texto" onClick={() => setEditado(null)}>
+                      Volver al texto generado
+                    </button>
+                  </p>
+                )}
+                <label className="sr-only" htmlFor="claim-texto">
+                  Texto del borrador
+                </label>
+                <textarea
+                  id="claim-texto"
+                  className="claim-textarea"
+                  value={texto}
+                  onChange={(e) => setEditado(e.target.value)}
+                />
+                <div className="claim-acciones">
+                  <BotonCopiar texto={texto} etiqueta="Copiar borrador" />
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => descargar(`solicitud-${obra.id}.txt`, texto, "text/plain;charset=utf-8")}
+                  >
+                    <Download size={18} aria-hidden="true" />
+                    Descargar
+                  </button>
+                  {canal === "registro" && (
+                    <a className="btn" href={URL_REGISTRO} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink size={18} aria-hidden="true" />
+                      Abrir el Registro
+                    </a>
+                  )}
+                  {canal === "sede" && (
+                    <a className="btn" href={urlBuscarSede(obra.organismo)} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink size={18} aria-hidden="true" />
+                      Buscar su sede
+                    </a>
+                  )}
+                </div>
+                {canal === "registro" && (
+                  <p className="claim-ayuda">
+                    En el Registro, elige como destino a {obra.organismo}. Si no aparece, preséntalo en su sede
+                    electrónica.
+                  </p>
+                )}
+              </section>
+
+              <section className="claim-paso" aria-labelledby="claim-presentado">
+                <h3 id="claim-presentado">4. ¿Ya lo has presentado?</h3>
+                <p className="claim-ayuda">
+                  Apunta la fecha del justificante y te avisamos en tu calendario cuando toque mirar si contestaron. Solo
+                  se guarda en este dispositivo.
+                </p>
+                <div className="claim-fecha">
+                  <label htmlFor="claim-fecha">Fecha</label>
+                  <input
+                    id="claim-fecha"
+                    type="date"
+                    value={fecha}
+                    max={hoyIso()}
+                    onChange={(e) => setFecha(e.target.value || hoyIso())}
+                  />
+                </div>
+                <div className="claim-acciones">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      presentar();
+                      descargar(`valio-avisos-${obra.id}.ics`, calendario(obra, fecha), "text/calendar;charset=utf-8");
+                    }}
+                  >
+                    <CalendarPlus size={18} aria-hidden="true" />
+                    Ya lo presenté: avisarme
+                  </button>
+                </div>
+              </section>
+            </>
+          )}
+          <button type="button" className="btn claim-cerrar" onClick={onClose}>
+            Cerrar
+          </button>
         </div>
       </motion.div>
     </>

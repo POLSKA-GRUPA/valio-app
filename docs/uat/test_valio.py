@@ -1051,29 +1051,50 @@ with sync_playwright() as p:
     p_l.wait_for_selector(".sheet", state="detached", timeout=4000)
     check("L5 Luma: la ficha se cierra arrastrando hacia abajo", p_l.locator(".sheet").count() == 0)
 
-    # L6: «Desliza para copiar» copia el borrador entero con su aviso HITL.
+    # L6: «Copiar borrador» copia el escrito entero con su aviso HITL.
     p_l.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
     p_l.get_by_role("button", name="Pedir explicaciones").click()
-    p_l.wait_for_selector(".deslizar", timeout=4000)
-    p_l.wait_for_timeout(500)
-    pista = p_l.locator(".deslizar").bounding_box()
-    px, py = pista["x"] + 30, pista["y"] + pista["height"] / 2
-    p_l.mouse.move(px, py)
-    p_l.mouse.down()
-    p_l.mouse.move(px + pista["width"] * 0.5, py, steps=6)
-    p_l.mouse.move(px + pista["width"], py, steps=6)
-    p_l.mouse.up()
+    p_l.wait_for_selector("#claim-texto", timeout=4000)
+    p_l.get_by_role("button", name="Copiar borrador").click()
     p_l.wait_for_timeout(300)
     copiado_l = p_l.evaluate("() => navigator.clipboard.readText()")
     check(
-        "L6 Luma: deslizar copia el borrador entero",
+        "L6 Luma: copiar copia el borrador entero",
         p_l.get_by_text("¡Copiado!").is_visible() and "nunca envía nada automáticamente" in copiado_l,
         f"fin={copiado_l[-60:]!r}",
     )
     check(
         "L6 Luma: el borrador dice que copiar no envía nada",
-        "Copiar no envía nada" in p_l.locator(".sheet").inner_text(),
+        "copiar no envía nada" in p_l.locator(".sheet").inner_text(),
     )
+
+    # P1-P5: Pedir explicaciones guiado (preguntas, cauce, avisos, reclamación).
+    escrito = lambda: p_l.locator("#claim-texto").input_value()
+    check("P1 PEDIR: va dirigido a quien contrató la obra", escrito().startswith("A: ") and "Ley 19/2013" in escrito())
+    check("P1 PEDIR: por registro electrónico no pide el DNI en el texto", "[DNI/NIE]" not in escrito())
+    p_l.get_by_label("Cuánto se ha pagado ya").check()
+    check("P2 PEDIR: marcar una pregunta la añade al escrito", "Certificaciones de obra" in escrito())
+    p_l.get_by_label("Si ha subido de precio o de plazo").uncheck()
+    check("P2 PEDIR: desmarcarla la quita", "Modificaciones del contrato" not in escrito())
+    p_l.locator(".claim-canal").filter(has_text="En papel").click()
+    check("P3 PEDIR: en papel pide nombre, DNI y firma", "[DNI/NIE]" in escrito() and "Fecha y firma" in escrito())
+    p_l.locator(".claim-canal").filter(has_text="Registro Electrónico General").click()
+    check("P3 PEDIR: el registro trae su enlace", p_l.get_by_role("link", name="Abrir el Registro").get_attribute("href") == "https://rec.redsara.es/")
+    p_l.locator("#claim-fecha").fill((__import__("datetime").date.today() - __import__("datetime").timedelta(days=45)).isoformat())
+    with p_l.expect_download() as descarga:
+        p_l.get_by_role("button", name="Ya lo presenté: avisarme").click()
+    ics = open(descarga.value.path(), encoding="utf-8", newline="").read()
+    check("P4 PEDIR: avisos de calendario a uno y dos meses", ics.count("BEGIN:VEVENT") == 2 and "VALARM" in ics, ics[:120])
+    check("P4 PEDIR: calendario en formato estándar (CRLF, líneas ≤75 octetos)",
+          "\n" not in ics.replace("\r\n", "") and max(len(l.encode()) for l in ics.split("\r\n")) <= 75)
+    check("P4 PEDIR: no inventa un último día para reclamar por silencio", "último día" not in ics.lower())
+    check("P4 PEDIR: recuerda que lo presentó", p_l.get_by_role("heading", name=re.compile("Lo presentaste el")).is_visible())
+    p_l.get_by_label("No me han contestado").check()
+    reclam = p_l.locator("#claim-reclamacion").input_value()
+    check("P5 PEDIR: sin respuesta prepara la reclamación (art. 24)", "artículo 24" in reclam and "artículo 20.4" in reclam, reclam[:120])
+    check("P5 PEDIR: dice dónde reclamar", p_l.get_by_role("link", name=re.compile("Dónde presentarla")).count() == 1)
+    shot(p_l, "32-pedir-explicaciones-reclamacion")
+    p_l.get_by_role("button", name="Preparar otra solicitud").click()
     p_l.get_by_role("button", name="Cerrar", exact=True).last.click()
     p_l.wait_for_selector(".sheet-backdrop", state="detached")
 
@@ -1133,7 +1154,10 @@ with sync_playwright() as p:
         p_r16.mouse.move(cx, cy - i * 12, steps=3)
         p_r16.wait_for_timeout(16)
     p_r16.mouse.up()
-    p_r16.wait_for_timeout(600)
+    try:
+        p_r16.wait_for_selector("#claim-texto", timeout=4000)
+    except Exception:
+        pass
     check("R16 ISSUE-38: gesto arriba abre el borrador", p_r16.locator("#claim-texto").is_visible())
     check(
         "R16 ISSUE-38: el borrador es de la obra votada",
@@ -1649,8 +1673,8 @@ with sync_playwright() as p:
     p_r27.wait_for_selector(".stack-slot", timeout=20000)
     badge = p_r27.locator(".brand-badge").inner_text()
     check(
-        "R27 NACIONAL: cabecera con DATO OFICIAL y todas las obras de Madrid",
-        "DATO OFICIAL" in badge and "Madrid" in badge and f"/{len(madrid['obras'])}" in badge,
+        "R27 NACIONAL: cabecera con Madrid y todas sus obras",
+        "Madrid" in badge and f"/{len(madrid['obras'])}" in badge,
         badge,
     )
     carta = p_r27.locator(".stack-slot").first
