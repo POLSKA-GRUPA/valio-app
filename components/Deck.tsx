@@ -449,6 +449,8 @@ export function Deck() {
   const [ultimo, setUltimo] = useState<{ obra: Obra; voto: Voto } | null>(null);
   // Al deshacer en pleno vuelo, las cartas se vuelven a montar en su sitio.
   const [reinicio, setReinicio] = useState(0);
+  // Con el foco en «Deshacer» el aviso no se va: desmontarlo tiraría el foco.
+  const [avisoEnFoco, setAvisoEnFoco] = useState(false);
   const zonaRef = useRef<HTMLDivElement>(null);
 
   const decidir = useCallback(
@@ -482,12 +484,17 @@ export function Deck() {
     setAnuncio(`Voto deshecho. ${ultimo.obra.nombre}`);
     setUltimo(null);
     setAvisoGuardado(0);
+    setAvisoEnFoco(false);
     // El botón desaparece con el aviso: el foco vuelve al mazo, no al body.
     zonaRef.current?.focus();
   }, [ultimo, quitarVoto]);
 
   useEffect(() => {
     if (!avisoGuardado) return;
+    // Rediseño: el plazo para deshacer no corre con el foco en el aviso ni con
+    // el borrador abierto (su trampa de foco no deja llegar al aviso con Tab;
+    // al cerrarlo, el plazo empieza de nuevo).
+    if (REDISENO_LUMA && (avisoEnFoco || claimObra)) return;
     // Con «Deshacer» hace falta algo más de tiempo para reaccionar.
     const t = window.setTimeout(
       () => {
@@ -497,7 +504,7 @@ export function Deck() {
       REDISENO_LUMA ? 4000 : 2500,
     );
     return () => window.clearTimeout(t);
-  }, [avisoGuardado]);
+  }, [avisoGuardado, avisoEnFoco, claimObra]);
 
   const onVueloCompleto = useCallback(() => setVuelo(null), []);
 
@@ -658,7 +665,12 @@ export function Deck() {
         {/* Rediseño Luma: aviso en píldora arriba, del color del voto. El texto
             va oculto al lector (ya lo anuncia la región live); «Deshacer» no. */}
         {REDISENO_LUMA && avisoGuardado > 0 && ultimo && (
-          <div className="voto-guardado" data-voto={ultimo.voto}>
+          <div
+            className="voto-guardado"
+            data-voto={ultimo.voto}
+            onFocus={() => setAvisoEnFoco(true)}
+            onBlur={() => setAvisoEnFoco(false)}
+          >
             <span className="voto-guardado-texto" aria-hidden="true">
               {(() => {
                 const Icono = ICONO_VOTO[ultimo.voto];
@@ -676,7 +688,7 @@ export function Deck() {
 
       {!vacio && (
       <div className="action-row">
-        <button type="button" className="action-btn action-nose" aria-label="No puedo valorarlo" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
+        <button type="button" className="action-btn action-nose" aria-label={REDISENO_LUMA ? "No sé, no puedo valorarlo" : "No puedo valorarlo"} disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
           <ArrowDown size={24} strokeWidth={2.5} aria-hidden="true" />
           {REDISENO_LUMA && <span className="action-label">{VOTO_CORTO.no_puedo}</span>}
         </button>

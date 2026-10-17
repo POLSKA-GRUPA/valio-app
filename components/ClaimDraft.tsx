@@ -30,7 +30,9 @@ function DeslizarCopiar({ copiado, onCopiar }: { copiado: boolean; onCopiar: () 
     if (inicio.current == null) return;
     inicio.current = null;
     const recorrido = x.get();
-    if (recorrido > 4) ignorarClick.current = true; // fue un arrastre, no un toque
+    // Tras un arrastre el navegador emite un clic que no debe copiar otra vez.
+    // Un pointercancel no emite clic: no se marca, o se perdería la siguiente copia.
+    ignorarClick.current = !cancelado && recorrido > 4;
     if (!cancelado && recorrido > max.current * 0.85) {
       animate(x, max.current, { duration: 0.12 });
       onCopiar();
@@ -45,7 +47,7 @@ function DeslizarCopiar({ copiado, onCopiar }: { copiado: boolean; onCopiar: () 
       ref={pistaRef}
       type="button"
       className={`deslizar${copiado ? " hecho" : ""}`}
-      aria-label={copiado ? "¡Copiado!" : "Copiar borrador"}
+      aria-label={copiado ? "¡Copiado!" : "Desliza para copiar borrador"}
       onPointerDown={(e) => {
         const pista = pistaRef.current;
         if (!pista) return;
@@ -69,7 +71,7 @@ function DeslizarCopiar({ copiado, onCopiar }: { copiado: boolean; onCopiar: () 
     >
       <motion.span className="deslizar-relleno" style={{ scaleX: relleno }} aria-hidden="true" />
       <span className="deslizar-texto" aria-hidden="true">
-        {copiado ? "¡Copiado!" : "Desliza para copiar"}
+        {copiado ? "¡Copiado!" : "Desliza para copiar borrador"}
       </span>
       <motion.span className="deslizar-pomo" style={{ x }} aria-hidden="true">
         <ChevronRight size={22} strokeWidth={2.6} />

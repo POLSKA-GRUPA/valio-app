@@ -890,16 +890,21 @@ with sync_playwright() as p:
         });
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
       };
-      // Fondo real: sube por los padres mientras sea transparente o
-      // translúcido (los tiles del rediseño son blanco al 8 %: cuenta el
-      // fondo opaco de debajo, que es lo que se ve).
+      // Fondo real: sube por los padres hasta un fondo opaco y compone
+      // encima las capas translúcidas (los tiles del rediseño son blanco al
+      // 8 %): el color que se ve, no el de la primera capa.
       const fondo = (e) => {
+        const capas = [];
+        let base = [255, 255, 255];
         for (let n = e; n; n = n.parentElement) {
-          const c = getComputedStyle(n).backgroundColor;
-          const alfa = c.match(/\\d+(\\.\\d+)?/g)[3];
-          if (alfa === undefined || Number(alfa) >= 0.9) return c;
+          const v = getComputedStyle(n).backgroundColor.match(/\\d+(\\.\\d+)?/g).map(Number);
+          const alfa = v[3] === undefined ? 1 : v[3];
+          if (alfa >= 1) { base = v.slice(0, 3); break; }
+          if (alfa > 0) capas.push([v.slice(0, 3), alfa]);
         }
-        return "rgb(255, 255, 255)";
+        const rgb = capas.reverse().reduce(
+          (acc, [c, a]) => acc.map((x, i) => c[i] * a + x * (1 - a)), base);
+        return `rgb(${rgb.map(Math.round).join(", ")})`;
       };
       return [...document.querySelectorAll(sel)].map((e) => {
         const [a, b] = [lum(getComputedStyle(e).color), lum(fondo(e))].sort((x, y) => y - x);
