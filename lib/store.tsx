@@ -5,6 +5,7 @@ import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { SENALES, type Senal, type Senales } from "./senal";
 import { existeMunicipio, obrasDe } from "./municipios";
 import type { Orden } from "./orden";
+import { useSincronizar } from "./useSincronizar";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
@@ -84,6 +85,8 @@ interface StoreValue {
   /** Orden del mazo. Solo en memoria. */
   orden: Orden;
   setOrden: (orden: Orden) => void;
+  /** Sube cada vez que el recuento colectivo recibe un cambio de aquí. */
+  versionRecuento: number;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -96,6 +99,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [municipio, setMunicipio] = useState<string | null>(null);
   const [tipos, setTipos] = useState<Categoria[]>([]);
   const [orden, setOrden] = useState<Orden>("recientes");
+  const [versionRecuento, setVersionRecuento] = useState(0);
 
   useEffect(() => {
     setVotos(leerVotos());
@@ -178,6 +182,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const obras = useMemo(() => obrasDe(municipio), [municipio]);
 
+  useSincronizar(votos, senales, listo, () => setVersionRecuento((n) => n + 1));
+
   // «Volver a empezar» borra solo los votos del municipio actual: los de
   // otros municipios se conservan, igual que al cambiar de municipio.
   const reset = useCallback(() => {
@@ -211,6 +217,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setOrden,
       senales,
       responderSenal,
+      versionRecuento,
     }),
     [
       votos,
@@ -230,6 +237,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       orden,
       senales,
       responderSenal,
+      versionRecuento,
     ],
   );
 

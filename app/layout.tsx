@@ -18,7 +18,7 @@ const hanken = Hanken_Grotesk({
 export const metadata: Metadata = {
   title: "¿VALIÓ? · Obras públicas, costes y voto ciudadano",
   description:
-    "Desliza y decide: ¿valió lo que costó? Demo con tarjetas de ejemplo; los datos reales llegan verificados con el método P0.",
+    "Las obras que paga tu ayuntamiento, con sus datos oficiales. Desliza y decide si valió lo que costó.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
   applicationName: "¿VALIÓ?",
