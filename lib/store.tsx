@@ -61,6 +61,22 @@ function almacenLegible(): boolean {
   }
 }
 
+/**
+ * Leer, cambiar y guardar una clave sin que otra pestaña se cuele en medio
+ * (Web Storage no lo garantiza). Sin Web Locks (http sin cifrar), tal cual.
+ */
+function enOrden(clave: string, fn: () => void) {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (locks) void locks.request(`valio.guardar.${clave}`, async () => fn());
+  else fn();
+}
+
+/** Mismo contenido: no se cambia el estado (ni se vuelve a pintar). */
+function iguales(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+}
+
 /** Cambios que no se pudieron guardar: id → valor (null = quitado). */
 type Pendiente = Record<string, string | null>;
 
@@ -174,7 +190,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   votosRef.current = votos;
   const votosSinGuardar = useRef<Pendiente>({});
   const modificarVotos = useCallback((cambio: (actual: Votos) => Votos) => {
-    setVotos(guardarSobreDisco(KEY, almacenLegible() ? leerVotos() : votosRef.current, votosSinGuardar, cambio));
+    setVotos(cambio); // en pantalla ya; el guardado, en orden entre pestañas
+    enOrden(KEY, () => {
+      const next = guardarSobreDisco(KEY, almacenLegible() ? leerVotos() : votosRef.current, votosSinGuardar, cambio);
+      setVotos((prev) => (iguales(prev, next) ? prev : next));
+    });
   }, []);
 
   const votar = useCallback(
@@ -195,12 +215,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   senalesRef.current = senales;
   const senalesSinGuardar = useRef<Pendiente>({});
   const responderSenal = useCallback((id: string, senal: Senal) => {
-    setSenales(
-      guardarSobreDisco(SENALES_KEY, almacenLegible() ? leerSenales() : senalesRef.current, senalesSinGuardar, (actual) => ({
-        ...actual,
-        [id]: senal,
-      })),
-    );
+    const cambio = (actual: Senales) => ({ ...actual, [id]: senal });
+    setSenales(cambio);
+    enOrden(SENALES_KEY, () => {
+      const next = guardarSobreDisco(SENALES_KEY, almacenLegible() ? leerSenales() : senalesRef.current, senalesSinGuardar, cambio);
+      setSenales((prev) => (iguales(prev, next) ? prev : next));
+    });
   }, []);
 
   // Lo que vota otra pestaña aparece también en esta.

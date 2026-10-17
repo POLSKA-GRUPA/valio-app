@@ -90,11 +90,14 @@ function confirmar(enviado: Enviado, cambios: Cambio[]) {
   }
 }
 
-/** Con bloqueo entre pestañas si el navegador lo tiene; si no, tal cual. */
+/**
+ * Con bloqueo entre pestañas. Sin Web Locks (solo fuera de https) no se
+ * envía nada: dos pestañas podrían pisarse los recibos y contar dos veces.
+ * Los votos siguen en el dispositivo.
+ */
 async function conBloqueo(fn: () => Promise<void>): Promise<void> {
   const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
   if (locks) await locks.request(BLOQUEO, fn);
-  else await fn();
 }
 
 export function useSincronizar(votos: Votos, senales: Senales, listo: boolean, alEnviar: () => void) {
