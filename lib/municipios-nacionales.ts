@@ -27,7 +27,7 @@ export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = [
     "ine": "03014",
     "nombre": "Alacant/Alicante",
     "provincia": "Alicante/Alacant",
-    "numObras": 103,
+    "numObras": 98,
     "poblacion": {
       "municipio": "Alacant/Alicante",
       "habitantes": 366221,
@@ -40,7 +40,7 @@ export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = [
     "ine": "03041",
     "nombre": "Benissa",
     "provincia": "Alicante/Alacant",
-    "numObras": 42,
+    "numObras": 39,
     "poblacion": {
       "municipio": "Benissa",
       "habitantes": 12471,
@@ -53,7 +53,7 @@ export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = [
     "ine": "28079",
     "nombre": "Madrid",
     "provincia": "Madrid",
-    "numObras": 2735,
+    "numObras": 2715,
     "poblacion": {
       "municipio": "Madrid",
       "habitantes": 3506730,
@@ -66,7 +66,7 @@ export const MUNICIPIOS_NACIONALES: MunicipioNacional[] = [
     "ine": "46250",
     "nombre": "València",
     "provincia": "Valencia/València",
-    "numObras": 518,
+    "numObras": 486,
     "poblacion": {
       "municipio": "València",
       "habitantes": 840792,
