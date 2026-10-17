@@ -1,18 +1,20 @@
 "use client";
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { ArrowDown, ArrowUp, Check, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, Check, SlidersHorizontal, Undo2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CATEGORIA_LABEL, ESTADO_LABEL, VOTO_LABEL, type Obra, type Voto } from "@/lib/obras";
 import { useStore } from "@/lib/store";
 import { useDialog } from "@/lib/useDialog";
 import { costeVecino, eurosCompactos } from "@/lib/formato";
 import { DetailSheet } from "./DetailSheet";
 import { ClaimDraft } from "./ClaimDraft";
-import { FotoTarjeta } from "./VistaAerea";
+import { FotoTarjeta, vistaDe } from "./VistaAerea";
 import { FiltroTipos } from "./FiltroTipos";
 import { OrdenObras } from "./OrdenObras";
-import { importeDe, ordenar } from "@/lib/orden";
+import { IconoTipo, slugTipo } from "./TipoObra";
+import { importeDe, ORDEN_LABEL, ordenar } from "@/lib/orden";
+import { REDISENO_LUMA } from "@/lib/flags";
 
 const UMBRAL_X = 110;
 const UMBRAL_Y = 130;
@@ -36,12 +38,61 @@ function destinoDe(voto: Voto): { x: number; y: number } {
  * sitúa (vista aérea, tras flag); abajo la cifra protagonista y una única
  * etiqueta: el nivel de evidencia de la obra.
  */
-function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void }) {
-  // Importe protagonista: el mismo que usa el orden por importe (#37).
-  const importe = importeDe(obra);
-  const tipoImporte = obra.adjudicacion
+function tipoImporteDe(obra: Obra): string {
+  return obra.adjudicacion
     ? "Importe adjudicado, sin IVA"
     : `Presupuesto de licitación, ${obra.ivaLicitacionIncluido ? "con IVA" : "sin IVA"}`;
+}
+
+/**
+ * Rediseño Luma: el póster es la cifra. Si la obra tiene vista aérea (flag
+ * propio), la foto ocupa el póster tal cual sale de FotoTarjeta, con su
+ * fecha, su licencia y su veredicto; si no, el importe es la imagen.
+ * `--len` ajusta el cuerpo de la cifra a su número de caracteres (luma.css).
+ */
+function ContenidoLuma({ obra, onFicha }: { obra: Obra; onFicha?: () => void }) {
+  const cifra = eurosCompactos(importeDe(obra));
+  const conFoto = vistaDe(obra) != null;
+  return (
+    <div className="card-body">
+      <div className={`poster${conFoto ? " poster-foto" : ""}`} data-cat={slugTipo(obra.categoria)}>
+        {!conFoto && <IconoTipo categoria={obra.categoria} size={240} className="poster-marca" />}
+        <p className="poster-tipo">
+          <IconoTipo categoria={obra.categoria} size={16} />
+          {CATEGORIA_LABEL[obra.categoria]}
+        </p>
+        {conFoto && <FotoTarjeta obra={obra} />}
+        <div className="card-cifra">
+          <p className="card-cifra-tipo">{tipoImporteDe(obra)}</p>
+          <p className="card-cifra-valor num" style={{ "--len": cifra.length } as React.CSSProperties}>
+            {cifra}
+          </p>
+          <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
+        </div>
+      </div>
+      <div className="card-info">
+        <h2 className="card-nombre display">{obra.nombre}</h2>
+        <div className="card-pie">
+          <span className="card-kicker">
+            {obra.municipio} · {obra.anyo}
+          </span>
+          <span className={`tag tag-${obra.estadoDato}`}>{ESTADO_LABEL[obra.estadoDato]}</span>
+        </div>
+        {onFicha && (
+          <button type="button" className="card-ficha-link" onClick={onFicha}>
+            Ver ficha y evidencia
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContenidoTarjeta({ obra, onFicha }: { obra: Obra; onFicha?: () => void }) {
+  if (REDISENO_LUMA) return <ContenidoLuma obra={obra} onFicha={onFicha} />;
+  // Importe protagonista: el mismo que usa el orden por importe (#37).
+  const importe = importeDe(obra);
+  const tipoImporte = tipoImporteDe(obra);
   return (
     <div className="card-body">
       <p className="card-kicker">
@@ -135,6 +186,16 @@ function WorkCard({
       <motion.span style={{ opacity: opNose }} aria-hidden="true">
         <Sello voto="no_puedo" />
       </motion.span>
+      {/* Rediseño Luma: el borde del lado hacia el que arrastras se enciende
+          con el color de ese voto. Solo se anima la opacidad. */}
+      {REDISENO_LUMA && (
+        <>
+          <motion.span className="brillo brillo-valio" style={{ opacity: opValio }} aria-hidden="true" />
+          <motion.span className="brillo brillo-novalio" style={{ opacity: opNo }} aria-hidden="true" />
+          <motion.span className="brillo brillo-explica" style={{ opacity: opExplica }} aria-hidden="true" />
+          <motion.span className="brillo brillo-nose" style={{ opacity: opNose }} aria-hidden="true" />
+        </>
+      )}
     </motion.article>
   );
 }
@@ -147,7 +208,59 @@ function CardPreview({ obra }: { obra: Obra }) {
   );
 }
 
-function Tutorial({ onCerrar }: { onCerrar: () => void }) {
+const GESTOS: { voto: Voto; Icono: typeof Check; donde: string; que: string }[] = [
+  { voto: "valio", Icono: Check, donde: "A la derecha", que: "Valió" },
+  { voto: "no_valio", Icono: X, donde: "A la izquierda", que: "No valió" },
+  { voto: "explica", Icono: ArrowUp, donde: "Arriba", que: "Pido explicaciones" },
+  { voto: "no_puedo", Icono: ArrowDown, donde: "Abajo", que: "No puedo valorarlo" },
+];
+
+function TutorialLuma({ onCerrar }: { onCerrar: () => void }) {
+  const dialogRef = useDialog(onCerrar);
+  return (
+    <motion.div
+      ref={dialogRef}
+      tabIndex={-1}
+      className="tutorial"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tutorial-titulo"
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      // Salida corta: mientras se desvanece sigue encima del mazo y taparía el primer gesto.
+      exit={{ opacity: 0, transition: { duration: 0.15 } }}
+    >
+      <span className="ico-tile" aria-hidden="true">
+        <Check size={24} />
+      </span>
+      <h2 id="tutorial-titulo" className="display">
+        Desliza y decide
+      </h2>
+      <p className="tutorial-lead">¿Valió lo que costó? Cada tarjeta es una obra pagada con dinero público.</p>
+      <ul className="gestos">
+        {GESTOS.map(({ voto, Icono, donde, que }) => (
+          <li key={voto} className="gesto" data-voto={voto}>
+            <Icono size={20} strokeWidth={2.5} aria-hidden="true" />
+            <span>
+              {que}
+              <small>{donde}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="tutorial-nota">También puedes usar los botones de abajo o las flechas del teclado.</p>
+      <button type="button" className="btn btn-primary" onClick={onCerrar}>
+        Entendido, a votar
+      </button>
+    </motion.div>
+  );
+}
+
+// REDISENO_LUMA es fijo en cada build: elegir componente aquí no cambia el
+// orden de los hooks.
+const Tutorial = REDISENO_LUMA ? TutorialLuma : TutorialClasico;
+
+function TutorialClasico({ onCerrar }: { onCerrar: () => void }) {
   const dialogRef = useDialog(onCerrar);
   return (
     <motion.div
@@ -197,10 +310,122 @@ function BarraFiltros() {
   );
 }
 
+/**
+ * Rediseño Luma: orden y filtro en un menú anclado a un botón redondo, en
+ * lugar de la fila de chips que se cortaba a 390 px. Dentro van los mismos
+ * OrdenObras y FiltroTipos, con sus roles y sus anuncios.
+ */
+function MenuFiltros() {
+  const { orden, tipos } = useStore();
+  const [abierto, setAbierto] = useState(false);
+  const botonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!abierto) return;
+    menuRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus();
+    const cerrar = (devolverFoco: boolean) => {
+      setAbierto(false);
+      if (devolverFoco) botonRef.current?.focus();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      cerrar(true);
+    };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!menuRef.current?.contains(t) && !botonRef.current?.contains(t)) cerrar(false);
+    };
+    // Salir del menú con Tab también lo cierra: no queda abierto a la espalda.
+    const onFocus = (e: FocusEvent) => {
+      const t = e.target as Node;
+      if (!menuRef.current?.contains(t) && !botonRef.current?.contains(t)) setAbierto(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("focusin", onFocus);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("focusin", onFocus);
+    };
+  }, [abierto]);
+
+  const tiposTexto = tipos.length === 0 ? "Todos los tipos" : tipos.map((t) => CATEGORIA_LABEL[t]).join(", ");
+
+  return (
+    <div className="barra-mazo">
+      <p className="barra-resumen">
+        {ORDEN_LABEL[orden]} · {tiposTexto}
+      </p>
+      <button
+        ref={botonRef}
+        type="button"
+        className="boton-redondo"
+        aria-label="Ordenar y filtrar"
+        aria-expanded={abierto}
+        aria-controls="menu-filtros"
+        onClick={() => setAbierto((a) => !a)}
+      >
+        <SlidersHorizontal size={20} aria-hidden="true" />
+      </button>
+      <div
+        id="menu-filtros"
+        ref={menuRef}
+        className="filtros-barra menu-filtros"
+        role="group"
+        aria-label="Ordenar y filtrar"
+        hidden={!abierto}
+      >
+        <p className="menu-titulo">Ordenar</p>
+        <OrdenObras />
+        <p className="menu-titulo">Tipo de obra</p>
+        <FiltroTipos />
+      </div>
+    </div>
+  );
+}
+
+const ICONO_VOTO: Record<Voto, typeof Check> = {
+  valio: Check,
+  no_valio: X,
+  explica: ArrowUp,
+  no_puedo: ArrowDown,
+};
+
+/** Etiqueta corta de cada botón de voto (el nombre accesible es VOTO_LABEL). */
+const VOTO_CORTO: Record<Voto, string> = {
+  valio: "Valió",
+  no_valio: "No valió",
+  explica: "Explica",
+  no_puedo: "No sé",
+};
+
+/** Resumen al terminar: cuántas obras de este municipio llevan cada voto. */
+function Recuento({ obras, votos }: { obras: Obra[]; votos: Record<string, Voto> }) {
+  const orden: Voto[] = ["valio", "no_valio", "explica", "no_puedo"];
+  return (
+    <ul className="recuento" aria-label="Tus votos">
+      {orden.map((v) => {
+        const n = obras.filter((o) => votos[o.id] === v).length;
+        return (
+          <li key={v} data-voto={v}>
+            <b className="num">{n}</b>
+            <small>{VOTO_CORTO[v]}</small>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function Deck() {
   const {
     votos,
     votar,
+    quitarVoto,
     reset,
     marcarTutorialVisto,
     tutorialVisto,
@@ -220,6 +445,11 @@ export function Deck() {
   // #38: tras votar, aviso visible y sobrio (sin match: un voto no es un
   // estado colectivo). Cuenta los votos para reiniciar el temporizador.
   const [avisoGuardado, setAvisoGuardado] = useState(0);
+  // Rediseño Luma: el aviso dice qué votaste y permite deshacerlo.
+  const [ultimo, setUltimo] = useState<{ obra: Obra; voto: Voto } | null>(null);
+  // Al deshacer en pleno vuelo, las cartas se vuelven a montar en su sitio.
+  const [reinicio, setReinicio] = useState(0);
+  const zonaRef = useRef<HTMLDivElement>(null);
 
   const decidir = useCallback(
     (obra: Obra, voto: Voto) => {
@@ -227,15 +457,45 @@ export function Deck() {
       setVuelo({ id: obra.id, voto });
       setAnuncio(`Voto registrado: ${VOTO_LABEL[voto]}. ${obra.nombre}`);
       setAvisoGuardado((n) => n + 1);
+      if (REDISENO_LUMA) {
+        setUltimo({ obra, voto });
+        // Vibración corta donde exista (Android); en iOS no hace nada.
+        try {
+          navigator.vibrate?.(12);
+        } catch {
+          // sin vibración
+        }
+      }
       // Gesto arriba, botón ↑ o flecha ↑: además del voto, abre el borrador.
       if (voto === "explica") setClaimObra(obra);
     },
     [votar],
   );
 
+  const deshacer = useCallback(() => {
+    if (!ultimo) return;
+    quitarVoto(ultimo.obra.id);
+    setVuelo(null);
+    setReinicio((n) => n + 1);
+    // Deshacer «Pido explicaciones» cierra también su borrador.
+    setClaimObra((c) => (c && c.id === ultimo.obra.id ? null : c));
+    setAnuncio(`Voto deshecho. ${ultimo.obra.nombre}`);
+    setUltimo(null);
+    setAvisoGuardado(0);
+    // El botón desaparece con el aviso: el foco vuelve al mazo, no al body.
+    zonaRef.current?.focus();
+  }, [ultimo, quitarVoto]);
+
   useEffect(() => {
     if (!avisoGuardado) return;
-    const t = window.setTimeout(() => setAvisoGuardado(0), 2500);
+    // Con «Deshacer» hace falta algo más de tiempo para reaccionar.
+    const t = window.setTimeout(
+      () => {
+        setAvisoGuardado(0);
+        setUltimo(null);
+      },
+      REDISENO_LUMA ? 4000 : 2500,
+    );
     return () => window.clearTimeout(t);
   }, [avisoGuardado]);
 
@@ -306,9 +566,20 @@ export function Deck() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      {/* Rediseño Luma: el tipo de la carta de arriba tiñe toda la pantalla.
+          Capas fijas, solo cambia su opacidad. */}
+      {REDISENO_LUMA && (
+        <div className="ambiente" aria-hidden="true">
+          {Array.from(new Set(obras.map((o) => o.categoria))).map((c) => (
+            <span key={c} data-cat={slugTipo(c)} className={pendientes[0]?.categoria === c ? "on" : undefined} />
+          ))}
+        </div>
+      )}
       {/* Con el tutorial abierto no hay chips: el tutorial es modal. */}
-      {tutorialVisto && !terminado && <BarraFiltros />}
+      {tutorialVisto && !terminado && (REDISENO_LUMA ? <MenuFiltros /> : <BarraFiltros />)}
       <div
+        ref={zonaRef}
+        tabIndex={REDISENO_LUMA ? -1 : undefined}
         className="deck-zone"
         aria-label={
           terminado ? "Mazo terminado" : agotadoFiltro ? "Sin obras de este tipo" : `Quedan ${restantes} tarjetas`
@@ -332,6 +603,7 @@ export function Deck() {
               Has recorrido las {obras.length} obras del piloto de {municipio}. Tus votos se
               guardan en este dispositivo; desde cada ficha puedes pedir explicaciones al organismo.
             </p>
+            {REDISENO_LUMA && <Recuento obras={obras} votos={votos} />}
             <button type="button" className="btn btn-primary" onClick={reset}>
               Volver a empezar
             </button>
@@ -344,7 +616,8 @@ export function Deck() {
 
         {visibles.map((obra, i) => (
           <div
-            key={obra.id}
+            key={`${obra.id}:${reinicio}`}
+            data-pos={i}
             className="stack-slot"
             aria-hidden={!tutorialVisto}
             style={{
@@ -377,10 +650,27 @@ export function Deck() {
         </div>
 
         {/* aria-hidden: al lector ya se lo dice la región live de arriba. */}
-        {avisoGuardado > 0 && (
+        {!REDISENO_LUMA && avisoGuardado > 0 && (
           <p className="voto-guardado" aria-hidden="true">
             Tu voto se ha guardado en este dispositivo
           </p>
+        )}
+        {/* Rediseño Luma: aviso en píldora arriba, del color del voto. El texto
+            va oculto al lector (ya lo anuncia la región live); «Deshacer» no. */}
+        {REDISENO_LUMA && avisoGuardado > 0 && ultimo && (
+          <div className="voto-guardado" data-voto={ultimo.voto}>
+            <span className="voto-guardado-texto" aria-hidden="true">
+              {(() => {
+                const Icono = ICONO_VOTO[ultimo.voto];
+                return <Icono size={18} strokeWidth={2.6} />;
+              })()}
+              {VOTO_LABEL[ultimo.voto]} · guardado
+            </span>
+            <button type="button" onClick={deshacer} aria-label={`Deshacer el voto de ${ultimo.obra.nombre}`}>
+              <Undo2 size={15} strokeWidth={2.4} aria-hidden="true" />
+              Deshacer
+            </button>
+          </div>
         )}
       </div>
 
@@ -388,15 +678,19 @@ export function Deck() {
       <div className="action-row">
         <button type="button" className="action-btn action-nose" aria-label="No puedo valorarlo" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_puedo")}>
           <ArrowDown size={24} strokeWidth={2.5} aria-hidden="true" />
+          {REDISENO_LUMA && <span className="action-label">{VOTO_CORTO.no_puedo}</span>}
         </button>
         <button type="button" className="action-btn action-novalio big" aria-label="No valió" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "no_valio")}>
           <X size={30} strokeWidth={2.5} aria-hidden="true" />
+          {REDISENO_LUMA && <span className="action-label">{VOTO_CORTO.no_valio}</span>}
         </button>
         <button type="button" className="action-btn action-valio big" aria-label="Valió" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "valio")}>
           <Check size={30} strokeWidth={2.5} aria-hidden="true" />
+          {REDISENO_LUMA && <span className="action-label">{VOTO_CORTO.valio}</span>}
         </button>
         <button type="button" className="action-btn action-explica" aria-label="Pido explicaciones" disabled={!pendientes[0] || Boolean(vuelo)} onClick={() => decidir(pendientes[0], "explica")}>
           <ArrowUp size={24} strokeWidth={2.5} aria-hidden="true" />
+          {REDISENO_LUMA && <span className="action-label">{VOTO_CORTO.explica}</span>}
         </button>
       </div>
       )}

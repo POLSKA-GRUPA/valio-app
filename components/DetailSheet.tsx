@@ -3,10 +3,39 @@
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { CATEGORIA_LABEL, ESTADO_LABEL, POBLACION, type Obra } from "@/lib/obras";
-import { costeVecino, euros } from "@/lib/formato";
+import { costeVecino, euros, eurosCompactos } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
+import { useHojaArrastrable } from "@/lib/useHoja";
+import { REDISENO_LUMA } from "@/lib/flags";
+import { importeDe } from "@/lib/orden";
 import { SenalVecinal } from "./SenalVecinal";
 import { SeccionAerea } from "./VistaAerea";
+import { IconoTipo, slugTipo } from "./TipoObra";
+
+/** Rediseño Luma: la ficha abre con el mismo póster de cifra que la tarjeta. */
+function PosterFicha({ obra }: { obra: Obra }) {
+  const cifra = eurosCompactos(importeDe(obra));
+  return (
+    <div className="poster poster-ficha" data-cat={slugTipo(obra.categoria)} aria-hidden="true">
+      <IconoTipo categoria={obra.categoria} size={200} className="poster-marca" />
+      <p className="poster-tipo">
+        <IconoTipo categoria={obra.categoria} size={16} />
+        {CATEGORIA_LABEL[obra.categoria]}
+      </p>
+      <div className="card-cifra">
+        <p className="card-cifra-tipo">
+          {obra.adjudicacion
+            ? "Importe adjudicado, sin IVA"
+            : `Presupuesto de licitación, ${obra.ivaLicitacionIncluido ? "con IVA" : "sin IVA"}`}
+        </p>
+        <p className="card-cifra-valor num" style={{ "--len": cifra.length } as React.CSSProperties}>
+          {cifra}
+        </p>
+        <p className="card-cifra-vecino num">≈ {costeVecino(obra.costePorHabitante)}</p>
+      </div>
+    </div>
+  );
+}
 
 export function DetailSheet({
   obra,
@@ -18,6 +47,7 @@ export function DetailSheet({
   onClaim: () => void;
 }) {
   const dialogRef = useDialog(onClose);
+  const { arrastre, asa } = useHojaArrastrable(onClose);
   const adjudicacion = obra.adjudicacion;
   return (
     <>
@@ -39,8 +69,10 @@ export function DetailSheet({
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        {...arrastre}
       >
-        <div className="sheet-head">
+        {REDISENO_LUMA && <div className="asa" aria-hidden="true" {...asa} />}
+        <div className="sheet-head" {...asa}>
           <div className="sheet-titulo">
             <p className="card-kicker">
               {CATEGORIA_LABEL[obra.categoria]} · {obra.municipio} · {obra.anyo}
@@ -52,6 +84,7 @@ export function DetailSheet({
           </button>
         </div>
         <div className="sheet-body">
+          {REDISENO_LUMA && <PosterFicha obra={obra} />}
           {/* ISSUE-39: listas resumen (clave → valor) en lugar de «capas»
               numeradas. Cada sección lleva un título corto para navegar. */}
           <section className="ficha-seccion" aria-labelledby="ficha-obra">
