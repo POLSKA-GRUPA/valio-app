@@ -12,6 +12,11 @@ from playwright.sync_api import sync_playwright
 
 # VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
 VISTA_AEREA = os.environ.get("NEXT_PUBLIC_VISTA_AEREA") == "1"
+# Rediseño Luma (NEXT_PUBLIC_REDISENO_LUMA=1 al compilar y al lanzar el test).
+# Cambia lo que de verdad cambia: pestaña Obras, orden y filtro dentro de un
+# menú y aviso con «Deshacer». Cada check que se adapta lleva su sustituto.
+LUMA = os.environ.get("NEXT_PUBLIC_REDISENO_LUMA") == "1"
+PESTAÑAS_ESPERADAS = ["Votar", "Obras", "Info"] if LUMA else ["Votar", "Info"]
 BASE = os.environ.get("VALIO_BASE", "http://localhost:3000")
 # Carpeta de capturas portable (junto a este script); nada de rutas de un solo equipo.
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "capturas")
@@ -129,6 +134,15 @@ def votar_valio_hasta_vaciar(page, maximo=60):
             timeout=4000,
         )
     page.wait_for_selector(".empty-deck", timeout=6000)
+
+def abrir_filtros(page):
+    """Con el rediseño, orden y filtro viven en un menú: lo abre si está cerrado."""
+    if not LUMA:
+        return
+    boton = page.get_by_role("button", name="Ordenar y filtrar")
+    if boton.get_attribute("aria-expanded") != "true":
+        boton.click()
+        page.wait_for_timeout(200)
 
 def nombres_pestañas(page):
     # Cada pestaña es «icono\netiqueta»: nos quedamos con la etiqueta.
@@ -323,7 +337,7 @@ with sync_playwright() as p:
     shot(page, "07-mazo-vacio")
 
     # 10-11. Cabreo y Resultados ocultas en P1 (#38): solo Votar e Info
-    check("pestañas solo Votar e Info", nombres_pestañas(page) == ["Votar", "Info"], f"{nombres_pestañas(page)}")
+    check("pestañas esperadas (Votar e Info; con rediseño, también Obras)", nombres_pestañas(page) == PESTAÑAS_ESPERADAS, f"{nombres_pestañas(page)}")
 
     # 12. Info
     page.get_by_role("tab", name="Info").click()
@@ -606,8 +620,10 @@ with sync_playwright() as p:
         return pg.locator(f'.deck-zone[aria-label="Quedan {n} tarjetas"]').count() == 1
 
     def chip(pg, nombre):
+        abrir_filtros(pg)
         return pg.get_by_role("group", name="Filtrar por tipo de obra").get_by_role("button", name=nombre)
 
+    abrir_filtros(p_r11)
     check("R11 ISSUE-37: chips visibles tras el tutorial", grupo.is_visible())
     check("R11 ISSUE-37: un chip por tipo con obras + «Todas»", grupo.get_by_role("button").count() == 8)
     check("R11 ISSUE-37: «Todas» marcado al empezar", chip(p_r11, "Todas").get_attribute("aria-pressed") == "true")
@@ -681,6 +697,7 @@ with sync_playwright() as p:
     p_r12.goto(BASE, wait_until="networkidle")
     p_r12.get_by_role("button", name="Entendido, a votar").click()
     p_r12.wait_for_timeout(300)
+    abrir_filtros(p_r12)
     check(
         "R12 ISSUE-37: chips sin scroll horizontal de página a 320 px",
         p_r12.evaluate("() => document.documentElement.scrollWidth <= 320"),
@@ -705,6 +722,7 @@ with sync_playwright() as p:
     p_r13.goto(BASE, wait_until="networkidle")
     p_r13.get_by_role("button", name="Entendido, a votar").click()
     p_r13.wait_for_timeout(300)
+    abrir_filtros(p_r13)
     orden = p_r13.get_by_role("radiogroup", name="Ordenar obras")
     recientes = orden.get_by_role("radio", name="Más recientes")
     importe = orden.get_by_role("radio", name="Mayor importe")
@@ -733,6 +751,7 @@ with sync_playwright() as p:
     )
 
     # Teclado: flechas dentro del grupo cambian el orden y NO votan.
+    abrir_filtros(p_r13)
     importe.focus()
     p_r13.keyboard.press("ArrowLeft")
     p_r13.wait_for_timeout(300)
@@ -790,12 +809,39 @@ with sync_playwright() as p:
     for _ in range(40):
         p_r14.keyboard.press("Tab")
         recorrido.append(p_r14.evaluate(NOMBRE_FOCO))
-    for esperado in ["Más recientes", "Todas", "Deporte, 3 obras", "Valió"]:
+    if LUMA:
+        # Con el menú: el botón está en el Tab; al abrirlo con Enter el foco
+        # entra en el orden y desde ahí se llega a los tipos.
+        for esperado in ["Ordenar y filtrar", "Valió"]:
+            check(f"R14 Luma: «{esperado}» alcanzable con Tab", esperado in recorrido, f"recorrido={recorrido[:14]}")
+        p_r14.get_by_role("button", name="Ordenar y filtrar").focus()
+        p_r14.keyboard.press("Enter")
+        p_r14.wait_for_timeout(300)
         check(
-            f"R14 ISSUE-37: «{esperado}» alcanzable con Tab",
-            esperado in recorrido,
-            f"recorrido={recorrido[:14]}",
+            "R14 Luma: Enter abre el menú con el foco en el orden marcado",
+            p_r14.evaluate(NOMBRE_FOCO) == "Más recientes",
+            f"foco={p_r14.evaluate(NOMBRE_FOCO)!r}",
         )
+        dentro = []
+        for _ in range(3):
+            p_r14.keyboard.press("Tab")
+            dentro.append(p_r14.evaluate(NOMBRE_FOCO))
+        recorrido += dentro
+        check("R14 Luma: Tab en el menú llega a los tipos", dentro[:2] == ["Todas", "Deporte, 3 obras"], f"{dentro}")
+        p_r14.keyboard.press("Escape")
+        p_r14.wait_for_timeout(200)
+        check(
+            "R14 Luma: Escape cierra el menú y devuelve el foco al botón",
+            p_r14.evaluate(NOMBRE_FOCO) == "Ordenar y filtrar"
+            and p_r14.get_by_role("button", name="Ordenar y filtrar").get_attribute("aria-expanded") == "false",
+        )
+    else:
+        for esperado in ["Más recientes", "Todas", "Deporte, 3 obras", "Valió"]:
+            check(
+                f"R14 ISSUE-37: «{esperado}» alcanzable con Tab",
+                esperado in recorrido,
+                f"recorrido={recorrido[:14]}",
+            )
     check(
         "R14 ISSUE-37: «Mayor importe» no gasta un Tab (se llega con flechas)",
         "Mayor importe" not in recorrido,
@@ -812,6 +858,7 @@ with sync_playwright() as p:
     )
 
     # Un chip se activa con Espacio y se ve el foco.
+    abrir_filtros(p_r14)
     chip_deporte = p_r14.get_by_role("button", name="Deporte, 3 obras")
     chip_deporte.focus()
     check(
@@ -843,12 +890,14 @@ with sync_playwright() as p:
         });
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
       };
-      // Fondo real: sube por los padres mientras sea transparente.
+      // Fondo real: sube por los padres mientras sea transparente o
+      // translúcido (los tiles del rediseño son blanco al 8 %: cuenta el
+      // fondo opaco de debajo, que es lo que se ve).
       const fondo = (e) => {
         for (let n = e; n; n = n.parentElement) {
           const c = getComputedStyle(n).backgroundColor;
           const alfa = c.match(/\\d+(\\.\\d+)?/g)[3];
-          if (alfa === undefined || Number(alfa) > 0) return c;
+          if (alfa === undefined || Number(alfa) >= 0.9) return c;
         }
         return "rgb(255, 255, 255)";
       };
@@ -888,19 +937,159 @@ with sync_playwright() as p:
         and "match ciudadano" not in p_r15.locator("body").inner_text().lower(),
     )
     aviso = p_r15.locator(".voto-guardado")
-    check(
-        "R15 ISSUE-38: aviso «Tu voto se ha guardado en este dispositivo»",
-        aviso.is_visible() and aviso.inner_text() == "Tu voto se ha guardado en este dispositivo",
-    )
+    if LUMA:
+        # Con el rediseño el aviso dice qué votaste y ofrece deshacerlo.
+        check(
+            "R15 Luma: aviso «No valió · guardado» con «Deshacer»",
+            aviso.is_visible()
+            and "No valió · guardado" in aviso.inner_text()
+            and aviso.get_by_role("button", name="Deshacer").is_visible(),
+            f"texto={aviso.inner_text() if aviso.count() else None!r}",
+        )
+    else:
+        check(
+            "R15 ISSUE-38: aviso «Tu voto se ha guardado en este dispositivo»",
+            aviso.is_visible() and aviso.inner_text() == "Tu voto se ha guardado en este dispositivo",
+        )
     shot(p_r15, "19-reg-issue38-voto-guardado")
-    p_r15.wait_for_timeout(3000)
+    p_r15.wait_for_timeout(4300 if LUMA else 3000)
     check("R15 ISSUE-38: el aviso desaparece solo", aviso.count() == 0)
     check(
-        "R15 ISSUE-38: navegación solo con Votar e Info",
-        nombres_pestañas(p_r15) == ["Votar", "Info"],
+        "R15 ISSUE-38: navegación con las pestañas esperadas",
+        nombres_pestañas(p_r15) == PESTAÑAS_ESPERADAS,
         f"{nombres_pestañas(p_r15)}",
     )
     ctx_r15.close()
+
+    # L1-L8 — Rediseño Luma: solo con NEXT_PUBLIC_REDISENO_LUMA=1.
+    if LUMA:
+        def quedan_l(pg, n):
+            return pg.locator(f'.deck-zone[aria-label="Quedan {n} tarjetas"]').count() == 1
+
+        ctx_l = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+        ctx_l.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
+        p_l = ctx_l.new_page()
+        p_l.goto(BASE, wait_until="networkidle")
+        p_l.get_by_role("button", name="Entendido, a votar").click()
+        p_l.wait_for_timeout(300)
+        primera_l = nombre_arriba(p_l)
+
+        # L1: «Deshacer» devuelve la carta, el voto y el contador.
+        p_l.get_by_role("button", name="Valió", exact=True).click()
+        p_l.wait_for_timeout(150)
+        p_l.locator(".voto-guardado").get_by_role("button", name="Deshacer").click()
+        esperar_sin_vuelo(p_l)
+        p_l.wait_for_timeout(300)
+        check(
+            "L1 Luma: «Deshacer» devuelve la carta y quita el voto",
+            quedan_l(p_l, 21) and nombre_arriba(p_l) == primera_l and "0/21" in p_l.locator(".brand-badge").inner_text(),
+            f"arriba={nombre_arriba(p_l)!r} badge={p_l.locator('.brand-badge').inner_text()!r}",
+        )
+        check(
+            "L1 Luma: el lector anuncia que se deshizo",
+            p_l.locator('.deck-zone > [role="status"]').inner_text().startswith("Voto deshecho"),
+        )
+
+        # L2: deshacer «Pido explicaciones» cierra también su borrador.
+        p_l.get_by_role("button", name="Pido explicaciones").click()
+        p_l.wait_for_selector("#claim-texto", timeout=4000)
+        p_l.locator(".voto-guardado").get_by_role("button", name="Deshacer").click()
+        p_l.wait_for_selector("#claim-texto", state="detached", timeout=4000)
+        esperar_sin_vuelo(p_l)
+        check("L2 Luma: deshacer «Explica» cierra el borrador y devuelve la carta", quedan_l(p_l, 21))
+
+        # L3: nada que se arrastre lleva backdrop-filter (gama baja).
+        filtros = p_l.evaluate(
+            "() => [...document.querySelectorAll('.card-frame, .stack-slot')]"
+            ".map((e) => getComputedStyle(e).backdropFilter)"
+        )
+        check("L3 Luma: sin backdrop-filter en las cartas", filtros and all(f in ("none", "") for f in filtros), f"{filtros}")
+
+        # L4: contraste AA en el texto pequeño nuevo.
+        ratios_l = p_l.evaluate(
+            CONTRASTE, ".action-label, .barra-resumen, .card-mazo-kicker, .card-kicker, .tag, .card-ficha-link, .brand-badge"
+        )
+        check("L4 Luma: contraste AA en etiquetas, resumen, evidencia y contador", ratios_l and min(ratios_l) >= 4.5, f"{ratios_l}")
+
+        # L5: la ficha se cierra arrastrando el asa hacia abajo.
+        p_l.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+        p_l.wait_for_selector(".sheet .asa", timeout=4000)
+        p_l.wait_for_timeout(500)
+        asa = p_l.locator(".sheet .asa").bounding_box()
+        ax, ay = asa["x"] + asa["width"] / 2, asa["y"] + asa["height"] / 2
+        p_l.mouse.move(ax, ay)
+        p_l.mouse.down()
+        p_l.mouse.move(ax, ay + 120, steps=6)
+        p_l.mouse.move(ax, ay + 260, steps=6)
+        p_l.mouse.up()
+        p_l.wait_for_selector(".sheet", state="detached", timeout=4000)
+        check("L5 Luma: la ficha se cierra arrastrando hacia abajo", p_l.locator(".sheet").count() == 0)
+
+        # L6: «Desliza para copiar» copia el borrador entero con su aviso HITL.
+        p_l.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
+        p_l.get_by_role("button", name="Pedir explicaciones").click()
+        p_l.wait_for_selector(".deslizar", timeout=4000)
+        p_l.wait_for_timeout(500)
+        pista = p_l.locator(".deslizar").bounding_box()
+        px, py = pista["x"] + 30, pista["y"] + pista["height"] / 2
+        p_l.mouse.move(px, py)
+        p_l.mouse.down()
+        p_l.mouse.move(px + pista["width"] * 0.5, py, steps=6)
+        p_l.mouse.move(px + pista["width"], py, steps=6)
+        p_l.mouse.up()
+        p_l.wait_for_timeout(300)
+        copiado_l = p_l.evaluate("() => navigator.clipboard.readText()")
+        check(
+            "L6 Luma: deslizar copia el borrador entero",
+            p_l.get_by_text("¡Copiado!").is_visible() and "nunca envía nada automáticamente" in copiado_l,
+            f"fin={copiado_l[-60:]!r}",
+        )
+        check(
+            "L6 Luma: el borrador dice que copiar no envía nada",
+            "Copiar no envía nada" in p_l.locator(".sheet").inner_text(),
+        )
+        p_l.get_by_role("button", name="Cerrar", exact=True).last.click()
+        p_l.wait_for_selector(".sheet-backdrop", state="detached")
+
+        # L7: pestaña Obras con «Por votar» y «Votadas», agrupadas por año.
+        for _ in range(2):
+            antes_l = nombre_arriba(p_l)
+            p_l.get_by_role("button", name="No valió").click()
+            esperar_nombre_distinto(p_l, antes_l)
+            esperar_sin_vuelo(p_l)
+        p_l.get_by_role("tab", name="Obras").click()
+        p_l.wait_for_timeout(300)
+        lista = p_l.locator(".lista-obras")
+        check("L7 Luma: «Por votar» lista 19 obras", lista.locator(".lista-item").count() == 19)
+        check(
+            "L7 Luma: cada fila de la lista lleva su etiqueta de evidencia",
+            lista.locator(".lista-item .tag").count() == 19,
+        )
+        p_l.get_by_role("button", name="Votadas").click()
+        p_l.wait_for_timeout(200)
+        check(
+            "L7 Luma: «Votadas» enseña las 2 con su voto",
+            lista.locator(".lista-item").count() == 2 and lista.locator(".miniatura-voto").all_inner_texts() == ["No valió", "No valió"],
+        )
+        check("L7 Luma: grupos con el año como título", lista.locator(".lista-anyo").count() >= 1)
+        shot(p_l, "27-luma-obras-votadas")
+        lista.locator(".lista-item").first.click()
+        p_l.wait_for_selector(".sheet", timeout=4000)
+        check("L7 Luma: una fila abre la ficha de la obra", "Fuente" in p_l.locator(".sheet").inner_text())
+        p_l.keyboard.press("Escape")
+        p_l.wait_for_selector(".sheet-backdrop", state="detached")
+
+        # L8: el mazo terminado resume los cuatro recuentos.
+        p_l.get_by_role("tab", name="Votar").click()
+        votar_valio_hasta_vaciar(p_l)
+        recuento = p_l.locator(".recuento li").all_inner_texts()
+        check(
+            "L8 Luma: al terminar sale el recuento (19 valió, 2 no valió)",
+            [r.split("\n")[0] for r in recuento] == ["19", "2", "0", "0"],
+            f"{recuento}",
+        )
+        shot(p_l, "28-luma-fin")
+        ctx_l.close()
 
     # R16 — ISSUE-38: arrastrar la carta hacia arriba vota «Pido explicaciones»
     # y abre el borrador (antes solo se llegaba desde el match o la ficha).
