@@ -119,8 +119,9 @@ export function DetailSheet({
               <div>
                 <dt>Presupuesto de licitación</dt>
                 <dd className="num">
-                  {euros(obra.importeLicitacion)} · IVA{" "}
-                  {obra.ivaLicitacionIncluido ? "incluido" : "no incluido"}
+                  {obra.importeLicitacion == null
+                    ? "No consta en la fuente"
+                    : `${euros(obra.importeLicitacion)} · IVA ${obra.ivaLicitacionIncluido ? "incluido" : "no incluido"}`}
                 </dd>
               </div>
               {adjudicacion ? (
@@ -207,7 +208,11 @@ export function DetailSheet({
               </div>
               <div>
                 <dt>Ficha de origen</dt>
-                <dd>{obra.id} en el repositorio valio-datos (método P0)</dd>
+                <dd>
+                  {obra.estadoDato === "OFICIAL_AUTOMATICO"
+                    ? "Carga nacional automática de valio-datos (sin revisión manual)"
+                    : `${obra.id} en el repositorio valio-datos (método P0)`}
+                </dd>
               </div>
             </dl>
           </section>

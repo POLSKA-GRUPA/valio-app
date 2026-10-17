@@ -77,7 +77,8 @@ export interface Obra {
   anyo: number;
   estadoDato: EstadoDato;
   estadoEjecucion: "faltante";
-  importeLicitacion: number;
+  /** Presupuesto de licitación; null si la fuente no lo publica. */
+  importeLicitacion: number | null;
   ivaLicitacionIncluido: boolean;
   adjudicacion: Adjudicacion | null;
   ubicacion: Ubicacion | null;

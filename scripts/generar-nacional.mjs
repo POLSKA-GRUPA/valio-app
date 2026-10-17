@@ -5,8 +5,8 @@
  * QUÉ HACE
  *   1. Lee `datos/nacional/indice.json` y `datos/nacional/municipios/<ine>.json`
  *      de valio-datos (dato oficial automático de PLACE).
- *   2. Se queda con las obras ADJUDICADAS (estado ADJ/RES o con importe
- *      adjudicado): VALIO pregunta si valió lo que ya se contrató.
+ *   2. Se queda con las obras ADJUDICADAS de verdad y con importe adjudicado
+ *      conocido: VALIO pregunta si valió lo que ya se contrató.
  *   3. Escribe `public/datos/municipios/<ine>.json` (lo baja la app solo al
  *      elegir ese municipio) y `lib/municipios-nacionales.ts` (índice, pequeño).
  *   Teulada no se toca: sus obras son las del piloto verificado (lib/obras.ts).
@@ -17,7 +17,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -81,8 +81,6 @@ const adjudicada = (o) =>
 
 function aObra(ine, doc, o) {
   const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
-  const importeLicitacion = o.importeLicitacionSinIva ?? o.importeAdjudicadoSinIva;
-  const numerador = o.importeAdjudicadoSinIva ?? importeLicitacion;
   return {
     id: idObra(ine, o),
     nombre: o.objeto,
@@ -93,25 +91,24 @@ function aObra(ine, doc, o) {
     anyo: Number(fecha.slice(0, 4)),
     estadoDato: "OFICIAL_AUTOMATICO",
     estadoEjecucion: "faltante",
-    importeLicitacion,
+    // Cada importe es el suyo: si PLACE no da el presupuesto, «no consta».
+    importeLicitacion: o.importeLicitacionSinIva ?? null,
     ivaLicitacionIncluido: false,
-    adjudicacion: o.adjudicatario
-      ? {
-          adjudicataria: o.adjudicatario,
-          cif: o.adjudicatarioCif || null,
-          fechaAcuerdo: fechaEs(o.fechaAdjudicacion),
-          fechaPublicacion: o.fechaPublicacion ? fechaEs(o.fechaPublicacion) : null,
-          importeSinIva: o.importeAdjudicadoSinIva ?? importeLicitacion,
-          importeConIva: o.importeAdjudicadoConIva,
-          plazo: plazoEs(o.plazo),
-          numExpediente: o.expediente || null,
-        }
-      : null,
+    adjudicacion: {
+      adjudicataria: o.adjudicatario || "No consta en la fuente",
+      cif: o.adjudicatarioCif || null,
+      fechaAcuerdo: fechaEs(o.fechaAdjudicacion) || "No consta",
+      fechaPublicacion: o.fechaPublicacion ? fechaEs(o.fechaPublicacion) : null,
+      importeSinIva: o.importeAdjudicadoSinIva,
+      importeConIva: o.importeAdjudicadoConIva,
+      plazo: plazoEs(o.plazo) || "No consta",
+      numExpediente: o.expediente || null,
+    },
     ubicacion: {
       precision: "municipio",
       motivo: "es un dato cargado automáticamente de la Plataforma de Contratación y aún nadie lo ha situado en el mapa",
     },
-    costePorHabitante: Math.round((numerador / doc.poblacion.habitantes) * 100) / 100,
+    costePorHabitante: Math.round((o.importeAdjudicadoSinIva / doc.poblacion.habitantes) * 100) / 100,
     ...(/lotes|varios adjudicatarios/.test(o.notas || "")
       ? { aviso: "Contrato con lotes o varios adjudicatarios: el importe y la empresa son solo los del primer resultado publicado." }
       : {}),
@@ -139,17 +136,25 @@ for (const entrada of indice) {
   if (!(doc.poblacion?.habitantes > 0)) fallar(`${entrada.nombre}: sin población`);
   const vistos = new Set();
   const obras = [];
+  let sinImporte = 0;
   for (const o of doc.obras.filter(adjudicada)) {
-    const importe = o.importeAdjudicadoSinIva ?? o.importeLicitacionSinIva;
     const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
-    if (!(importe > 0) || !/^\d{4}/.test(fecha || "") || !o.urlOficial?.startsWith("https://")) continue;
+    // Sin importe adjudicado no hay cifra honesta que enseñar: fuera (y se cuenta).
+    if (!(o.importeAdjudicadoSinIva > 0)) {
+      sinImporte += 1;
+      continue;
+    }
+    if (!/^\d{4}/.test(fecha || "") || !o.urlOficial?.startsWith("https://")) continue;
     const obra = aObra(entrada.ine, doc, o);
     if (vistos.has(obra.id)) fallar(`${entrada.nombre}: id repetido ${obra.id}`);
     vistos.add(obra.id);
     obras.push(obra);
   }
-  // Regla 13: una ciudad con obras publicadas que se queda en 0 es un fallo nuestro.
-  if (!obras.length && doc.obras.length) fallar(`${entrada.nombre}: 0 obras adjudicadas de ${doc.obras.length}`);
+  // Un municipio puede no tener ninguna adjudicación (todo desierto): no sale en la lista.
+  if (!obras.length) {
+    console.warn(`  ${doc.municipio}: 0 obras adjudicadas con importe (de ${doc.obras.length}); no se publica`);
+    continue;
+  }
   const poblacion = {
     municipio: doc.municipio,
     habitantes: doc.poblacion.habitantes,
@@ -159,13 +164,21 @@ for (const entrada of indice) {
   };
   salidas.set(`${entrada.ine}.json`, JSON.stringify({ ine: entrada.ine, generado: doc.generado, poblacion, obras }) + "\n");
   municipios.push({ ine: entrada.ine, nombre: doc.municipio, provincia: doc.provincia, numObras: obras.length, poblacion });
-  console.log(`  ${doc.municipio}: ${obras.length} obras adjudicadas (de ${doc.obras.length})`);
+  console.log(`  ${doc.municipio}: ${obras.length} obras adjudicadas (de ${doc.obras.length}; ${sinImporte} sin importe adjudicado)`);
 }
 
-// Todo validado: ahora sí se sustituye la publicación anterior.
-rmSync(SALIDA_JSON, { recursive: true, force: true });
-mkdirSync(SALIDA_JSON, { recursive: true });
-for (const [nombre, texto] of salidas) writeFileSync(resolve(SALIDA_JSON, nombre), texto);
+// Regla 13: sin ningún municipio el fallo es nuestro.
+if (!salidas.size) fallar("ningún municipio con obras adjudicadas");
+// Todo validado: se escribe aparte y se sustituye la carpeta de una vez.
+const NUEVA = `${SALIDA_JSON}.nueva`;
+const VIEJA = `${SALIDA_JSON}.vieja`;
+rmSync(NUEVA, { recursive: true, force: true });
+mkdirSync(NUEVA, { recursive: true });
+for (const [nombre, texto] of salidas) writeFileSync(resolve(NUEVA, nombre), texto);
+rmSync(VIEJA, { recursive: true, force: true });
+if (existsSync(SALIDA_JSON)) renameSync(SALIDA_JSON, VIEJA);
+renameSync(NUEVA, SALIDA_JSON);
+rmSync(VIEJA, { recursive: true, force: true });
 municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 const generado = indice.map((m) => m.generado).sort().at(-1) ?? "";
 writeFileSync(
