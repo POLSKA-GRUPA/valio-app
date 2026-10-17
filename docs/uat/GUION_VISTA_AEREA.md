@@ -20,7 +20,7 @@ Si pruebas en la preview de Vercel, el flag ya está activo.
 | A5 | En la ficha, pulsa «Explorar en el mapa» y cambia de año | Mapa con la foto del IGN, el anillo en el mismo sitio y el año elegido; se puede hacer zoom | |
 | A6 | Elige 5 obras al azar. Abre el enlace «la fuente» de la ubicación y su pliego | El lugar que dice el documento coincide con el anillo de la foto. Anota cualquier obra que no cuadre | |
 | A7 | Busca una obra sin ubicación (p. ej. un asfaltado de varias calles) | No hay foto ni anillo; la ficha explica que los documentos no la sitúan | |
-| A8 | Abre «Ver a pie de calle» | Street View se abre en el sitio de la obra (si Google tiene imágenes ahí) | |
+| A8 | Abre «Ver a pie de calle» y luego «Ver el satélite de Google (sin fecha)» | Street View se abre en el sitio de la obra (si Google tiene imágenes ahí); el satélite de Google se abre centrado en la obra, en modo satélite | |
 | A9 | Abre la app de producción mientras el flag esté apagado | Se ve igual que antes de esta función: ninguna foto ni sección «Desde el aire» | |
 
 Terminado = A1–A9 en verde con la misma versión. Un fallo en A3 o A6 bloquea

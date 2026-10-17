@@ -181,6 +181,11 @@ function enlaces(u: UbicacionPrecisa) {
       texto: "Ver a pie de calle (Street View)",
       href: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll}`,
     },
+    {
+      // Google no indica la fecha de su foto: sirve para mirar, no para el veredicto.
+      texto: "Ver el satélite de Google (sin fecha)",
+      href: `https://www.google.com/maps/@?api=1&map_action=map&center=${encodeURIComponent(ll)}&zoom=19&basemap=satellite`,
+    },
     { texto: "Abrir en Google Maps", href: `https://www.google.com/maps/search/?api=1&query=${ll}` },
   ];
   if (u.referenciaCatastral) {

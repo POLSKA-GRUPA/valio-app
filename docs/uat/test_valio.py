@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 from playwright.sync_api import sync_playwright
@@ -1138,6 +1139,24 @@ with sync_playwright() as p:
         check(
             "R22 VISTA-AÉREA: enlace a Street View",
             seccion.get_by_role("link", name="Ver a pie de calle (Street View)").count() == 1,
+        )
+        # El satélite debe abrirse en el mismo punto que Street View.
+        sat = seccion.get_by_role("link", name="Ver el satélite de Google (sin fecha)")
+        sv = seccion.get_by_role("link", name="Ver a pie de calle (Street View)").get_attribute("href") or ""
+        href_sat = (sat.get_attribute("href") or "") if sat.count() == 1 else ""
+        q_sat = urllib.parse.parse_qs(urllib.parse.urlsplit(href_sat).query)
+        punto = urllib.parse.parse_qs(urllib.parse.urlsplit(sv).query).get("viewpoint", [""])[0]
+        check(
+            "R22 VISTA-AÉREA: satélite de Google en el punto de la obra",
+            bool(re.fullmatch(r"-?\d+(\.\d+)?,-?\d+(\.\d+)?", punto))
+            and q_sat == {
+                "api": ["1"],
+                "map_action": ["map"],
+                "center": [punto],
+                "zoom": ["19"],
+                "basemap": ["satellite"],
+            },
+            href_sat,
         )
         check("R22 VISTA-AÉREA: atribución de la licencia en la ficha", "scne.es" in seccion.inner_text())
 
