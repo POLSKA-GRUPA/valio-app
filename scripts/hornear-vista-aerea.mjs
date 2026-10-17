@@ -95,8 +95,8 @@ async function pedir(url, intentos = 3) {
       }
       return r;
     } catch (e) {
-      // Un 4xx no mejora reintentando (servicio o capa inexistente).
-      if (i >= intentos || (e.estado >= 400 && e.estado < 500)) {
+      // Un 404 no mejora reintentando (servicio inexistente); un 429 o un 5xx sí.
+      if (i >= intentos || e.estado === 404) {
         const final = new Error(`${url}: ${e.message}`);
         final.estado = e.estado;
         throw final;
@@ -306,7 +306,9 @@ async function icvNuevos() {
       try {
         await pedir(`${wms}?SERVICE=WMS&REQUEST=GetCapabilities`);
       } catch (e) {
-        if (!(e.estado >= 400 && e.estado < 500)) fallos.push(`ICV ${id}: ${e.message}`);
+        // Solo un 404 acredita que el servicio no existe; 403, 429 o 5xx son
+        // fallos de consulta y no permiten afirmar «sin novedades».
+        if (e.estado !== 404) fallos.push(`ICV ${id}: ${e.message}`);
         continue;
       }
       hallados.push({ anyo: String(anyo), wms, capa: `${id}_RGB`, inicio: null, fin: null, id });
@@ -458,7 +460,7 @@ const encabezado = `/**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/hornear-vista-aerea.mjs
  * Fotos aéreas oficiales de cada obra, con la fecha de vuelo que da el propio
- * servicio en el punto. Generado: ${new Date().toISOString().slice(0, 10)}
+ * servicio en el punto. Última consulta a los servicios: REVISADO (abajo).
  */
 `;
 

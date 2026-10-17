@@ -77,6 +77,10 @@ const vueloLargo = (f: FotoAerea) =>
   `Vuelo de ${fechaVuelo(f.fecha)}` +
   (f.ventana ? ` (entre el ${fechaEs(f.ventana[0])} y el ${fechaEs(f.ventana[1])})` : "");
 
+/** Verde solo si la foto de verdad sirve para comprobar algo visible. */
+const claseVeredicto = (v: VistaAerea, visibleAire: UbicacionPrecisa["visibleAire"]) =>
+  `aerea-veredicto aerea-${visibleAire === "no" ? "no-visible" : v.veredicto}`;
+
 /** Vista aérea de la obra si la función está activa y hay foto horneada. */
 export function vistaDe(obra: Obra): { u: UbicacionPrecisa; v: VistaAerea } | null {
   if (!VISTA_AEREA || !tienePunto(obra.ubicacion)) return null;
@@ -124,7 +128,7 @@ export function FotoTarjeta({ obra }: { obra: Obra }) {
           {fechaVuelo(v.ahora.fecha)} · {licenciaCorta(v.ahora)}
         </span>
       </div>
-      <figcaption className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v, u.visibleAire, true)}</figcaption>
+      <figcaption className={claseVeredicto(v, u.visibleAire)}>{textoVeredicto(v, u.visibleAire, true)}</figcaption>
     </figure>
   );
 }
@@ -211,7 +215,7 @@ export function SeccionAerea({ obra }: { obra: Obra }) {
   return (
     <section className="ficha-seccion" aria-labelledby="ficha-aerea">
       <h3 id="ficha-aerea">Desde el aire</h3>
-      <p className={`aerea-veredicto aerea-${v.veredicto}`}>{textoVeredicto(v, u.visibleAire)}</p>
+      <p className={claseVeredicto(v, u.visibleAire)}>{textoVeredicto(v, u.visibleAire)}</p>
       {v.antes ? (
         <Comparador obra={obra} u={u} v={v as VistaAerea & { antes: FotoAerea }} />
       ) : (

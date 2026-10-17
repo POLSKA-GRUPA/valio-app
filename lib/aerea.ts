@@ -2,7 +2,7 @@
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/hornear-vista-aerea.mjs
  * Fotos aéreas oficiales de cada obra, con la fecha de vuelo que da el propio
- * servicio en el punto. Generado: 2026-10-17
+ * servicio en el punto. Última consulta a los servicios: REVISADO (abajo).
  */
 
 export type Veredicto = "posterior" | "durante" | "anterior" | "indeterminado" | "sin_fechas";
