@@ -53,7 +53,7 @@ Cuando el título da un número, se comprueba que el portal es ese número.
 
 **Resultado: 25/25 aciertos (100 %)** con el criterio de arriba.
 
-## Revisión dirigida a los tipos con más riesgo (42 más, semillas 5/7/9)
+## Revisión dirigida a los tipos con más riesgo (42 más, semillas 5/7/9; reglas v1, antes del portal y del tope de 1 km)
 
 Parque (6), cementerio (6), polígono (8), carretera (8), camino (8) y
 polideportivo (6): 41/42 aciertos. El fallo:
@@ -134,4 +134,12 @@ una precisión de al menos ~94 % (regla del 3/n).
   ~500 m.
 - Títulos con varias calles: se toma la primera que se reconoce.
 - Revisión hecha comparando título con la dirección/nombre que devuelve
-  CartoCiudad; no se ha mirado ortofoto punto por punto.
+  CartoCiudad (lo mismo que exige el filtro); no se ha mirado ortofoto punto
+  por punto.
+
+## Licencia
+
+Licencia IGN/CNIG (Orden FOM/2807/2015): CC BY 4.0. Para una obra derivada,
+«Obra derivada de <producto> <fecha> CC-BY 4.0 scne.es», visible junto a los
+datos (https://www.ign.es/resources/licencia/Condiciones_licenciaUso_IGN.pdf).
+Para estas obras: «Obra derivada de CartoCiudad 2026 CC-BY 4.0 scne.es».
