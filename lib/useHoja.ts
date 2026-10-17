@@ -2,19 +2,16 @@
 
 import { useRef } from "react";
 import { useDragControls, type PanInfo } from "framer-motion";
-import { REDISENO_LUMA } from "./flags";
 
 /**
- * Rediseño Luma: las hojas se cierran arrastrando hacia abajo desde el asa o
- * la cabecera (no desde el cuerpo, que hace scroll). Apagado el flag, no
- * añade nada. El cierre con Escape y la X siguen en useDialog y en la hoja.
+ * Las hojas se cierran arrastrando hacia abajo desde el asa o la cabecera
+ * (no desde el cuerpo, que hace scroll). El cierre con Escape y la X siguen en useDialog y en la hoja.
  */
 export function useHojaArrastrable(onClose: () => void) {
   const controls = useDragControls();
   // Mientras la hoja entra no se puede agarrar: un toque detendría la
   // animación de entrada y la dejaría a medio subir.
   const entrando = useRef(true);
-  if (!REDISENO_LUMA) return { arrastre: {}, asa: {} };
   return {
     arrastre: {
       drag: "y" as const,

@@ -6,11 +6,10 @@ import { MUNICIPIOS } from "@/lib/municipios";
 import { OBRAS } from "@/lib/obras";
 import { eurosCompactos } from "@/lib/formato";
 import { importeDe } from "@/lib/orden";
-import { REDISENO_LUMA } from "@/lib/flags";
 import { IconoTipo, slugTipo } from "./TipoObra";
 
 /**
- * Rediseño Luma: bienvenida con las tres obras de mayor importe en abanico
+ * Bienvenida con las tres obras de mayor importe en abanico
  * (como «Get Started» de Luma). Datos reales de lib/obras.ts; decorativo
  * para el lector, que ya tiene la pregunta y la lista.
  */
@@ -45,7 +44,7 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => vo
 
   return (
     <section className="panel municipio-panel" aria-labelledby="municipio-titulo">
-      {REDISENO_LUMA && <Abanico />}
+      <Abanico />
       <h2 id="municipio-titulo" className="panel-title display" tabIndex={-1} ref={tituloRef}>
         ¿Dónde vives?
       </h2>
@@ -57,16 +56,14 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => vo
         {MUNICIPIOS.map((m) => (
           <li key={m.nombre}>
             <button type="button" className="btn municipio-btn" onClick={() => onElegir(m.nombre)}>
-              {REDISENO_LUMA && (
-                <span className="municipio-punto" aria-hidden="true">
-                  <MapPin size={20} />
-                </span>
-              )}
+              <span className="municipio-punto" aria-hidden="true">
+                <MapPin size={20} />
+              </span>
               <span className="municipio-nombre">{m.nombre}</span>
               <span className="municipio-detalle">
                 {m.provincia} · {m.numObras} {m.numObras === 1 ? "obra" : "obras"}
               </span>
-              {REDISENO_LUMA && <ChevronRight className="municipio-flecha" size={20} aria-hidden="true" />}
+              <ChevronRight className="municipio-flecha" size={20} aria-hidden="true" />
             </button>
           </li>
         ))}

@@ -7,12 +7,11 @@ import type { Obra } from "@/lib/obras";
 import { euros } from "@/lib/formato";
 import { useDialog } from "@/lib/useDialog";
 import { useHojaArrastrable } from "@/lib/useHoja";
-import { REDISENO_LUMA } from "@/lib/flags";
 
 const ANCHO_POMO = 58;
 
 /**
- * Rediseño Luma: «Desliza para copiar». Es un botón de verdad: Enter,
+ * «Desliza para copiar». Es un botón de verdad: Enter,
  * Espacio, un toque o la activación de un lector de pantalla copian igual;
  * deslizar es el gesto táctil. Copiar no envía nada.
  */
@@ -173,13 +172,11 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         {...arrastre}
       >
-        {REDISENO_LUMA && <div className="asa" aria-hidden="true" {...asa} />}
+        <div className="asa" aria-hidden="true" {...asa} />
         <div className="sheet-head" {...asa}>
-          {REDISENO_LUMA && (
-            <span className="ico-tile" aria-hidden="true">
-              <FileText size={24} />
-            </span>
-          )}
+          <span className="ico-tile" aria-hidden="true">
+            <FileText size={24} />
+          </span>
           <h2 className="display">Tu borrador</h2>
           <button type="button" className="sheet-close" onClick={onClose} aria-label="Cerrar borrador">
             ✕
@@ -199,24 +196,13 @@ export function ClaimDraft({ obra, onClose }: { obra: Obra; onClose: () => void 
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
           />
-          {REDISENO_LUMA ? (
-            <div className="claim-actions">
-              <DeslizarCopiar copiado={copiado} onCopiar={copiar} />
-              <p className="claim-hitl">Copiar no envía nada. Lo envías tú, cuando lo hayas revisado.</p>
-              <button type="button" className="btn" onClick={onClose}>
-                Cerrar
-              </button>
-            </div>
-          ) : (
-            <div className="claim-actions">
-              <button type="button" className="btn btn-primary" onClick={copiar}>
-                {copiado ? "¡Copiado!" : "Copiar borrador"}
-              </button>
-              <button type="button" className="btn" onClick={onClose}>
-                Cerrar
-              </button>
-            </div>
-          )}
+          <div className="claim-actions">
+            <DeslizarCopiar copiado={copiado} onCopiar={copiar} />
+            <p className="claim-hitl">Copiar no envía nada. Lo envías tú, cuando lo hayas revisado.</p>
+            <button type="button" className="btn" onClick={onClose}>
+              Cerrar
+            </button>
+          </div>
         </div>
       </motion.div>
     </>

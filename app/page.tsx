@@ -8,7 +8,6 @@ import { Deck } from "@/components/Deck";
 import { ElegirMunicipio } from "@/components/ElegirMunicipio";
 import { CabreoMap, Info, Results } from "@/components/Panels";
 import { ListaObras } from "@/components/ListaObras";
-import { REDISENO_LUMA } from "@/lib/flags";
 
 type Pestaña = "votar" | "obras" | "cabreo" | "resultados" | "info";
 
@@ -25,23 +24,16 @@ const TODAS_LAS_PESTAÑAS: { id: Pestaña; Icono: LucideIcon; etiqueta: string }
   { id: "info", Icono: IconoInfo, etiqueta: "Info" },
 ];
 
-// «Obras» (lista por año) solo existe en el rediseño Luma.
-const PESTAÑAS = (
-  MOSTRAR_CABREO_Y_RESULTADOS
-    ? TODAS_LAS_PESTAÑAS
-    : TODAS_LAS_PESTAÑAS.filter((p) => p.id !== "cabreo" && p.id !== "resultados")
-).filter((p) => REDISENO_LUMA || p.id !== "obras");
+const PESTAÑAS = MOSTRAR_CABREO_Y_RESULTADOS
+  ? TODAS_LAS_PESTAÑAS
+  : TODAS_LAS_PESTAÑAS.filter((p) => p.id !== "cabreo" && p.id !== "resultados");
 
-/** Rediseño Luma: Framer respeta «Reducir movimiento» del sistema. */
-function Movimiento({ children }: { children: React.ReactNode }) {
-  return REDISENO_LUMA ? <MotionConfig reducedMotion="user">{children}</MotionConfig> : <>{children}</>;
-}
-
+/** Framer respeta «Reducir movimiento» del sistema. */
 export default function Home() {
   return (
-    <Movimiento>
+    <MotionConfig reducedMotion="user">
       <Contenido />
-    </Movimiento>
+    </MotionConfig>
   );
 }
 
