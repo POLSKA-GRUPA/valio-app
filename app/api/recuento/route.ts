@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST /api/recuento {cambios:[{obra,tipo,valor,anterior}]} → aplica los válidos. */
+/** POST /api/recuento {cambios:[{obra,tipo,valor,recibo}]} → aplica los válidos. */
 export async function POST(req: NextRequest) {
   if (!disponible()) return noDisponible();
   let cuerpo: unknown;

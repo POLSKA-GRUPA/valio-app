@@ -232,16 +232,25 @@ const activar = [
 ];
 for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true });
 const habia = activar.map(([, destino]) => existsSync(destino));
+const apartados = new Set();
+const activados = new Set();
 try {
-  activar.forEach(([, destino, viejo], i) => habia[i] && renameSync(destino, viejo));
-  for (const [nuevo, destino] of activar) renameSync(nuevo, destino);
-} catch (error) {
-  // Vuelta atrás: lo anterior queda como estaba.
   activar.forEach(([, destino, viejo], i) => {
-    if (habia[i] && existsSync(viejo)) {
-      rmSync(destino, { recursive: true, force: true });
-      renameSync(viejo, destino);
+    if (habia[i]) {
+      renameSync(destino, viejo);
+      apartados.add(i);
     }
+  });
+  activar.forEach(([nuevo, destino], i) => {
+    renameSync(nuevo, destino);
+    activados.add(i);
+  });
+} catch (error) {
+  // Vuelta atrás de todo: fuera lo nuevo ya activado (aunque antes no hubiera
+  // nada) y lo anterior a su sitio. Nunca queda una mezcla publicada.
+  activar.forEach(([, destino, viejo], i) => {
+    if (activados.has(i)) rmSync(destino, { recursive: true, force: true });
+    if (apartados.has(i)) renameSync(viejo, destino);
   });
   fallar(`no se pudo activar la publicación nueva (se restaura la anterior): ${error.message}`);
 }

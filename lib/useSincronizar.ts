@@ -3,17 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import type { Votos } from "./obras";
 import type { Senales } from "./senal";
-import type { Cambio } from "./recuento";
+import type { Cambio, Tipo } from "./recuento";
 
 /**
- * Lleva al recuento colectivo lo que este dispositivo ha votado. Guarda qué
- * tiene contado ya el servidor y solo envía la diferencia: si falla la red,
- * la diferencia sigue ahí y se envía en el siguiente cambio o la próxima
- * visita. Nada identifica al dispositivo: solo viajan obra, tipo y valor.
+ * Lleva al recuento colectivo lo que este dispositivo ha votado. Cada obra y
+ * tipo tiene un recibo al azar; cada envío dice «este recibo cuenta X» y el
+ * servidor lo aplica una sola vez. Si se pierde la respuesta, se reenvía lo
+ * mismo con el mismo recibo y no suma dos veces. Nada identifica al
+ * dispositivo: los recibos de obras distintas no tienen relación entre sí.
  */
-const ENVIADO_KEY = "valio.recuento.enviado.v1";
+const ENVIADO_KEY = "valio.recuento.enviado.v2";
+const LOTE = 200;
 
-type Enviado = Record<string, { voto?: string; senal?: string }>;
+/** confirmado: lo que el servidor ya cuenta. dudoso: hubo un envío sin respuesta. */
+interface Fila {
+  recibo: string;
+  confirmado: string | null;
+  dudoso?: true;
+}
+type Enviado = Record<string, Partial<Record<Tipo, Fila>>>;
 
 function leerEnviado(): Enviado {
   try {
@@ -29,38 +37,48 @@ function guardarEnviado(e: Enviado) {
   try {
     window.localStorage.setItem(ENVIADO_KEY, JSON.stringify(e));
   } catch {
-    // sin persistencia: se reenviaría la diferencia, y el servidor no baja de cero
+    // sin persistencia: la copia en memoria sirve mientras dure la visita
   }
 }
 
-function diferencias(votos: Votos, senales: Senales, enviado: Enviado): Cambio[] {
+function nuevoRecibo(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Lo que falta por contar; crea los recibos que hagan falta en `enviado`. */
+function pendientes(votos: Votos, senales: Senales, enviado: Enviado): Cambio[] {
   const ids = new Set([...Object.keys(votos), ...Object.keys(senales), ...Object.keys(enviado)]);
   const cambios: Cambio[] = [];
   for (const obra of ids) {
-    const antes = enviado[obra] ?? {};
-    const voto = votos[obra] ?? null;
-    if (voto !== (antes.voto ?? null)) cambios.push({ obra, tipo: "voto", valor: voto, anterior: antes.voto ?? null });
-    const senal = senales[obra] ?? null;
-    if (senal !== (antes.senal ?? null))
-      cambios.push({ obra, tipo: "senal", valor: senal, anterior: antes.senal ?? null });
+    const deseado: Record<Tipo, string | null> = { voto: votos[obra] ?? null, senal: senales[obra] ?? null };
+    for (const tipo of ["voto", "senal"] as const) {
+      const fila = enviado[obra]?.[tipo];
+      if (!fila && deseado[tipo] === null) continue;
+      if (fila && fila.confirmado === deseado[tipo] && !fila.dudoso) continue;
+      const recibo = fila?.recibo ?? nuevoRecibo();
+      enviado[obra] = { ...enviado[obra], [tipo]: { recibo, confirmado: fila?.confirmado ?? null, dudoso: true } };
+      cambios.push({ obra, tipo, valor: deseado[tipo], recibo });
+    }
   }
   return cambios;
 }
 
-function aplicarAlEnviado(enviado: Enviado, cambios: Cambio[]): Enviado {
-  const next: Enviado = { ...enviado };
+function confirmar(enviado: Enviado, cambios: Cambio[]) {
   for (const c of cambios) {
-    const fila = { ...(next[c.obra] ?? {}) };
-    if (c.valor === null) delete fila[c.tipo];
-    else fila[c.tipo] = c.valor;
-    if (fila.voto || fila.senal) next[c.obra] = fila;
-    else delete next[c.obra];
+    const filas = { ...enviado[c.obra] };
+    // Quitado: el servidor ya borró el recibo; el próximo voto lleva uno nuevo.
+    if (c.valor === null) delete filas[c.tipo];
+    else filas[c.tipo] = { recibo: c.recibo, confirmado: c.valor };
+    if (filas.voto || filas.senal) enviado[c.obra] = filas;
+    else delete enviado[c.obra];
   }
-  return next;
 }
 
 export function useSincronizar(votos: Votos, senales: Senales, listo: boolean, alEnviar: () => void) {
   const enVuelo = useRef(false);
+  // Copia en memoria: manda sobre localStorage, que puede fallar o estar lleno.
+  const enviadoRef = useRef<Enviado | null>(null);
   // Vuelve a mirar si quedó algo por enviar (lote partido o cambio durante un envío).
   const [pulso, setPulso] = useState(0);
   const alEnviarRef = useRef(alEnviar);
@@ -74,24 +92,26 @@ export function useSincronizar(votos: Votos, senales: Senales, listo: boolean, a
         setPulso((n) => n + 1);
         return;
       }
-      const enviado = leerEnviado();
-      const cambios = diferencias(votos, senales, enviado);
+      const enviado = (enviadoRef.current ??= leerEnviado());
+      const cambios = pendientes(votos, senales, enviado).slice(0, LOTE);
       if (cambios.length === 0) return;
+      // El recibo se guarda antes de enviar: si la respuesta se pierde, se reenvía el mismo.
+      guardarEnviado(enviado);
       enVuelo.current = true;
       try {
         const res = await fetch("/api/recuento", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cambios: cambios.slice(0, 200) }),
+          body: JSON.stringify({ cambios }),
           keepalive: true,
         });
-        // 400: datos que el servidor no reconoce (una obra retirada). Se dan
-        // por tratados para no reintentarlos sin fin.
+        // 400: nada del lote es válido (obras retiradas). Se da por tratado
+        // para no reintentarlo sin fin.
         if (res.ok || res.status === 400) {
-          const nuevo = aplicarAlEnviado(enviado, cambios.slice(0, 200));
-          guardarEnviado(nuevo);
+          confirmar(enviado, cambios);
+          guardarEnviado(enviado);
           if (res.ok) alEnviarRef.current();
-          if (cambios.length > 200) setPulso((n) => n + 1);
+          setPulso((n) => n + 1);
         }
       } catch {
         // sin red: se reintenta con el siguiente cambio o la próxima visita

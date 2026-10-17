@@ -1,5 +1,6 @@
 """Prueba E2E de ¿VALIÓ? — piloto real de Teulada: gestos, botones, teclado, ficha, borrador, persistencia."""
 import json
+import secrets
 import os
 import re
 import subprocess
@@ -1461,26 +1462,38 @@ with sync_playwright() as p:
         obra_v = ids[-1]
         antes = _recuento(obra_v)
         check("V1 recuento: GET responde con contadores", antes is not None and "votos" in antes, f"{antes}")
-        estado, _ = _api("POST", "/api/recuento", {"cambios": [{"obra": obra_v, "tipo": "voto", "valor": "valio", "anterior": None}]})
+        r1 = secrets.token_hex(16)
+        voto = lambda valor, recibo=r1, obra=obra_v: {"obra": obra, "tipo": "voto", "valor": valor, "recibo": recibo}
+        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio")]})
         despues = _recuento(obra_v)
         check(
             "V1 recuento: un voto suma uno",
             estado == 200 and despues and despues["votos"]["valio"] == antes["votos"]["valio"] + 1,
             f"estado={estado} antes={antes} despues={despues}",
         )
-        estado, _ = _api("POST", "/api/recuento", {"cambios": [{"obra": obra_v, "tipo": "voto", "valor": "no_valio", "anterior": "valio"}]})
+        _api("POST", "/api/recuento", {"cambios": [voto("valio")]})
+        check("V1 recuento: reenviar el mismo recibo no suma dos veces", _recuento(obra_v) == despues, f"{_recuento(obra_v)}")
+        estado, _ = _api("POST", "/api/recuento", {"cambios": [voto("no_valio")]})
         cambio = _recuento(obra_v)
         check(
             "V2 recuento: cambiar el voto mueve uno de sitio",
             estado == 200 and cambio["votos"]["valio"] == antes["votos"]["valio"] and cambio["votos"]["no_valio"] == antes["votos"]["no_valio"] + 1,
             f"{cambio}",
         )
-        e_obra, _ = _api("POST", "/api/recuento", {"cambios": [{"obra": "no-existe", "tipo": "voto", "valor": "valio", "anterior": None}]})
-        e_voto, _ = _api("POST", "/api/recuento", {"cambios": [{"obra": obra_v, "tipo": "voto", "valor": "me_gusta", "anterior": None}]})
-        check("V3 recuento: rechaza obras y valores desconocidos", e_obra == 400 and e_voto == 400, f"{e_obra} {e_voto}")
-        _api("POST", "/api/recuento", {"cambios": [{"obra": obra_v, "tipo": "voto", "valor": None, "anterior": "explica"}] * 3})
-        sin_negativos = _recuento(obra_v)
-        check("V3 recuento: ningún contador baja de cero", min(sin_negativos["votos"].values()) >= 0, f"{sin_negativos}")
+        e_obra, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", obra="no-existe")]})
+        e_voto, _ = _api("POST", "/api/recuento", {"cambios": [voto("me_gusta")]})
+        e_recibo, _ = _api("POST", "/api/recuento", {"cambios": [voto("valio", recibo="corto")]})
+        check("V3 recuento: rechaza obras, valores y recibos desconocidos", (e_obra, e_voto, e_recibo) == (400, 400, 400), f"{e_obra} {e_voto} {e_recibo}")
+        # Quitar votos sin su recibo no resta nada: no se pueden borrar votos ajenos.
+        _api("POST", "/api/recuento", {"cambios": [voto(None, recibo=secrets.token_hex(16)) for _ in range(5)]})
+        check("V3 recuento: sin el recibo no se quitan votos ajenos", _recuento(obra_v) == cambio, f"{_recuento(obra_v)}")
+        _api("POST", "/api/recuento", {"cambios": [voto(None)] * 3})
+        quitado = _recuento(obra_v)
+        check(
+            "V3 recuento: quitar con su recibo resta uno y ningún contador baja de cero",
+            quitado["votos"]["no_valio"] == antes["votos"]["no_valio"] and min(quitado["votos"].values()) >= 0,
+            f"{quitado}",
+        )
 
         # V4 — votar en la app llega al recuento, y deshacer lo quita.
         ctx_v = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
@@ -1502,7 +1515,7 @@ with sync_playwright() as p:
 
         # V5 — la ficha enseña el reparto a partir de 5 votos.
         esperar_sin_vuelo(p_v)
-        _api("POST", "/api/recuento", {"cambios": [{"obra": i, "tipo": "voto", "valor": "valio", "anterior": None} for i in ids for _ in range(6)]})
+        _api("POST", "/api/recuento", {"cambios": [{"obra": i, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16)} for i in ids for _ in range(6)]})
         p_v.locator(".stack-slot").first.get_by_role("button", name="Ver ficha y evidencia").click()
         seccion = p_v.locator(".recuento-vecinos")
         seccion.wait_for(timeout=5000)
@@ -1517,8 +1530,9 @@ with sync_playwright() as p:
         ctx_v.close()
 
         # V6 — freno de abuso: pasado el límite diario, 429.
-        lote = [{"obra": obra_v, "tipo": "senal", "valor": "terminada", "anterior": None},
-                {"obra": obra_v, "tipo": "senal", "valor": None, "anterior": "terminada"}] * 100
+        r6 = secrets.token_hex(16)
+        lote = [{"obra": obra_v, "tipo": "senal", "valor": "terminada", "recibo": r6},
+                {"obra": obra_v, "tipo": "senal", "valor": None, "recibo": r6}] * 100
         codigos = [_api("POST", "/api/recuento", {"cambios": lote})[0] for _ in range(2)]
         check("V6 recuento: más de 300 cambios al día desde la misma conexión dan 429", codigos[-1] == 429, f"{codigos}")
 
@@ -1529,8 +1543,8 @@ with sync_playwright() as p:
         cabecera_v7 = {"X-Forwarded-For": "203.0.113.77"}
         antes_m = _recuento(id_madrid)
         e_mixto, cuerpo_mixto = _api("POST", "/api/recuento", {"cambios": [
-            {"obra": id_madrid, "tipo": "voto", "valor": "valio", "anterior": None},
-            {"obra": "28079-000000000000", "tipo": "voto", "valor": "valio", "anterior": None},
+            {"obra": id_madrid, "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16)},
+            {"obra": "28079-000000000000", "tipo": "voto", "valor": "valio", "recibo": secrets.token_hex(16)},
         ]}, cabecera_v7)
         despues_m = _recuento(id_madrid)
         check(

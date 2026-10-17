@@ -15,11 +15,17 @@ export type Tipo = "voto" | "senal";
 export interface Cambio {
   obra: string;
   tipo: Tipo;
-  /** Lo que cuenta ahora este dispositivo; null si lo quitó. */
+  /** Lo que cuenta ahora este dispositivo para esa obra; null si lo quitó. */
   valor: string | null;
-  /** Lo que el servidor tenía contado de este dispositivo; null si nada. */
-  anterior: string | null;
+  /**
+   * Recibo anónimo de esta aportación (128 bits al azar, uno por obra y
+   * tipo). El servidor guarda qué cuenta cada recibo: repetir un envío no
+   * suma dos veces y, sin el recibo, nadie puede quitar ni cambiar el voto.
+   */
+  recibo: string;
 }
+
+export const RECIBO = /^[0-9a-f]{32}$/;
 
 export interface RecuentoObra {
   votos: Record<Voto, number>;

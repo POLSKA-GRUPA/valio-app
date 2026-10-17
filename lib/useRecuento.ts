@@ -16,7 +16,10 @@ export function useRecuento(obraId: string): EstadoRecuento {
 
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/recuento?obras=${encodeURIComponent(obraId)}`, { cache: "no-store" })
+    // Tras un envío propio, una URL única salta la caché compartida (CDN, 20 s)
+    // para que el vecino vea su voto sumado y no la copia de antes.
+    const fresco = versionRecuento > 0 ? `&n=${Math.random().toString(36).slice(2)}` : "";
+    fetch(`/api/recuento?obras=${encodeURIComponent(obraId)}${fresco}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d: { recuento: Record<string, RecuentoObra> }) => {
         const datos = d.recuento?.[obraId];
