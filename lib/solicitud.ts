@@ -213,9 +213,9 @@ export function calendario(obra: Obra, presentada: string): string {
       1,
     ),
     ...evento(
-      sumarMeses(presentada, 2),
+      sumarDias(vencimiento(presentada, true), 1),
       "Seguimiento de tu solicitud (¿VALIÓ?)",
-      `¿Te contestaron a la solicitud sobre ${obraTxt}? Si te lo denegaron, tienes un mes desde que te lo notificaron para reclamar. Si no contestan, puedes reclamar cuando quieras.`,
+      `¿Te contestaron a la solicitud sobre ${obraTxt}? Si te lo denegaron, tienes un mes desde que te lo notificaron para reclamar. Si te notificaron una ampliación y no han contestado, ya puedes reclamar (comprueba el plazo con tu justificante).`,
       2,
     ),
     "END:VCALENDAR",
