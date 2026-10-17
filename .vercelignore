@@ -1,0 +1,3 @@
+docs/
+*.png
+!public/**/*.png

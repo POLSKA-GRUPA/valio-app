@@ -3,13 +3,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Categoria, Obra, Voto, Votos } from "./obras";
 import { SENALES, type Senal, type Senales } from "./senal";
-import { buscarMunicipio, cargarObras, existeMunicipio, obrasDe, type PoblacionMunicipio } from "./municipios";
+import { cargarObras, esPilotoIne, municipioAntiguo, sanearMunicipio, type Municipio, type PoblacionMunicipio } from "./municipios";
+import { OBRAS, POBLACION } from "./obras";
 import type { Orden } from "./orden";
 import { useSincronizar } from "./useSincronizar";
 
 const KEY = "valio.votos.v1";
 const TUTORIAL_KEY = "valio.tutorial.visto.v1";
-const MUNICIPIO_KEY = "valio.municipio.v1";
+const MUNICIPIO_KEY = "valio.municipio.v2";
+/** Antes se guardaba solo el nombre; se migra al leer. */
+const MUNICIPIO_KEY_V1 = "valio.municipio.v1";
 const SENALES_KEY = "valio.senales.v1";
 const VOTOS_VALIDOS: readonly string[] = ["valio", "no_valio", "explica", "no_puedo"];
 
@@ -113,11 +116,13 @@ function guardarSobreDisco<T extends Record<string, string>>(
   return next;
 }
 
-/** Solo vale un municipio que exista en los datos; si no, se vuelve a preguntar. */
-function leerMunicipio(): string | null {
+/** El municipio guardado (por su código INE); si no vale, se vuelve a preguntar. */
+function leerMunicipio(): Municipio | null {
   try {
     const raw = window.localStorage.getItem(MUNICIPIO_KEY);
-    return raw && existeMunicipio(raw) ? raw : null;
+    if (raw) return sanearMunicipio(JSON.parse(raw));
+    const antiguo = window.localStorage.getItem(MUNICIPIO_KEY_V1);
+    return antiguo ? municipioAntiguo(antiguo) : null;
   } catch {
     return null;
   }
@@ -135,8 +140,11 @@ interface StoreValue {
   senales: Senales;
   responderSenal: (id: string, senal: Senal) => void;
   listo: boolean;
+  /** Nombre del municipio elegido (para los textos). */
   municipio: string | null;
-  elegirMunicipio: (nombre: string) => void;
+  /** El municipio elegido entero (código INE, provincia, comunidad). */
+  ficha: Municipio | null;
+  elegirMunicipio: (m: Municipio) => void;
   cambiarMunicipio: () => void;
   /** Obras del municipio elegido: lo único que ven el mazo y los paneles. */
   obras: Obra[];
@@ -166,7 +174,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [senales, setSenales] = useState<Senales>({});
   const [tutorialVisto, setTutorialVisto] = useState(true);
   const [listo, setListo] = useState(false);
-  const [municipio, setMunicipio] = useState<string | null>(null);
+  const [ficha, setFicha] = useState<Municipio | null>(null);
+  const municipio = ficha?.nombre ?? null;
   const [tipos, setTipos] = useState<Categoria[]>([]);
   const [orden, setOrden] = useState<Orden>("recientes");
   const [versionRecuento, setVersionRecuento] = useState(0);
@@ -174,7 +183,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setVotos(leerVotos());
     setSenales(leerSenales());
-    setMunicipio(leerMunicipio());
+    setFicha(leerMunicipio());
     try {
       setTutorialVisto(window.localStorage.getItem(TUTORIAL_KEY) === "1");
     } catch {
@@ -242,11 +251,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const elegirMunicipio = useCallback((nombre: string) => {
-    if (!existeMunicipio(nombre)) return;
-    setMunicipio(nombre);
+  const elegirMunicipio = useCallback((m: Municipio) => {
+    const valido = sanearMunicipio(m);
+    if (!valido) return;
+    setFicha(valido);
     try {
-      window.localStorage.setItem(MUNICIPIO_KEY, nombre);
+      window.localStorage.setItem(MUNICIPIO_KEY, JSON.stringify(valido));
+      window.localStorage.removeItem(MUNICIPIO_KEY_V1);
     } catch {
       // sin persistencia: se vuelve a preguntar en la próxima visita
     }
@@ -254,45 +265,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Los votos se quedan: si vuelves a tu municipio, siguen ahí.
   const cambiarMunicipio = useCallback(() => {
-    setMunicipio(null);
+    setFicha(null);
     setTipos([]); // los tipos de otro municipio pueden no existir
     try {
       window.localStorage.removeItem(MUNICIPIO_KEY);
+      window.localStorage.removeItem(MUNICIPIO_KEY_V1);
     } catch {
       // sin persistencia
     }
   }, []);
 
-  // Piloto: obras en el código. Carga nacional: se descargan al elegir.
-  const ficha = useMemo(() => buscarMunicipio(municipio), [municipio]);
+  // Piloto: obras en el código. El resto: se descarga su provincia al elegir.
   const [obras, setObras] = useState<Obra[]>([]);
+  const [poblacion, setPoblacion] = useState<PoblacionMunicipio | null>(null);
   const [cargando, setCargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   useEffect(() => {
     setErrorCarga(null);
     if (!ficha) {
       setObras([]);
+      setPoblacion(null);
       setCargando(false);
       return;
     }
-    if (!ficha.ine) {
-      setObras(obrasDe(ficha.nombre));
+    if (esPilotoIne(ficha.ine)) {
+      setObras(OBRAS.filter((o) => o.municipio === "Teulada"));
+      setPoblacion(POBLACION);
       setCargando(false);
       return;
     }
     let vigente = true;
     setObras([]);
+    setPoblacion(null);
     setCargando(true);
     cargarObras(ficha)
-      .then((lista) => vigente && setObras(lista))
+      .then((r) => {
+        if (!vigente) return;
+        setObras(r.obras);
+        setPoblacion(r.poblacion);
+      })
       .catch(() => vigente && setErrorCarga(`No se han podido descargar las obras de ${ficha.nombre}. Revisa la conexión y vuelve a intentarlo.`))
       .finally(() => vigente && setCargando(false));
     return () => {
       vigente = false;
     };
   }, [ficha]);
-  const poblacion = ficha?.poblacion ?? null;
-  const esPiloto = ficha ? ficha.ine === null : false;
+  const esPiloto = ficha ? esPilotoIne(ficha.ine) : false;
 
   useSincronizar(votos, senales, listo, () => setVersionRecuento((n) => n + 1));
 
@@ -319,6 +337,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       marcarTutorialVisto,
       listo,
       municipio,
+      ficha,
       elegirMunicipio,
       cambiarMunicipio,
       obras,
@@ -344,6 +363,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       marcarTutorialVisto,
       listo,
       municipio,
+      ficha,
       elegirMunicipio,
       cambiarMunicipio,
       obras,

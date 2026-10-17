@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronRight, MapPin } from "lucide-react";
-import { MUNICIPIOS, normalizar } from "@/lib/municipios";
+import { buscar, cargarIndice, type Municipio } from "@/lib/municipios";
 import { OBRAS } from "@/lib/obras";
 import { eurosCompactos } from "@/lib/formato";
 import { importeDe } from "@/lib/orden";
@@ -35,16 +35,34 @@ function Abanico() {
  * Primera pantalla: las obras municipales solo las juzga quien vive allí.
  * Sin GPS ni ubicación precisa: basta con el municipio (dossier §8.4).
  */
-export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => void }) {
+export function ElegirMunicipio({ onElegir }: { onElegir: (m: Municipio) => void }) {
   const tituloRef = useRef<HTMLHeadingElement>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [todos, setTodos] = useState<Municipio[] | null>(null);
+  const [error, setError] = useState(false);
+  const [intento, setIntento] = useState(0);
   const idBuscar = useId();
-  const visibles = MUNICIPIOS.filter((m) => normalizar(m.nombre).includes(normalizar(busqueda)));
 
   // El lector empieza por la pregunta, no por el primer botón.
   useEffect(() => {
     tituloRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    let vivo = true;
+    setError(false);
+    cargarIndice()
+      .then((lista) => vivo && setTodos(lista))
+      .catch(() => vivo && setError(true));
+    return () => {
+      vivo = false;
+    };
+  }, [intento]);
+
+  // Sin escribir: los que más obras tienen. Escribiendo: los que encajan.
+  const destacados = todos ? [...todos].sort((a, b) => b.numObras - a.numObras).slice(0, 6) : [];
+  const escrito = busqueda.trim().length > 0;
+  const visibles = todos ? (escrito ? buscar(todos, busqueda) : destacados) : [];
 
   return (
     <section className="panel municipio-panel" aria-labelledby="municipio-titulo">
@@ -53,8 +71,8 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => vo
         ¿Dónde vives?
       </h2>
       <p className="panel-intro">
-        Elige tu municipio para ver sus obras. Solo te preguntamos el municipio: nunca tu ubicación. Se guarda
-        en este dispositivo.
+        Busca tu municipio entre los de toda España para ver sus obras. Solo te preguntamos el municipio: nunca tu
+        ubicación. Se guarda en este dispositivo.
       </p>
       <label htmlFor={idBuscar} className="sr-only">
         Busca tu municipio
@@ -68,21 +86,36 @@ export function ElegirMunicipio({ onElegir }: { onElegir: (nombre: string) => vo
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
       />
-      {visibles.length === 0 && (
-        <p className="municipio-vacio" role="status">
-          Aún no tenemos obras de «{busqueda}». Estamos añadiendo municipios.
+      {error && (
+        <p className="municipio-vacio" role="alert">
+          No se ha podido descargar la lista de municipios.{" "}
+          <button type="button" className="btn" onClick={() => setIntento((n) => n + 1)}>
+            Reintentar
+          </button>
         </p>
       )}
+      {!todos && !error && (
+        <p className="municipio-vacio" role="status" aria-busy="true">
+          Cargando municipios…
+        </p>
+      )}
+      {todos && escrito && visibles.length === 0 && (
+        <p className="municipio-vacio" role="status">
+          No encontramos ningún municipio llamado «{busqueda}».
+        </p>
+      )}
+      {todos && !escrito && <p className="municipio-vacio">Algunos con datos:</p>}
       <ul className="municipio-lista">
         {visibles.map((m) => (
-          <li key={m.nombre}>
-            <button type="button" className="btn municipio-btn" onClick={() => onElegir(m.nombre)}>
+          <li key={m.ine}>
+            <button type="button" className="btn municipio-btn" onClick={() => onElegir(m)}>
               <span className="municipio-punto" aria-hidden="true">
                 <MapPin size={20} />
               </span>
               <span className="municipio-nombre">{m.nombre}</span>
               <span className="municipio-detalle">
-                {m.provincia} · {m.numObras} {m.numObras === 1 ? "obra" : "obras"}
+                {m.provincia} ·{" "}
+                {m.numObras === 0 ? "sin obras cargadas" : `${m.numObras.toLocaleString("es-ES")} ${m.numObras === 1 ? "obra" : "obras"}`}
               </span>
               <ChevronRight className="municipio-flecha" size={20} aria-hidden="true" />
             </button>
