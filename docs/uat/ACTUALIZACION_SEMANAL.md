@@ -16,7 +16,7 @@ online ni envíos a organismos. No modifica archivos versionados ni ramas de
 los repos de origen. Sí escribe sus propios logs, informes y clones bajo
 `.cache/semanal` de la app anfitriona (ignorada por Git). No usa credenciales.
 
-## Primera vez (bootstrap, ~10-20 min y ~7 GB)
+## Primera vez (bootstrap: generación más ZIPs, tamaño variable)
 
 Antes de activar nada, integra el parser de lugar de ejecución y reconstruye la
 caché v8. Las referencias de código de app/datos deben corresponder a esa
@@ -99,8 +99,10 @@ sed -e "s#__REPO__#$PWD#" -e "s#__LOG__#$PWD/.cache/semanal/log/launchd.log#" \
 launchctl load ~/Library/LaunchAgents/es.valio.semanal.plist
 ```
 
-Advertencias: si el Mac está apagado o dormido a esa hora, **no corre** (launchd
-lo ejecuta al despertar, una sola vez); el `PATH` de launchd es corto (la
+Advertencias: en reposo, `StartCalendarInterval` difiere la tarea hasta el
+despertar. Si el Mac está apagado, se pierde esa ejecución hasta la siguiente
+fecha programada (no se recupera automáticamente al arrancar). Véase
+[Apple: reposo y apagado](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/ScheduledJobs.html). el `PATH` de launchd es corto (la
 plantilla ya incluye Homebrew); y sigue haciendo falta la revisión humana
 semanal: el timer solo prepara el resultado, no lo publica.
 
@@ -124,3 +126,18 @@ antepasados, copias incompletas y avance normal de main. El resumen reconoce
 el formato agregado de `publicar --todos`; un recuento no verificable aborta.
 El bootstrap rechaza symlinks y una fuente que cambie mientras se copia.
 No equivale a haber realizado la primera pasada real ni a activar el timer.
+
+## Prueba real de esta entrega (18/10/2026)
+
+El bootstrap copió 5.466 ficheros, 13,38 GiB, en 1:08 en este Mac. Es una
+medición, no un plazo garantizado. Luego la pasada real terminó con código 0
+en 4:08: seis descargas, reparto incremental, publicación de 5.393 municipios
+y 93.727 obras en staging, tests Python/Node, PII, tipos y build verdes.
+El origen conserva sus 93.722 obras: los cinco cambios nuevos están pendientes
+de revisión en staging, no se han aplicado al origen ni a la web.
+
+Informe: `.cache/semanal/informes/20261018-113253.md`. Commits locales de prueba:
+app `a305cd4`, datos `6f393df`; las ramas y comandos están en el informe.
+La prueba usa copias grandes (13,38 GiB de caché/ZIPs más clones y build).
+No se ha instalado ni activado el temporizador. Una advertencia de Next sobre
+lockfiles anidados no impidió el build del staging; no modifica el origen.
