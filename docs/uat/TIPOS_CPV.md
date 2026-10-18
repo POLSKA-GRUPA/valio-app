@@ -38,41 +38,38 @@ divisiones (suministros, servicios) caen a la heurística por título.
    heredada (misma de siempre, sin retocar) y de ahí a «urbanismo».
 4. Acepta el código con o sin dígito de control (`45112730` y `45112730-1`).
 
-## Efecto esperado sobre la carga nacional
+## Efecto medido sobre la carga nacional
 
-Simulación con el mismo filtro que `generar-nacional.mjs` sobre la pasada local
-de valio-datos (80.403 obras en esta pasada; la cifra exacta puede bailar con
-la pasada del día):
+Comparación por id del snapshot regenerado con `origin/main`: **80.358 obras**,
+**4.623 cambian de categoría**. El piloto de Teulada no cambia.
 
 | Categoría | Antes (solo título) | Después (CPV + título) |
 |---|---|---|
-| seguridad | 2.327 | 2.049 |
-| medio ambiente | 8.345 | 8.951 |
-| deporte | 8.341 | 8.499 |
-| educacion | 5.410 | 5.187 |
-| patrimonio | 2.834 | 2.982 |
-| parques | 3.518 | 3.383 |
-| urbanismo | 49.628 | 49.352 |
+| seguridad | 2.325 | 2.138 |
+| medio ambiente | 8.334 | 9.154 |
+| deporte | 8.337 | 8.687 |
+| educacion | 5.405 | 5.267 |
+| patrimonio | 2.833 | 3.081 |
+| parques | 3.515 | 3.710 |
+| urbanismo | 49.609 | 48.321 |
 
-Unas 23.700 obras pasan a clasificarse por CPV. Los grandes movimientos son
-ganancias de precisión: +1.095 urbanismo → medio ambiente (tuberías de agua y
-saneamiento con títulos crípticos), +462 urbanismo → patrimonio (casas de
-cultura, yacimientos), +415 urbanismo → deporte, +356 urbanismo → parques,
-+138 urbanismo → seguridad. En la otra dirección, el CPV corrige falsos amigos
-del título: «apellido Castillo» que no es monumento, «camino de La Ermita» que
-es un camino, «puerto deportivo» que no es instalación deportiva.
+No se pretende repartir las obras por igual. «Urbanismo» sigue siendo la categoría
+más frecuente. Los códigos genéricos de pavimentación (45233200, 45233250,
+45233251, 45233222 y 45233228) y de ocio usan el título, para no perder patios
+de colegio, pistas deportivas o parques infantiles. Los viales específicos
+(por ejemplo 45233252: calles) sí deciden «urbanismo».
 
 ## Tests automáticos
 
-`node --test scripts/tests/tipo-obra.test.mjs` (19 tests): heurística heredada
+`node --test scripts/tests/tipo-obra.test.mjs` (21 tests): heurística heredada
 intacta, CPV específico contra título contradictorio, dígito de control, CPV
 desconocido/genérico/ausente, secundarios ignorados, familias 451127 y 4523
 repartidas, falsos amigos y conservación con fallback.
 
 ## UAT manual (10 min)
 
-Requiere regenerar los datos con `node scripts/generar-nacional.mjs` (paso de
-integración, no incluido en este cambio) y arrancar la app.
+Los datos se han regenerado con `node scripts/generar-nacional.mjs`. Arranca
+la app con `RECUENTO_MEMORIA=1 npm run dev` para repetir la comprobación.
 
 | # | Escenario | Cómo probarlo | Qué esperar |
 |---|---|---|---|
@@ -89,9 +86,8 @@ integración, no incluido en este cambio) y arrancar la app.
 
 ## Límites conocidos (documentados, aceptados)
 
-- **Pavimentos de instalaciones deportivas**: «remodelación de pistas de tenis»
-  con CPV 45233251 (repavimentación) sale «urbanismo»: el CPV oficial elegido
-  por el órgano es vial. El chip es una ayuda de filtro, no un dato oficial.
+- Un CPV específico erróneo en origen puede dar un chip inadecuado: el chip es
+  una ayuda de filtro, no un dato oficial. No se sustituye el objeto del contrato.
 - **Heurística heredada sin tocar**: «calle Biblioteca» sin CPV sigue saliendo
   «educacion» (comportamiento anterior, fuera del alcance de este cambio).
 - Solo se mapea la división 45: unas decenas de obras con CPV de otras

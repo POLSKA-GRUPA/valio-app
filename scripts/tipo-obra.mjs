@@ -133,7 +133,6 @@ const REGLAS_CPV = [
   ["452133", "urbanismo"],      // 45213300 edificios relacionados con el transporte
   ["452154", "urbanismo"],      // 45215400 cementerios (edificación)
   ["452363", "urbanismo"],      // 45236300 explanación de cementerios (pisa a «parques» 45236)
-  ["452121", "urbanismo"],      // 45212100 instalaciones de ocio (cines, casinos, parques de atracciones)
   ["4523214", "urbanismo"],     // 45232140 redes de calefacción urbana (pisa a «medio ambiente» 452321)
   ["452422", "urbanismo"],      // 45242200 puertos deportivos y para yates (no son instalaciones deportivas)
 ];
@@ -150,6 +149,9 @@ function cpvPrincipal(cpv) {
 export function tipoPorCpv(cpv) {
   const codigo = cpvPrincipal(cpv);
   if (!codigo) return null;
+  // Estos hijos no describen el destino: el pavimento puede ser el patio
+  // de un colegio o una pista deportiva. No heredan «vialidad» del padre.
+  if (["45233200", "45233250", "45233251", "45233222", "45233228"].includes(codigo)) return null;
   let mejor = null;
   for (const [prefijo, tipo] of REGLAS_CPV) {
     if (codigo.startsWith(prefijo) && (!mejor || prefijo.length > mejor[0].length)) mejor = [prefijo, tipo];

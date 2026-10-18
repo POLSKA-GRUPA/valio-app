@@ -183,3 +183,17 @@ test("el resultado siempre es una de las 7 categorías", () => {
     assert.ok(CATEGORIAS.includes(tipoDe(neutro, cpv)), `cpv=${JSON.stringify(cpv)}`);
   }
 });
+
+test("pavimentos genéricos conservan el destino del título", () => {
+  for (const codigo of ["45233200", "45233250", "45233251", "45233222", "45233228"]) {
+    assert.equal(tipoDe("Mejora de accesibilidad en el patio del Colegio", [codigo]), "educacion");
+    assert.equal(tipoDe("Renovación de pista deportiva", [codigo]), "deporte");
+  }
+  assert.equal(tipoDe("Pavimentación calle del Colegio", ["45233252"]), "urbanismo");
+});
+
+test("ocio genérico no borra parques infantiles ni rocódromos deportivos", () => {
+  assert.equal(tipoDe("Instalación de juegos infantiles en el parque Huerto Peluca", ["45212100", "37535200"]), "parques");
+  assert.equal(tipoDe("Rehabilitación de Parques Infantiles", ["45212140", "45112723"]), "parques");
+  assert.equal(tipoDe("Rocódromo en Ciudad deportiva", ["45212100"]), "deporte");
+});
