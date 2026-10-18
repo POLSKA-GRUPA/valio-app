@@ -103,3 +103,11 @@ del municipio: `Teulada/Benissa` no equivale a Teulada.
 
 Prueba: `node --test scripts/lugar-de-obra.test.mjs` → 24 tests verdes.
 La revisión independiente reprodujo y cerró ambos fallos antes de la pasada real.
+
+El municipio INE de la obra corresponde al órgano, no siempre al lugar de
+los trabajos. Si el campo de ejecución presente declara otro municipio o un
+país extranjero, se descarta también el punto del título, aunque haya una
+calle homónima en el municipio del órgano. Sin metadatos de ejecución no se
+infiere esa contradicción y se conserva la vía antigua por título. El parser
+actual omite ejecuciones extranjeras; ese límite del recorrido antiguo no
+queda resuelto con este cambio. Suite del extractor: 25 tests.

@@ -164,6 +164,13 @@ export function lugarDeEjecucion(lugarEjecucion, municipio) {
  */
 export function opcionesDeObra(ine, obra, municipio) {
   const opciones = [];
+  const anuncio = obra?.lugarEjecucion;
+  // El INE de la obra identifica al órgano. Si el anuncio dice otro lugar,
+  // ni siquiera un título homónimo permite situarla en el municipio del órgano.
+  if (anuncio && typeof anuncio === "object" && (
+    (typeof anuncio.municipio === "string" && anuncio.municipio.trim() && !municipioEquivale(anuncio.municipio, municipio)) ||
+    (typeof anuncio.pais === "string" && anuncio.pais.trim() && !paisEspanol(anuncio.pais))
+  )) return opciones;
   const titulo = lugarDelTitulo(obra?.nombre ?? "", municipio);
   if (titulo) opciones.push({ origen: "titulo", lugar: titulo, clave: claveObra(obra.id, ine, titulo.consulta) });
   const ejecucion = lugarDeEjecucion(obra?.lugarEjecucion, municipio);
