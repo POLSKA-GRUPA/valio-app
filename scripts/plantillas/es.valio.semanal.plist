@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLANTILLA launchd de la pasada semanal — NO INSTALADA.
+
+  Antes de usarla: lee docs/uat/ACTUALIZACION_SEMANAL.md y consigue el OK de
+  Kenyi (pendiente la decisión GitHub vs Mac). Sustituye __REPO__ (ruta del
+  repo valio-app) y __LOG__ (fichero de salida) con el sed del documento.
+  Copia el resultado a ~/Library/LaunchAgents/ y cárgalo con launchctl.
+
+  Advertencias: si el Mac duerme o está apagado el viernes a las 9:30, launchd
+  lo ejecuta al despertar (una sola vez). Esto no publica nada: la revisión
+  humana de cada informe sigue siendo obligatoria.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>es.valio.semanal</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>__REPO__/scripts/actualizar-semanal.py</string>
+        <string>--ejecutar</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <!-- Viernes a las 9:30 (Weekday 5). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>5</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <!-- launchd tiene un PATH mínimo: node/npm suelen estar en Homebrew. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG__</string>
+</dict>
+</plist>
