@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
-import { esAproximada, tienePunto, type Obra, type UbicacionAproximada, type UbicacionPrecisa } from "@/lib/obras";
+import { esAproximada, tienePunto, type Obra, type UbicacionPrecisa } from "@/lib/obras";
+import type { UbicacionAproximadaConOrigen } from "@/lib/municipios";
 import { REVISADO, VISTAS_AEREAS, type FotoAerea, type VistaAerea } from "@/lib/aerea";
 
 // El mapa interactivo pesa (MapLibre): solo se descarga si el vecino lo pide.
@@ -211,17 +212,22 @@ function ortofotoIgn(lat: number, lon: number): string {
  * comprobamos la fecha de vuelo frente a la obra) y se atribuye la fuente
  * como pide la licencia CC BY 4.0.
  */
-function SeccionAproximada({ obra, u }: { obra: Obra; u: UbicacionAproximada }) {
+function SeccionAproximada({ obra, u }: { obra: Obra; u: UbicacionAproximadaConOrigen }) {
   const anyo = u.fuente.fechaConsulta.slice(-4);
+  const delAnuncio = u.origen === "ejecucion";
+  const sitio =
+    u.nivel === "calle"
+      ? delAnuncio
+        ? "un punto de la calle del lugar de ejecución que declara el anuncio. La obra puede estar en otro tramo de la calle."
+        : "un punto de la calle que nombra el título. La obra puede estar en otro tramo de la calle."
+      : delAnuncio
+        ? "el lugar de ejecución que declara el anuncio."
+        : "el lugar que nombra el título (colegio, parque, plaza…).";
   return (
     <section className="ficha-seccion" aria-labelledby="ficha-aerea">
       <h3 id="ficha-aerea">Desde el aire</h3>
       <p className="ficha-nota aerea-aproximada">
-        Ubicación aproximada, sin revisar a mano:{" "}
-        {u.nivel === "calle"
-          ? "un punto de la calle que nombra el título. La obra puede estar en otro tramo de la calle."
-          : "el lugar que nombra el título (colegio, parque, plaza…)."}{" "}
-        Situada automáticamente con CartoCiudad (IGN).
+        Ubicación aproximada, sin revisar a mano: {sitio} Situada automáticamente con CartoCiudad (IGN).
       </p>
       <div className="aerea-marco">
         <img
