@@ -1743,6 +1743,7 @@ with sync_playwright() as p:
     check("G2 GEO: se publica la ejecución sólo con la marca de contraste",
           sac.get("ejecucionContrastada") is True and sac.get("geo", [None] * 4)[3] == "ejecucion"
           and seccion_g2.locator("img").count() == 1)
+    seccion_g2.scroll_into_view_if_needed()  # espera la estabilidad de la hoja antes de la captura
     shot(p_g2, "34-ejecucion-contrastada-sac")
     ctx_g2.close()
 
