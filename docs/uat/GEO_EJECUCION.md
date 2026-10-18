@@ -1,3 +1,10 @@
+> **Gate de publicación (2026-10-18):** PLACE repite a veces la dirección del
+> ayuntamiento en el lugar de ejecución. No se publica por coincidencia de
+> municipio y calle. La ejecución queda en cuarentena salvo contraste por obra
+> en `datos-geo/ejecuciones-contrastadas.json`, con mismo id, objeto y dirección.
+> La compacta marca sólo esos casos con `ejecucionContrastada: true`.
+> Metadata no contrastada tampoco invalida un título con un CityName administrativo.
+
 # UAT — Ubicaciones por lugar de ejecución del anuncio (feat/geo-ejecucion)
 
 **Qué es esto.** Hasta ahora una obra nacional solo se situaba si su *título*
@@ -112,3 +119,30 @@ infiere esa contradicción y se conserva la vía antigua por título. El parser 
 `excluirPuntoAutomatico: true` cuando esos metadatos impiden atribuir un punto
 único al municipio. La compacta preserva el indicador y la ficha lo explica.
 Suite del extractor: 26 tests.
+
+## Contraste con los datos reales
+
+Sobre 80.358 obras, 477 traen dirección publicable. El primer ensayo propuso
+29 puntos de ejecución: 28 no deben autopublicarse (direcciones administrativas
+sin relación acreditada con cada obra) y uno se ha contrastado documentalmente.
+No son 28 falsedades demostradas una por una: parte son contradicciones directas
+y parte falta de evidencia. Los 29 se revisaron antes de publicar.
+
+| Grupo | Candidatas | Evidencia primaria de sede/contradicción |
+|---|---:|---|
+| Vera, C/ Mayor 1 | 7 | https://www.vera.es/index.php?page=avisolegal |
+| Miranda de Ebro, Plaza España 8 | 10 | https://www.mirandadeebro.es/documentacion/servicio-de-atencion-ciudadana-sac/ |
+| Villarrubia, Constitución 1 | 5 | https://www.villarrubiadelosojos.es/ |
+| Lucena, Plaza Nueva 1 | 6 | https://lucena.es/ |
+| Torredonjimeno, Constitución 1 | 1 | https://www.tosiria.com/ayuntamiento/ y castillo en https://www.tosiria.com/castillo/ (Canteras 2) |
+
+Excepción SAC de Miranda: noticia de la misma reforma del local existente e
+importe https://www.mirandadeebro.es/comienzan-las-obras-de-acondicionamiento-del-sac/
+y ficha del servicio en Plaza España 8. No es una comprobación física del punto.
+Si cambia objeto o dirección, el contraste deja de valer automáticamente.
+No se autoriza todo el ayuntamiento por validar una de sus obras.
+
+Regresiones: `node --test scripts/lugar-de-obra.test.mjs` (29 tests): La Charca,
+castillo y estadio sin contraste no generan ejecución; el contraste no vale para
+otra obra, objeto o dirección. `lib/municipios.ts` tampoco admite un geo de
+origen ejecución sin la marca, aunque sobreviva una caché anterior.

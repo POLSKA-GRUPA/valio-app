@@ -32,7 +32,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tipoDe } from "./tipo-obra.mjs";
-import { elegirUbicacion, opcionesDeObra } from "./lugar-de-obra.mjs";
+import { ejecucionEstaContrastada, elegirUbicacion, opcionesDeObra } from "./lugar-de-obra.mjs";
 
 const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
@@ -45,6 +45,8 @@ const SALIDA_IDS = resolve(RAIZ_APP, "lib/ids-nacionales.ts");
 const PILOTO = new Set(["03128"]); // Teulada: piloto verificado a mano
 // Obras situadas por el título (scripts/geocodificar.mjs, CartoCiudad). Opcional.
 const GEO = resolve(RAIZ_APP, "datos-geo/geocodificado.json");
+const rutaContrastes = resolve(RAIZ_APP, "datos-geo/ejecuciones-contrastadas.json");
+const contrastesEjecucion = existsSync(rutaContrastes) ? JSON.parse(readFileSync(rutaContrastes, "utf8")) : {};
 
 function fallar(mensaje) {
   console.error(`✗ ${mensaje}`);
@@ -91,8 +93,10 @@ const adjudicada = (o) =>
 function aObra(ine, o) {
   const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
   const lugarEjecucion = lugarEjecucionDe(o);
+  const id = idObra(ine, o);
+  const contrastada = ejecucionEstaContrastada({ id, nombre: o.objeto, lugarEjecucion }, contrastesEjecucion);
   return {
-    id: idObra(ine, o),
+    id,
     nombre: o.objeto,
     categoria: tipoDe(o.objeto, o.cpv),
     organismo: o.organo,
@@ -112,6 +116,7 @@ function aObra(ine, o) {
     ...(/lotes|varios adjudicatarios/.test(o.notas || "") ? { aviso: true } : {}),
     url: o.urlOficial,
     ...(lugarEjecucion ? { lugarEjecucion } : {}),
+    ...(contrastada ? { ejecucionContrastada: true } : {}),
     ...(o.excluirPuntoAutomatico === true ? { excluirPuntoAutomatico: true } : {}),
   };
 }

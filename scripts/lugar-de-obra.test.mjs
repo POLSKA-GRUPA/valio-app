@@ -12,6 +12,7 @@ import {
   claveEjecucion,
   conComaDelPortal,
   elegirUbicacion,
+  ejecucionEstaContrastada,
   esResultadoValido,
   lugarDeEjecucion,
   municipioEquivale,
@@ -130,16 +131,16 @@ test("la clave de título se preserva: la caché de 13.590 entradas sigue sirvie
 // --- opciones ----------------------------------------------------------------
 
 test("opcionesDeObra: título primero, ejecución de fallback detrás", () => {
-  const ambas = opcionesDeObra("03128", { id: "x1", nombre: "Reforma de la calle Ceres", lugarEjecucion: EJECUCION("Calle Mayor 12") }, "Teulada");
+  const ambas = opcionesDeObra("03128", { id: "x1", nombre: "Reforma de la calle Ceres", lugarEjecucion: EJECUCION("Calle Mayor 12"), ejecucionContrastada: true }, "Teulada");
   assert.deepEqual(ambas.map((o) => o.origen), ["titulo", "ejecucion"]);
 
   const soloTitulo = opcionesDeObra("03128", { id: "x2", nombre: "Reforma de la calle Ceres" }, "Teulada");
   assert.deepEqual(soloTitulo.map((o) => o.origen), ["titulo"]);
 
-  const soloEjecucion = opcionesDeObra("03128", { id: "x3", nombre: "Suministro de material escolar", lugarEjecucion: EJECUCION("Calle Mayor 12") }, "Teulada");
+  const soloEjecucion = opcionesDeObra("03128", { id: "x3", nombre: "Suministro de material escolar", lugarEjecucion: EJECUCION("Calle Mayor 12"), ejecucionContrastada: true }, "Teulada");
   assert.deepEqual(soloEjecucion.map((o) => o.origen), ["ejecucion"]);
 
-  const ninguna = opcionesDeObra("03128", { id: "x4", nombre: "Servicio de limpieza viaria", lugarEjecucion: EJECUCION("Calle Mayor y Calle Menor") }, "Teulada");
+  const ninguna = opcionesDeObra("03128", { id: "x4", nombre: "Servicio de limpieza viaria", lugarEjecucion: EJECUCION("Calle Mayor y Calle Menor"), ejecucionContrastada: true }, "Teulada");
   assert.deepEqual(ninguna, []);
 });
 
@@ -213,11 +214,37 @@ test("ejecución fuera del municipio invalida también un título homónimo", ()
   const obra = { id: "prueba", nombre: "Reforma de la calle Mayor" };
   assert.equal(opcionesDeObra("03128", obra, "Teulada").length, 1);
   for (const l of [EJECUCION("Calle Mayor 12", "Benissa", "ES"), EJECUCION("Calle Mayor 12", "Teulada/Benissa", "ES"), EJECUCION("Calle Mayor 12", "Teulada", "PL")]) {
-    assert.deepEqual(opcionesDeObra("03128", { ...obra, lugarEjecucion: l }, "Teulada"), []);
+    assert.deepEqual(opcionesDeObra("03128", { ...obra, lugarEjecucion: l, ejecucionContrastada: true }, "Teulada"), []);
   }
-  assert.equal(opcionesDeObra("03128", { ...obra, lugarEjecucion: EJECUCION("Calle Mayor 12", "Teulada", "ES") }, "Teulada").length, 2);
+  assert.equal(opcionesDeObra("03128", { ...obra, lugarEjecucion: EJECUCION("Calle Mayor 12", "Teulada", "ES"), ejecucionContrastada: true }, "Teulada").length, 2);
 });
 
 test("anuncio múltiple o extranjero sin dirección excluye también el título", () => {
   assert.deepEqual(opcionesDeObra("03128", { id: "prueba", nombre: "Reforma de la calle Mayor", excluirPuntoAutomatico: true }, "Teulada"), []);
+});
+
+test("la sede administrativa no es la ubicación de la obra sin contraste", () => {
+  for (const [municipio, nombre, direccion] of [
+    ["Miranda de Ebro", "Mejora de la red de riego del campo de fútbol de La Charca", "Plaza de España, 8"],
+    ["Torredonjimeno", "Restauración del Alfarje en el Castillo de Torredonjimeno", "Plaza de la Constitución, 1"],
+    ["Lucena", "Adaptación de instalación ACS del estadio municipal de fútbol", "Plaza Nueva 1"],
+  ]) {
+    const opciones = opcionesDeObra("00001", { id: "prueba", nombre, lugarEjecucion: EJECUCION(direccion, municipio, "ES") }, municipio);
+    assert.equal(opciones.some((o) => o.origen === "ejecucion"), false);
+  }
+});
+
+test("metadata no contrastada no elimina el título por un CityName administrativo", () => {
+  const opciones = opcionesDeObra("03128", { id: "prueba", nombre: "Reforma de la calle Mayor", lugarEjecucion: EJECUCION("Plaza de España 1", "Alicante", "ES") }, "Teulada");
+  assert.deepEqual(opciones.map((o) => o.origen), ["titulo"]);
+});
+
+test("el contraste exige misma obra, objeto y dirección y dos fuentes", () => {
+  const obra = { id: "obra-a", nombre: "Reforma del SAC", lugarEjecucion: EJECUCION("Plaza de España, 8", "Miranda de Ebro", "ES") };
+  const registro = { [obra.id]: { nombre: obra.nombre, ...obra.lugarEjecucion, fuentes: ["https://example.org/obra", "https://example.org/servicio"] } };
+  assert.equal(ejecucionEstaContrastada(obra, registro), true);
+  assert.equal(ejecucionEstaContrastada({ ...obra, id: "otra-obra" }, registro), false);
+  assert.equal(ejecucionEstaContrastada({ ...obra, nombre: "Reforma de estadio" }, registro), false);
+  assert.equal(ejecucionEstaContrastada({ ...obra, lugarEjecucion: { ...obra.lugarEjecucion, direccion: "Calle Mayor 1" } }, registro), false);
+  assert.equal(ejecucionEstaContrastada(obra, { [obra.id]: { ...registro[obra.id], fuentes: [] } }), false);
 });
