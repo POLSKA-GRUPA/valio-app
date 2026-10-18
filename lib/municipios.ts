@@ -102,6 +102,7 @@ interface ObraCompacta {
   adjudicacion: Adjudicacion;
   aviso?: true;
   excluirPuntoAutomatico?: true;
+  ejecucionContrastada?: true;
   url: string;
   /** Situada automáticamente (título o lugar de ejecución): [lat, lon, nivel],
    *  con un cuarto elemento "ejecucion" si el punto viene del anuncio. */
@@ -152,6 +153,7 @@ function ubicacionDe(o: ObraCompacta, fechaGeo: string): Ubicacion {
     motivo: "El anuncio no permite atribuir un punto único a este municipio",
   };
   const g = o.geo;
+  if (g?.[3] === "ejecucion" && o.ejecucionContrastada !== true) return SIN_SITUAR;
   if (!g || !Number.isFinite(g[0]) || !Number.isFinite(g[1]) || (g[2] !== "calle" && g[2] !== "lugar")) return SIN_SITUAR;
   const [lat, lon, nivel] = g;
   const origen: "titulo" | "ejecucion" = g[3] === "ejecucion" ? "ejecucion" : "titulo";

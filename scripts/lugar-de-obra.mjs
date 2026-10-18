@@ -10,7 +10,7 @@
  *
  *   1. «titulo»: el lugar que nombra el título (scripts/lugar-del-titulo.mjs,
  *      exactamente como hasta ahora; su clave de caché NO cambia).
- *   2. «ejecucion»: el lugar de ejecución del anuncio, solo si pasa filtros
+ *   2. «ejecucion»: el lugar de ejecución contrastado documentalmente por obra, solo si pasa filtros
  *      conservadores (mejor no situar que situar mal):
  *        - país España; vacío cuenta como España (PLACE publica contratos
  *          españoles y el país extranjero viene explícito en el anuncio),
@@ -162,10 +162,24 @@ export function lugarDeEjecucion(lugarEjecucion, municipio) {
  * ejecución lleva versión de extractor y origen). `obra`: { id, nombre,
  * lugarEjecucion? } tal como va en la compacta; `municipio`: el de la obra.
  */
+/** Sólo promueve una ejecución con contraste documental específico de esa obra.
+ * PLACE a veces copia la dirección del órgano en RealizedLocation: la sintaxis
+ * postal y el mismo municipio no prueban que los trabajos estén allí.
+ */
+export function ejecucionEstaContrastada(obra, registros) {
+  const revision = registros?.[obra.id];
+  const l = obra.lugarEjecucion;
+  if (!revision || !l || !Array.isArray(revision.fuentes) || new Set(revision.fuentes).size < 2) return false;
+  if (!revision.fuentes.every((url) => typeof url === "string" && url.startsWith("https://"))) return false;
+  return plano(obra.nombre ?? "") === plano(revision.nombre ?? "") &&
+    ["direccion", "municipio", "pais"].every((campo) =>
+      plano(l[campo] || (campo === "pais" ? "ES" : "")) === plano(revision[campo] || (campo === "pais" ? "ES" : "")));
+}
+
 export function opcionesDeObra(ine, obra, municipio) {
   const opciones = [];
   if (obra?.excluirPuntoAutomatico === true) return opciones;
-  const anuncio = obra?.lugarEjecucion;
+  const anuncio = obra?.ejecucionContrastada === true ? obra?.lugarEjecucion : null;
   // El INE de la obra identifica al órgano. Si el anuncio dice otro lugar,
   // ni siquiera un título homónimo permite situarla en el municipio del órgano.
   if (anuncio && typeof anuncio === "object" && (
@@ -174,7 +188,7 @@ export function opcionesDeObra(ine, obra, municipio) {
   )) return opciones;
   const titulo = lugarDelTitulo(obra?.nombre ?? "", municipio);
   if (titulo) opciones.push({ origen: "titulo", lugar: titulo, clave: claveObra(obra.id, ine, titulo.consulta) });
-  const ejecucion = lugarDeEjecucion(obra?.lugarEjecucion, municipio);
+  const ejecucion = lugarDeEjecucion(anuncio, municipio);
   if (ejecucion) opciones.push({ origen: "ejecucion", lugar: ejecucion, clave: claveEjecucion(obra.id, ine, ejecucion.consulta) });
   return opciones;
 }
