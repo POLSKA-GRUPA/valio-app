@@ -1,6 +1,6 @@
 /**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
- * Regenerar con: node scripts/generar-nacional.mjs · 2026-10-17
+ * Regenerar con: node scripts/generar-nacional.mjs · 2026-10-18
  * Ids de las obras nacionales publicadas: el recuento solo acepta votos a estas.
  */
 
