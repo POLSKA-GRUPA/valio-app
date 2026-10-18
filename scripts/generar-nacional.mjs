@@ -27,6 +27,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { claveObra, lugarDelTitulo } from "./lugar-del-titulo.mjs";
+import { tipoDe } from "./tipo-obra.mjs";
 
 const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
@@ -46,24 +47,11 @@ function fallar(mensaje) {
 }
 
 /**
- * Tipo de obra para los chips del mazo, por palabras del objeto. Es una
- * ayuda para filtrar, no un dato oficial: lo que manda es el objeto.
- * El orden importa: lo más específico primero.
+ * Tipo de obra para los chips del mazo. La lógica vive en scripts/tipo-obra.mjs
+ * (módulo compartido, sin dependencias): primero el CPV principal de la
+ * licitación si el código es específico, y si no las palabras del objeto.
+ * Es una ayuda para filtrar, no un dato oficial: lo que manda es el objeto.
  */
-const REGLAS_TIPO = [
-  ["seguridad", /polic[ií]a|bomberos|sem[aá]foro|seguridad|emergencia|videovigilancia|protecci[oó]n civil/i],
-  ["medio ambiente", /residuo|depurad|saneamiento|alcantarill|abastecimiento|agua|contador|pluvial|colector|playa|litoral|medio ambiente|ecopar|vertedero|energ[ií]a|fotovolt/i],
-  ["deporte", /deport|polideport|piscina|pistas? (?:deportiv|de p[aá]del|de tenis|de atletismo|multideport)|campo de f[uú]tbol|estadio|gimnas|front[oó]n|skate|p[aá]del/i],
-  ["educacion", /colegio|escuela|\bc\.?\s?e\.?\s?i\.?\s?p\b|\bi\.e\.s\b|\bies\b|instituto|educa|guarder|escoleta|biblioteca|aulari/i],
-  ["patrimonio", /patrimonio|iglesia|ermita|castillo|muralla|museo|teatro|hist[oó]ric|restauraci[oó]n|monumento|palacio/i],
-  // «parque» sin «de bomberos/contadores/vehículos/maquinaria»: esos no son zonas verdes.
-  ["parques", /parque(?! de (?:bomberos|contadores|veh[ií]culos|maquinaria|m[oó]vil))|jard[ií]n|zona verde|arbolado|juegos infantiles|[aá]rea de juego/i],
-]
-
-function tipoDe(objeto) {
-  for (const [tipo, patron] of REGLAS_TIPO) if (patron.test(objeto)) return tipo;
-  return "urbanismo";
-}
 
 /** «2026-05-12» → «12/05/2026». */
 const fechaEs = (iso) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
@@ -100,7 +88,7 @@ function aObra(ine, o) {
   return {
     id: idObra(ine, o),
     nombre: o.objeto,
-    categoria: tipoDe(o.objeto),
+    categoria: tipoDe(o.objeto, o.cpv),
     organismo: o.organo,
     anyo: Number(fecha.slice(0, 4)),
     // Cada importe es el suyo: si PLACE no da el presupuesto, «no consta».
