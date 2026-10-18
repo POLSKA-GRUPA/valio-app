@@ -7,6 +7,12 @@
  *   1. Lee public/datos/provincias/<cp>.json (lo que escribe generar-nacional).
  *   2. Saca del título el lugar que nombra («calle Ceres», «CEIP La Florida»…)
  *      con scripts/lugar-del-titulo.mjs. Si no nombra ninguno, no se toca.
+ *      Además, si la compacta trae lugarEjecucion (el lugar de ejecución que
+ *      declara el anuncio de PLACE), lo añade como SEGUNDA opción con los
+ *      filtros conservadores de scripts/lugar-de-obra.mjs (España, municipio
+ *      equivalente, una sola dirección con tipo delante). Resuelve ambas:
+ *      la elección (título manda, anuncio de fallback, conflicto >300 m)
+ *      la hace generar-nacional al integrar.
  *   3. Pregunta a CartoCiudad /candidates restringido a ese municipio
  *      (municipio_filter con el nombre que usa CartoCiudad, resuelto por INE)
  *      y se queda solo con una calle, portal, topónimo o punto de interés:
@@ -32,7 +38,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { claveObra, fichas, lugarDelTitulo, plano, TIPOS, VERSION_REGLAS } from "./lugar-del-titulo.mjs";
+import { fichas, plano, TIPOS, VERSION_REGLAS } from "./lugar-del-titulo.mjs";
+import { distanciaM, opcionesDeObra } from "./lugar-de-obra.mjs";
 
 const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR_PROVINCIAS = resolve(RAIZ_APP, "public/datos/provincias");
@@ -45,6 +52,7 @@ const AGENTE = "valio-app-geocodificador/1.0 (obras publicas; contacto: POLSKA-G
 const EN_PARALELO = 3; // ≤ 4 peticiones a la vez
 const PAUSA_MS = 250; // entre peticiones de cada hilo
 const REINTENTOS = 6;
+const TIMEOUT_MS = 30_000; // una petición colgada no cuelga la pasada
 const MAX_CALLE_M = 1000; // calle más larga que esto (sin portal): su punto no sitúa la obra
 const MAX_DISPERSION_M = 300; // varios candidatos válidos: solo si están todos juntos
 const HOY = new Date().toISOString().slice(0, 10);
@@ -90,7 +98,7 @@ function guardar() {
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 let llamadas = 0;
 
-/** GET a la API con reintentos (429, 5xx, red, cuerpo no JSON). Lanza si no hay manera. */
+/** GET a la API con reintentos (429, 5xx, red, cuerpo no JSON) y timeout. Lanza si no hay manera. */
 async function pedir(ruta, parametros) {
   if (SIN_RED) throw new Error("sin red");
   const url = new URL(`${API}/${ruta}`);
@@ -99,7 +107,7 @@ async function pedir(ruta, parametros) {
   for (let intento = 1; intento <= REINTENTOS; intento++) {
     try {
       llamadas += 1;
-      const r = await fetch(url, { headers: { "User-Agent": AGENTE, Accept: "application/json" } });
+      const r = await fetch(url, { headers: { "User-Agent": AGENTE, Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (r.status === 429 || r.status >= 500) throw new Error(`HTTP ${r.status}`);
       if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { definitivo: true });
       const texto = await r.text();
@@ -140,13 +148,6 @@ function extensionM(wkt) {
     maxY = Math.max(maxY, y);
   }
   return distanciaM(minY, minX, maxY, maxX);
-}
-
-function distanciaM(lat1, lon1, lat2, lon2) {
-  const rad = Math.PI / 180;
-  const x = (lon2 - lon1) * rad * Math.cos(((lat1 + lat2) / 2) * rad);
-  const y = (lat2 - lat1) * rad;
-  return Math.round(Math.sqrt(x * x + y * y) * 6371000);
 }
 
 /** Nombre del municipio tal como lo escribe CartoCiudad (para municipio_filter), por INE. */
@@ -321,14 +322,21 @@ for (const cp of cps) {
   for (const [ine, m] of Object.entries(doc.municipios)) {
     for (const o of m.obras) {
       total += 1;
-      const lugar = lugarDelTitulo(o.nombre, m.nombre);
-      if (lugar) tareas.push({ cp, ine, municipio: m.nombre, id: o.id, lugar, clave: claveObra(o.id, ine, lugar.consulta) });
+      // Una obra puede dar dos tareas: la de su título y, si el anuncio
+      // declara un lugar de ejecución que pasa los filtros, la de ejecución.
+      for (const opcion of opcionesDeObra(ine, o, m.nombre)) {
+        tareas.push({ cp, ine, municipio: m.nombre, id: o.id, origen: opcion.origen, lugar: opcion.lugar, clave: opcion.clave });
+      }
     }
   }
 }
+const conTitulo = tareas.filter((t) => t.origen === "titulo").length;
+const conEjecucion = tareas.length - conTitulo;
 // Regla 13: si no sale ningún lugar, el primer sospechoso es el extractor.
-if (total > 1000 && tareas.length < total * 0.1) fallar(`solo ${tareas.length} de ${total} títulos con lugar: revisa lugar-del-titulo.mjs`);
-console.log(`${cps.length} provincias · ${total} obras · ${tareas.length} con un lugar en el título`);
+if (total > 1000 && conTitulo < total * 0.1) fallar(`solo ${conTitulo} de ${total} títulos con lugar: revisa lugar-del-titulo.mjs`);
+console.log(
+  `${cps.length} provincias · ${total} obras · ${tareas.length} opciones (${conTitulo} del título, ${conEjecucion} del lugar de ejecución)`,
+);
 
 let hechas = 0;
 let fallos = 0;
@@ -375,16 +383,26 @@ const vigentes = new Set(tareas.map((t) => t.clave));
 if (!SOLO) for (const k of Object.keys(salida.obras)) if (!vigentes.has(k)) delete salida.obras[k];
 guardar();
 
-const deEstas = tareas.map((t) => salida.obras[t.clave]).filter(Boolean);
-const situadas = deEstas.filter((r) => !r.sinResultado);
+const deEstas = tareas.map((t) => ({ origen: t.origen, r: salida.obras[t.clave] })).filter(({ r }) => r);
+const situadas = deEstas.filter(({ r }) => !r.sinResultado);
 const porMotivo = {};
-for (const r of deEstas) if (r.sinResultado) porMotivo[r.motivo.replace(/\d+/g, "N")] = (porMotivo[r.motivo.replace(/\d+/g, "N")] ?? 0) + 1;
+for (const { r } of deEstas) if (r.sinResultado) porMotivo[r.motivo.replace(/\d+/g, "N")] = (porMotivo[r.motivo.replace(/\d+/g, "N")] ?? 0) + 1;
+const porEjecucion = situadas.filter(({ origen }) => origen === "ejecucion").length;
+// Ojo: esto cuenta OPCIONES resueltas (una obra puede tener las dos); cuántas
+// obras quedan situadas de verdad lo decide generar-nacional con elegirUbicacion.
 console.log(
-  `✓ ${situadas.length} situadas de ${tareas.length} con lugar (${((situadas.length / tareas.length) * 100).toFixed(1)} %) ` +
-    `y ${((situadas.length / total) * 100).toFixed(1)} % de las ${total} obras · ` +
-    `${situadas.filter((r) => r.precision === "calle").length} en calle, ${situadas.filter((r) => r.precision === "lugar").length} en lugar · ` +
+  `✓ ${situadas.length} opciones situadas de ${tareas.length} (${porEjecucion} por lugar de ejecución) · ` +
+    `${situadas.filter(({ r }) => r.precision === "calle").length} en calle, ${situadas.filter(({ r }) => r.precision === "lugar").length} en lugar · ` +
     `${llamadas} llamadas · ${fallos} fallos de red`,
 );
 console.log("  sin resultado:", porMotivo);
 // Hash de lo publicado: para comprobar que generar-nacional lee la misma versión.
 console.log(`  huella ${createHash("sha256").update(JSON.stringify(salida.obras)).digest("hex").slice(0, 12)}`);
+
+// Un fallo de red deja la pasada a medias: se sale con error (lo guardado y
+// las cachés de título válidas anteriores siguen intactas), para que quien
+// lanza la tubería sepa que hay que reanudar antes de publicar.
+if (fallos > 0 && !SIN_RED) {
+  console.error(`✗ ${fallos} opciones sin resolver por fallos de red: relanzar para reanudar (nada válido se ha borrado)`);
+  process.exitCode = 1;
+}
