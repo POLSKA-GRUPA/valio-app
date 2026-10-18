@@ -19,3 +19,7 @@ __pycache__/
 # (caché regenerable, no hace falta versionarla) y temporales de escritura.
 /datos-geo/respuestas.json
 /datos-geo/*.tmp
+
+# Pasada semanal (scripts/actualizar-semanal.py): clones staging, copia de la
+# caché nacional, locks, logs e informes. Todo local, nunca a GitHub.
+/.cache/
