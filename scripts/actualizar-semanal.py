@@ -6,7 +6,7 @@ QUÉ HACE
   --plan (por defecto)   Muestra el plan y los comandos exactos. No toca nada
                          ni usa red: cero efectos secundarios.
   --inicializar          Bootstrap, UNA vez: clona app y datos a staging y
-                         copia la caché nacional COMPLETA (~7 GB, ficheros
+                         copia la caché nacional COMPLETA y ZIPs (tamaño variable, ficheros
                          independientes, sin hardlinks ni symlinks) para que
                          la pasada semanal no pierda el histórico. Sin red.
   --ejecutar             Pasada completa SOLO en staging: descargar los dos
@@ -324,7 +324,7 @@ def copiar_cache(origen_datos: Path, destino_datos: Path, log) -> dict:
 
     nacional_d = destino_datos / ".cache" / "nacional"
     stats = {"ficheros": 0, "bytes": 0, "saltados": [], "generacion": gen_id}
-    log(f"copiando caché {gen_id} (~7 GB, puede tardar varios minutos)…")
+    log(f"copiando generación {gen_id} (se ha comprobado el margen de disco)…")
     _copiar_arbol(gen_origen, nacional_d / "generaciones" / gen_id, log, stats)
     zip_o = nacional_o / "zip"
     if zip_o.is_dir():
@@ -580,7 +580,9 @@ def _commit_staging(repo: Path, titulo: str, fecha: str, meses, log) -> str:
     if not estado.strip():
         return "(sin cambios: PLACE no publicó nada nuevo)"
     paso(log, ["git", "-c", f"user.name={GIT_AUTOR[0]}", "-c", f"user.email={GIT_AUTOR[1]}",
-               "commit", "-m", f"semanal({fecha}): pasada PLACE {meses[0]} {meses[1]} — staging, sin publicar"],
+               "commit", "-m", "Mantiene una actualización semanal revisable sin publicarla",
+               "-m", f"Pasada PLACE de {fecha}, periodos {meses[0]} y {meses[1]}. Resultado de {titulo} conservado en staging para revisión humana.",
+               "-m", "Constraint: No push, merge ni despliegue automático\nConfidence: medium\nScope-risk: moderate\nTested: Tests unitarios de datos y Node disponibles, PII, TypeScript y build\nNot-tested: Aceptación humana de los cambios de esta pasada"],
          repo, titulo=f"commit {titulo}")
     return paso(log, ["git", "rev-parse", "--short", "HEAD"], repo).strip()
 

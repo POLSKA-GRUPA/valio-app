@@ -174,7 +174,12 @@ class TestEjecutar(BaseConStaging):
         self.assertEqual(descargar[-2:], ["2025-12", "2026-01"])
         # commits locales de revisión en ambos staging (git -c user.name … commit)
         self.assertEqual(sum(1 for a in fake.argvs() if "commit" in a[1:]), 2)
-        self.assertTrue(all("semanal(" in " ".join(a) for a in fake.argvs() if "commit" in a[1:]))
+        for argv in (a for a in fake.argvs() if "commit" in a[1:]):
+            mensaje = " ".join(argv)
+            self.assertIn("actualización semanal revisable", mensaje)
+            self.assertIn("Constraint: No push, merge ni despliegue automático", mensaje)
+            self.assertIn("Tested:", mensaje)
+            self.assertIn("Not-tested:", mensaje)
 
     def test_ni_push_ni_reset_y_todo_dentro_de_staging(self):
         fake = FakeCmd()

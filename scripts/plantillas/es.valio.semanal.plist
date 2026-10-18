@@ -7,8 +7,9 @@
   repo valio-app) y __LOG__ (fichero de salida) con el sed del documento.
   Copia el resultado a ~/Library/LaunchAgents/ y cárgalo con launchctl.
 
-  Advertencias: si el Mac duerme o está apagado el viernes a las 9:30, launchd
-  lo ejecuta al despertar (una sola vez). Esto no publica nada: la revisión
+  Advertencias: en reposo, launchd lo ejecuta al despertar (una sola vez).
+  Si está apagado, se pierde la ejecución hasta la siguiente fecha programada.
+  Esto no publica nada: la revisión
   humana de cada informe sigue siendo obligatoria.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
