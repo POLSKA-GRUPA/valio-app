@@ -1726,6 +1726,43 @@ with sync_playwright() as p:
     shot(p_g1, "33-ubicacion-aproximada")
     ctx_g1.close()
 
+    # G2 — La ejecución contrastada conserva procedencia y aviso aproximado.
+    raiz_datos = os.path.join(os.path.dirname(__file__), "..", "..", "public", "datos", "provincias")
+    miranda = json.load(open(os.path.join(raiz_datos, "09.json"), encoding="utf-8"))["municipios"]["09219"]
+    sac = next(o for o in miranda["obras"] if o["id"] == "09219-87caf3077967")
+    ctx_g2 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+    ctx_g2.add_init_script("localStorage.setItem('valio.municipio.v2', %s); localStorage.setItem('valio.tutorial.visto.v1', '1');"
+                           % json.dumps(json.dumps({"ine": "09219", "nombre": miranda["nombre"], "provincia": miranda["provincia"], "ccaa": "Castilla y León", "numObras": len(miranda["obras"])})))
+    p_g2 = ctx_g2.new_page()
+    p_g2.goto(BASE, wait_until="networkidle")
+    p_g2.get_by_role("tab", name="Obras").click()
+    p_g2.locator(".lista-item").filter(has_text=sac["nombre"]).first.click()
+    seccion_g2 = p_g2.locator("section[aria-labelledby='ficha-aerea']")
+    texto_g2 = seccion_g2.inner_text()
+    check("G2 GEO: SAC contrastado indica anuncio y no lo presenta como punto exacto",
+          "lugar de ejecución" in texto_g2 and "Ubicación aproximada, sin revisar a mano" in texto_g2)
+    check("G2 GEO: se publica la ejecución sólo con la marca de contraste",
+          sac.get("ejecucionContrastada") is True and sac.get("geo", [None] * 4)[3] == "ejecucion"
+          and seccion_g2.locator("img").count() == 1)
+    shot(p_g2, "34-ejecucion-contrastada-sac")
+    ctx_g2.close()
+
+    # G3 — El castillo no se coloca en el ayuntamiento por la dirección de PLACE.
+    torredonjimeno = json.load(open(os.path.join(raiz_datos, "23.json"), encoding="utf-8"))["municipios"]["23087"]
+    castillo = next(o for o in torredonjimeno["obras"] if o["id"] == "23087-9278afa21e65")
+    ctx_g3 = nuevo_contexto(browser, viewport={"width": 390, "height": 844}, locale="es-ES")
+    ctx_g3.add_init_script("localStorage.setItem('valio.municipio.v2', %s); localStorage.setItem('valio.tutorial.visto.v1', '1');"
+                           % json.dumps(json.dumps({"ine": "23087", "nombre": torredonjimeno["nombre"], "provincia": torredonjimeno["provincia"], "ccaa": "Andalucía", "numObras": len(torredonjimeno["obras"])})))
+    p_g3 = ctx_g3.new_page()
+    p_g3.goto(BASE, wait_until="networkidle")
+    p_g3.get_by_role("tab", name="Obras").click()
+    p_g3.locator(".lista-item").filter(has_text=castillo["nombre"]).first.click()
+    seccion_g3 = p_g3.locator("section[aria-labelledby='ficha-aerea']")
+    check("G3 GEO: castillo sin contraste no muestra la foto de la sede administrativa",
+          not castillo.get("geo") and seccion_g3.locator("img").count() == 0
+          and "Sin ubicación precisa" in seccion_g3.inner_text())
+    ctx_g3.close()
+
     # R28 — Municipios sin obras cargadas y municipio guardado con la versión anterior.
     ctx_r28 = browser.new_context(viewport={"width": 375, "height": 812}, locale="es-ES")
     p_r28 = ctx_r28.new_page()
