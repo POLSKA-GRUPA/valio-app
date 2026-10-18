@@ -90,3 +90,16 @@ nada con la pasada a medias.
 - Una obra con título y anuncio resueltos a <300 m se atribuye al título.
 - Esto no sitúa «miles de obras» nuevas por sí solo: hace falta la pasada de
   red cuando el snapshot traiga `lugarEjecucion` (no ejecutada en esta rama).
+
+## Revisión de integridad de la dirección
+
+La ejecución debe representar una dirección completa. Se reutilizan los mismos
+`CORTES` y `ABREVIATURAS` que el lector de títulos, pero un corte no consumido
+rechaza la dirección, en vez de quedarse con el primer tramo. Tampoco se admiten
+rangos de portales, sufijos no soportados (12B/bis), ni colas de piso o ciudad.
+Los portales simples y nombres compuestos como Ramón y Cajal se conservan.
+Todas las variantes de la ciudad del anuncio deben pertenecer al nombre oficial
+del municipio: `Teulada/Benissa` no equivale a Teulada.
+
+Prueba: `node --test scripts/lugar-de-obra.test.mjs` → 24 tests verdes.
+La revisión independiente reprodujo y cerró ambos fallos antes de la pasada real.

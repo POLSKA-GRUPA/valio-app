@@ -1,7 +1,7 @@
 /**
  * ⚠️ ARCHIVO GENERADO — no editar a mano.
  * Regenerar con: node scripts/generar-obras.mjs
- * Fuente: valio-datos (obras-piloto.csv + ubicaciones.csv + fichas OBRA-XX.md) · 2026-10-17
+ * Fuente: valio-datos (obras-piloto.csv + ubicaciones.csv + fichas OBRA-XX.md) · 2026-10-18
  * Cada dato es rastreable hasta su ficha; nada inventado.
  */
 
@@ -71,6 +71,8 @@ export interface UbicacionAproximada {
   lon: number;
   /** «calle»: un punto de la vía que nombra el título; «lugar»: el sitio con nombre (colegio, parque…). */
   nivel: "calle" | "lugar";
+  /** De dónde salió el punto: el título de la obra o el lugar de ejecución del anuncio. */
+  origen?: "titulo" | "ejecucion";
   /** Cómo se ha situado, en una frase para el vecino. */
   motivo: string;
   fuente: { tipo: "cartociudad"; url: string; fechaConsulta: string };

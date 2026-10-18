@@ -35,7 +35,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { claveObra, decodificar, DISPARADORES, lugarDelTitulo, nombresMunicipio, plano } from "./lugar-del-titulo.mjs";
+import { ABREVIATURAS, CORTES, claveObra, decodificar, DISPARADORES, lugarDelTitulo, nombresMunicipio, plano } from "./lugar-del-titulo.mjs";
 
 /** Versión de ESTE extractor (el de lugarEjecucion): en el hash de su clave. */
 export const VERSION_EXTRACTOR_EJECUCION = 1;
@@ -88,7 +88,7 @@ export function paisEspanol(pais) {
 export function municipioEquivale(ciudad, municipio) {
   if (typeof ciudad !== "string" || !ciudad.trim() || typeof municipio !== "string") return false;
   const deLaObra = new Set(nombresMunicipio(municipio));
-  return nombresMunicipio(ciudad).some((v) => deLaObra.has(v));
+  return ciudad.split("/").every((parte) => parte.trim() && nombresMunicipio(parte).some((v) => deLaObra.has(v)));
 }
 
 /**
@@ -134,9 +134,24 @@ export function lugarDeEjecucion(lugarEjecucion, municipio) {
   // «Rehabilitación en calle Mayor» o «Calle A y Calle B» no.
   const indices = indicesDisparadores(texto);
   if (indices.length !== 1 || indices[0] !== 0) return null;
+  // El lector de títulos corta frases, listas y sufijos: una dirección de
+  // ejecución no puede convertirse silenciosamente en sólo su primer tramo.
+  const portalFinal = texto.match(/(?:,\s*|\s+)(?:(?:n\s*[º°o.]|n[úu]m(?:ero)?\.?)\s*)?(\d{1,3})$/i);
+  if (/\d/.test(texto)) {
+    // Sólo soportamos un portal simple al final: ni rangos, ni 12B/bis,
+    // ni piso/ciudad/código postal que el lector pudiera cortar.
+    if (!portalFinal || /[\d,]/.test(texto.slice(0, portalFinal.index))) return null;
+  } else if (texto.includes(",")) return null;
+  const disparador = DISPARADORES.map(([, re]) => re.exec(texto)).find((m) => m?.index === 0);
+  let nombreCompleto = texto.slice(disparador[0].length, portalFinal?.index ?? texto.length).trim();
+  for (const [re, sustitucion] of ABREVIATURAS) nombreCompleto = nombreCompleto.replace(re, sustitucion);
+  // La MISMA lista y normalización que usa el lector: no mantener otra
+  // blacklist que pueda olvidar un separador y truncar una dirección nueva.
+  if (CORTES.some((re) => re.test(nombreCompleto))) return null;
   // Reutiliza la lectura del título: nombre hasta el corte y portal detrás.
   const lugar = lugarDelTitulo(texto, municipio);
   if (!lugar || !lugar.nombre) return null; // genérica o incompleta: nada honesto que llevar
+  if (portalFinal && lugar.portal !== Number(portalFinal[1])) return null;
   return lugar;
 }
 

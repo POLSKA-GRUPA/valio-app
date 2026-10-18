@@ -182,3 +182,29 @@ test("ninguno resuelto → null", () => {
   assert.equal(elegirUbicacion(null, null), null);
   assert.equal(elegirUbicacion({ sinResultado: true, motivo: "x" }, { sinResultado: true, motivo: "y" }), null);
 });
+
+test("ejecución exige dirección completa: no listas, rangos, sufijos o colas", () => {
+  for (const direccion of ["Calle Mayor y Menor", "Calle Mayor 12 y 40", "Calle Mayor 12-40", "Calle Mayor 12/40", "Calle Mayor 12B", "Calle Mayor, 12B", "Calle Mayor nº 12B", "Calle Mayor 12 bis", "Calle Mayor, 12 bis", "Calle Mayor 12, Teulada", "Calle Mayor, 12, 3ºB", "Calle Mayor, s/n"]) {
+    assert.equal(lugarDeEjecucion(EJECUCION(direccion), "Teulada"), null, direccion);
+  }
+});
+
+test("ejecución mantiene portal simple y nombres compuestos conocidos", () => {
+  for (const direccion of ["Calle Mayor 12", "Calle Mayor, 12", "Calle Mayor nº 12", "Calle Ramón y Cajal 12"]) {
+    assert.equal(lugarDeEjecucion(EJECUCION(direccion), "Teulada")?.portal, 12, direccion);
+  }
+});
+
+test("municipio del anuncio no puede contener otra localidad", () => {
+  assert.equal(municipioEquivale("Teulada/Benissa", "Teulada"), false);
+  assert.equal(lugarDeEjecucion(EJECUCION("Calle Mayor 12", "Teulada/Benissa"), "Teulada"), null);
+  assert.equal(municipioEquivale("Alacant/Alicante", "Alicante/Alacant"), true);
+  assert.equal(municipioEquivale("Alicante/Benissa", "Alicante/Alacant"), false);
+});
+
+test("ejecución no admite ningún separador o terminador que truncaría el nombre", () => {
+  for (const cola of [" - Menor", ". Menor", ": Menor", " «Menor»", " para Menor", " por Menor", " cap Menor", " incluida Menor", " situada Menor", " ubicada Menor"]) {
+    const direccion = `Calle Mayor${cola}`;
+    assert.equal(lugarDeEjecucion(EJECUCION(direccion), "Teulada"), null, direccion);
+  }
+});

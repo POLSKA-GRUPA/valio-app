@@ -43,7 +43,7 @@ const VACIAS = new Set(
 );
 
 /** Abreviaturas frecuentes dentro del nombre, antes de cortar por los puntos. */
-const ABREVIATURAS = [
+export const ABREVIATURAS = [
   [/\bntra\.?\s*sra\.?/gi, "Nuestra Señora"],
   [/\bdr\.(?=\s)/gi, "Doctor"],
   [/\bdra\.(?=\s)/gi, "Doctora"],
@@ -105,7 +105,7 @@ export const DISPARADORES = [
 ];
 
 /** Dónde acaba el nombre del lugar. */
-const CORTES = [
+export const CORTES = [
   /[,;:()"«»“”\[\]/|]/,
   /\.(?:\s|$)/,
   /\s[-–—]\s/,
