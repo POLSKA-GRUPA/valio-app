@@ -109,7 +109,7 @@ semanal: el timer solo prepara el resultado, no lo publica.
 
 ## Verificación de la entrada y del aislamiento
 
-La suite incluye 25 pruebas. Se ejecuta `main` con subprocess simulado para
+La suite incluye 28 pruebas. Se ejecuta `main` con subprocess simulado para
 comprobar éxito y fallo, liberación del lock, enlaces en staging y sus
 antepasados, copias incompletas y avance normal de main. El resumen reconoce
 el formato agregado de `publicar --todos`; un recuento no verificable aborta.

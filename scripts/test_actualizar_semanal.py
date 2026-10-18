@@ -323,6 +323,40 @@ class TestCopiarCache(unittest.TestCase):
             self.copiar()
         self.assertFalse((self.destino / ".cache" / "nacional" / "actual").exists())
 
+    def test_main_inicializa_con_copia_real_pequena_y_sin_red(self):
+        app = Path(self.tmp.name) / "app"
+        app.mkdir()
+        cfg = asem.Config(raiz=app, repo_datos=self.origen)
+        fake = FakeCmd()
+        with mock.patch.object(asem, "construir", return_value=(cfg, "inicializar")), mock.patch.object(asem, "run_cmd", fake), mock.patch.object(asem.shutil, "disk_usage", return_value=mock.Mock(free=100 * asem.GB)):
+            self.assertEqual(asem.main([]), 0)
+        self.assertTrue(cfg.marker.exists())
+        self.assertFalse(cfg.lock.exists())
+        self.assertTrue((cfg.datos / ".cache/nacional/generaciones/gen1/entradas/03014.jsonl").is_file())
+        self.assertFalse(fake.hay("descargar"))
+
+    def test_inicializar_sin_margen_de_disco_no_clona(self):
+        app = Path(self.tmp.name) / "app"
+        app.mkdir()
+        cfg = asem.Config(raiz=app, repo_datos=self.origen)
+        fake = FakeCmd()
+        with mock.patch.object(asem, "run_cmd", fake), mock.patch.object(asem.shutil, "disk_usage", return_value=mock.Mock(free=asem.GB)):
+            with self.assertRaises(asem.DiscoInsuficiente):
+                asem.cmd_inicializar(cfg, lambda _m: None)
+        self.assertEqual(fake.cmds, [])
+        self.assertFalse(cfg.marker.exists())
+
+    def test_baseline_que_cambia_durante_copia_no_se_activa(self):
+        original = asem._copiar_arbol
+        estado = self.origen / ".cache/nacional/generaciones/gen1/estado.json"
+        def copiar_y_cambiar(*args):
+            original(*args)
+            estado.write_text('{"cambiado": true}')
+        with mock.patch.object(asem, "_copiar_arbol", side_effect=copiar_y_cambiar):
+            with self.assertRaises(asem.FaltaBootstrap):
+                self.copiar()
+        self.assertFalse((self.destino / ".cache/nacional/actual").exists())
+
 
 class TestParseadores(unittest.TestCase):
     def test_resumen_publicar_todos_real(self):
