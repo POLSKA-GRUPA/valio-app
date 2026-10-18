@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 
 from playwright.sync_api import sync_playwright
+from imagenes import imagen_cargada
 
 # VALIO_BASE permite probar contra otro puerto si el 3000 está ocupado.
 PESTAÑAS_ESPERADAS = ["Votar", "Obras", "Info"]
@@ -1324,7 +1325,7 @@ with sync_playwright() as p:
     anyo_alt = re.search(r"\b(19|20)\d{2}\b", alt)
     check("R20 VISTA-AÉREA: la foto tiene texto alternativo con la fecha", "Foto aérea" in alt and anyo_alt is not None, alt)
     check("R20 VISTA-AÉREA: la foto no se arrastra sola", foto.first.get_attribute("draggable") == "false")
-    cargada = p_r20.evaluate("(img) => img.complete && img.naturalWidth > 0", foto.first.element_handle())
+    cargada = imagen_cargada(p_r20, foto.first)
     check("R20 VISTA-AÉREA: la imagen carga", cargada)
     pastilla = carta.locator(".aerea-pastilla").inner_text()
     check(
