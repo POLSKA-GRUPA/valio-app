@@ -44,10 +44,13 @@ class FakeCmd:
         self.cabeza = "cccccccccccccccccccc"
         self.objetivo = "aaaaaaaaaaaaaaaaaaaa"
         self.rc_descargar = 0
+        self.rc_ancestor = 1
 
     def __call__(self, argv, cwd, log=None, titulo=None):
         argv = [str(a) for a in argv]
         self.cmds.append((argv, Path(str(cwd))))
+        if argv[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return self.rc_ancestor, ""
         if argv[:2] == ["git", "clone"]:
             destino = Path(argv[-1])
             destino.mkdir(parents=True, exist_ok=True)
@@ -204,6 +207,13 @@ class TestEjecutar(BaseConStaging):
 
 
 class TestGuardasDeStaging(BaseConStaging):
+    def test_avance_limpio_de_main_crea_rama_semanal(self):
+        fake = FakeCmd()
+        fake.rama = "main"
+        fake.rc_ancestor = 0
+        self.assertEqual(self.correr(fake), 0)
+        self.assertTrue(any(a[1:3] == ["checkout", "-b"] for a in fake.argvs()))
+
     def test_staging_sucio_se_detiene_antes_de_fetch(self):
         fake = FakeCmd()
         fake.status = " M datos/nacional/indice.json\n"
@@ -241,6 +251,12 @@ class TestLock(unittest.TestCase):
     def assertNotExists(self):
         self.assertFalse(self.ruta.exists())
 
+    def test_contexto_libera_el_lock_tambien_si_hay_excepcion(self):
+        with self.assertRaises(RuntimeError):
+            with asem.adquirir_lock(self.ruta, self.log):
+                raise RuntimeError("fallo simulado")
+        self.assertNotExists()
+
     def test_lock_huerfano_de_pid_muerto_se_recupera(self):
         self.ruta.write_text(json.dumps({"pid": pid_muerto()}), encoding="utf-8")
         lock = asem.adquirir_lock(self.ruta, self.log)  # no debe lanzar LockOcupado
@@ -260,7 +276,6 @@ class TestCopiarCache(unittest.TestCase):
         gen.joinpath("bajas.tsv").write_text("x\tANULADA\ty\n", encoding="utf-8")
         gen.joinpath("entradas", "03014.jsonl").write_text("{}\n", encoding="utf-8")
         gen.joinpath("entradas", "raro.tmp").write_text("basura", encoding="utf-8")
-        os.symlink("../bajas.tsv", gen.joinpath("entradas", "enlace"))
         zip_o = self.origen / ".cache" / "nacional" / "zip"
         zip_o.mkdir()
         zip_o.joinpath("a.zip").write_bytes(b"PK")
@@ -293,8 +308,25 @@ class TestCopiarCache(unittest.TestCase):
         with self.assertRaises(asem.FaltaBootstrap):
             self.copiar()
 
+    def test_no_omite_entradas_enlazadas_del_baseline(self):
+        gen = self.origen / ".cache" / "nacional" / "generaciones" / "gen1"
+        os.symlink("../bajas.tsv", gen / "entradas" / "enlace")
+        with self.assertRaises(asem.FaltaBootstrap):
+            self.copiar()
+        self.assertFalse((self.destino / ".cache" / "nacional" / "actual").exists())
+
+    def test_directorio_entradas_enlazado_no_es_baseline_valido(self):
+        gen = self.origen / ".cache" / "nacional" / "generaciones" / "gen1"
+        (gen / "entradas").rename(gen / "otra-carpeta")
+        os.symlink("otra-carpeta", gen / "entradas")
+        with self.assertRaises(asem.FaltaBootstrap):
+            self.copiar()
+        self.assertFalse((self.destino / ".cache" / "nacional" / "actual").exists())
+
 
 class TestParseadores(unittest.TestCase):
+    def test_resumen_publicar_todos_real(self):
+        self.assertEqual(asem.resumen_publicar("5393 municipios, 4425 con obras, 115368 obras\n"), {"ciudades": 5393, "obras": 115368})
     def test_resumen_publicar(self):
         salida = ("03014 Alicante: 10 entradas → 5 expedientes (1 anulados) → 4 obras\n"
                   "03015 Elche: 8 entradas → 4 expedientes (0 anulados) → 3 obras\n"
@@ -307,6 +339,42 @@ class TestParseadores(unittest.TestCase):
         res = asem.resumen_repartir(salida)
         self.assertEqual(res["sin_municipio"], 3)
         self.assertEqual(res["por_plataforma"], {"643": 2})
+
+
+class TestEntradaCompleta(BaseConStaging):
+    def main_con(self, fake):
+        with mock.patch.object(asem, "construir", return_value=(self.cfg, "ejecutar")), mock.patch.object(asem, "run_cmd", fake):
+            return asem.main([])
+
+    def test_main_completo_publica_solo_commit_local_y_libera_lock(self):
+        fake = FakeCmd()
+        self.assertEqual(self.main_con(fake), 0)
+        self.assertFalse(self.cfg.lock.exists())
+        self.assertEqual(len(list(self.cfg.informes.glob("*.md"))), 1)
+        self.assertFalse(fake.hay("push"))
+
+    def test_main_fallido_corta_pipeline_y_libera_lock(self):
+        fake = FakeCmd()
+        fake.rc_descargar = 1
+        self.assertEqual(self.main_con(fake), 6)
+        self.assertFalse(self.cfg.lock.exists())
+        self.assertFalse(fake.hay("publicar"))
+
+    def test_staging_enlazado_no_toca_principal(self):
+        __import__("shutil").rmtree(self.cfg.app)
+        os.symlink(self.cfg.repo_datos, self.cfg.app)
+        fake = FakeCmd()
+        self.assertEqual(self.main_con(fake), 4)
+        self.assertEqual(fake.cmds, [])
+        self.assertEqual(list(self.cfg.repo_datos.iterdir()), [])
+
+    def test_cache_enlazada_se_rechaza_antes_de_crear_logs(self):
+        __import__("shutil").rmtree(self.cfg.cache)
+        os.symlink(self.cfg.repo_datos, self.cfg.cache)
+        fake = FakeCmd()
+        self.assertEqual(self.main_con(fake), 4)
+        self.assertEqual(fake.cmds, [])
+        self.assertEqual(list(self.cfg.repo_datos.iterdir()), [])
 
 
 if __name__ == "__main__":

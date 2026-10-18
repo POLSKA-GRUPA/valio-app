@@ -17,7 +17,7 @@ online, envíos a organismos, ni escribe en `~/valio-datos` o en la app principa
 
 ## Primera vez (bootstrap, ~10-20 min y ~7 GB)
 
-Requisitos: `python3`, `git`, `node`+`npm`, ~12 GiB de disco libres y la caché
+Requisitos: `python3`, `git`, `node`+`npm`, como mínimo 12 GiB libres (el runner exige además el tamaño real del baseline y ZIPs más 5 GiB de margen) y la caché
 nacional ya repartida en `~/valio-datos` (la del becario).
 
 ```bash
@@ -104,5 +104,14 @@ semanal: el timer solo prepara el resultado, no lo publica.
 - `npm ci` y `next build` usan red (fuentes de Google en `next/font`); un corte
   de red falla el build, no los datos.
 - Los ZIPs conservados crecen ~0,5 GB/mes (permiten `repartir --rehacer` sin red).
-- Tests de la app = `tsc` + `build` (aún no hay tests node automáticos); los
+- Tests de la app = los tests Node `scripts/**/*.test.mjs`, `tsc` y `build`; los
   Playwright de `docs/uat/` siguen siendo manuales.
+
+## Verificación de la entrada y del aislamiento
+
+La suite incluye 25 pruebas. Se ejecuta `main` con subprocess simulado para
+comprobar éxito y fallo, liberación del lock, enlaces en staging y sus
+antepasados, copias incompletas y avance normal de main. El resumen reconoce
+el formato agregado de `publicar --todos`; un recuento no verificable aborta.
+El bootstrap rechaza symlinks y una fuente que cambie mientras se copia.
+No equivale a haber realizado la primera pasada real ni a activar el timer.

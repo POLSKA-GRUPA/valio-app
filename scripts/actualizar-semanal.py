@@ -217,6 +217,12 @@ class Lock:
     def __init__(self, ruta: Path):
         self.ruta = ruta
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _tipo, _valor, _traza):
+        self.liberar()
+
     def liberar(self) -> None:
         try:
             self.ruta.unlink()
@@ -272,11 +278,12 @@ def paso(log, argv, cwd, titulo: str | None = None) -> str:
 # --- Copia de caché saneada (independiente: sin hardlinks ni symlinks) --------
 
 def _copiar_arbol(origen: Path, destino: Path, log, stats: dict) -> None:
+    if origen.is_symlink():
+        raise FaltaBootstrap(f"baseline enlazado: {origen}; no se omiten entradas del histórico")
     destino.mkdir(parents=True, exist_ok=True)
     for item in sorted(origen.iterdir()):
         if item.is_symlink():
-            stats["saltados"].append(str(item))
-            continue
+            raise FaltaBootstrap(f"baseline enlazado: {item}; no se omiten entradas del histórico")
         if item.name.endswith((".tmp", ".part", ".DS_Store")):
             stats["saltados"].append(str(item))
             continue
@@ -304,23 +311,31 @@ def copiar_cache(origen_datos: Path, destino_datos: Path, log) -> dict:
             "arrancar sin baseline completo"
         )
     gen_id = puntero.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", gen_id):
+        raise FaltaBootstrap("puntero de generación no válido")
     gen_origen = nacional_o / "generaciones" / gen_id
     for requisito in ("estado.json", "bajas.tsv", "entradas"):
-        if not (gen_origen / requisito).exists():
+        if (gen_origen / requisito).is_symlink() or not (gen_origen / requisito).exists():
             raise FaltaBootstrap(
                 f"la caché de origen está incompleta (falta {gen_id}/{requisito}): "
                 "no se arranca con un baseline a medias"
             )
+    estado_inicial = (gen_origen / "estado.json").read_bytes()
 
     nacional_d = destino_datos / ".cache" / "nacional"
     stats = {"ficheros": 0, "bytes": 0, "saltados": [], "generacion": gen_id}
     log(f"copiando caché {gen_id} (~7 GB, puede tardar varios minutos)…")
     _copiar_arbol(gen_origen, nacional_d / "generaciones" / gen_id, log, stats)
-    (nacional_d / "actual").write_text(gen_id + "\n", encoding="utf-8")
     zip_o = nacional_o / "zip"
     if zip_o.is_dir():
         log("copiando ZIPs procesados (permiten repartir --rehacer sin red)…")
         _copiar_arbol(zip_o, nacional_d / "zip", log, stats)
+    for requisito in ("estado.json", "bajas.tsv", "entradas"):
+        if not (nacional_d / "generaciones" / gen_id / requisito).exists():
+            raise FaltaBootstrap(f"baseline copiado incompleto: {requisito}")
+    if puntero.read_text(encoding="utf-8").strip() != gen_id or (gen_origen / "estado.json").read_bytes() != estado_inicial:
+        raise FaltaBootstrap("el baseline de origen cambió durante la copia; no se activa una copia mezclada")
+    (nacional_d / "actual").write_text(gen_id + "\n", encoding="utf-8")
     for saltado in stats["saltados"]:
         log(f"  (no copiado: {saltado})")
     log(f"caché copiada: {stats['ficheros']} ficheros, {stats['bytes'] / GB:.2f} GiB")
@@ -342,6 +357,8 @@ def refrescar(repo: Path, origen: Path, ref: str, log) -> tuple[str, str]:
     o si HEAD no es nuestro y además difiere del objetivo (diffs ajenos).
     Nunca reset --hard: lo anterior se conserva en su rama semanal/*.
     """
+    if repo.is_symlink() or repo.resolve() == origen.resolve():
+        raise StagingSucio(f"staging enlazado o igual al origen: {repo}")
     sucio = paso(log, ["git", "status", "--porcelain"], repo, "status " + repo.name)
     if sucio.strip():
         raise StagingSucio(
@@ -354,10 +371,12 @@ def refrescar(repo: Path, origen: Path, ref: str, log) -> tuple[str, str]:
     objetivo = paso(log, ["git", "rev-parse", "FETCH_HEAD"], repo).strip()
     cabeza = paso(log, ["git", "rev-parse", "HEAD"], repo).strip()
     if cabeza != objetivo and not rama.startswith("semanal/"):
-        raise Divergencia(
-            f"{repo} está en {rama} ({cabeza[:8]}) y el objetivo es {ref} "
-            f"({objetivo[:8]}): hay diffs ajenos. Revísalo a mano; no se toca nada."
-        )
+        rc, _ = run_cmd(["git", "merge-base", "--is-ancestor", cabeza, objetivo], cwd=repo, log=log)
+        if rc != 0:
+            raise Divergencia(
+                f"{repo} está en {rama} ({cabeza[:8]}) y el objetivo es {ref} "
+                f"({objetivo[:8]}): hay diffs ajenos. Revísalo a mano; no se toca nada."
+            )
     if cabeza != objetivo or not rama.startswith("semanal/"):
         nueva = f"semanal/{dt.datetime.now():%Y%m%d-%H%M%S}"
         rc, _ = run_cmd(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{nueva}"],
@@ -399,6 +418,9 @@ def resumen_publicar(salida: str) -> dict:
     """Ciudades publicadas y obras totales a partir de las líneas por ciudad."""
     ciudades, obras = 0, 0
     for linea in salida.splitlines():
+        agregado = re.fullmatch(r"(\d+) municipios, (\d+) con obras, (\d+) obras", linea.strip())
+        if agregado:
+            return {"ciudades": int(agregado[1]), "obras": int(agregado[3])}
         m = LINEA_PUBLICAR.match(linea)
         if m:
             ciudades += 1
@@ -508,10 +530,20 @@ def cmd_inicializar(cfg: Config, log, ruta_log: Path | None = None) -> int:
             "bórralo a mano después de revisar lo que haya (el script no destruye nada)"
         )
     libre = shutil.disk_usage(cfg.raiz).free
-    if libre < MINIMO_DISCO_INICIALIZAR:
+    nacional = cfg.repo_datos / ".cache" / "nacional"
+    actual = nacional / "actual"
+    if not actual.is_file():
+        raise FaltaBootstrap("falta el baseline nacional antes de inicializar")
+    generacion = actual.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", generacion):
+        raise FaltaBootstrap("puntero de generación no válido")
+    bytes_copia = sum(p.stat().st_size for carpeta in (nacional / "zip", nacional / "generaciones" / generacion)
+                     for p in carpeta.rglob("*") if p.is_file() and not p.is_symlink() and not p.name.endswith((".part", ".tmp")))
+    necesario = max(MINIMO_DISCO_INICIALIZAR, bytes_copia + 5 * GB)
+    if libre < necesario:
         raise DiscoInsuficiente(
             f"hay {libre / GB:.1f} GiB libres y el bootstrap necesita "
-            f"{MINIMO_DISCO_INICIALIZAR // GB} GiB (caché ~6,4 GiB + ZIPs + clones)"
+            f"{necesario / GB:.1f} GiB (copia real del baseline y ZIPs + 5 GiB de margen)"
         )
     log(f"== INICIALIZAR {inicio:%Y-%m-%d %H:%M} (sin red: clones y copias locales)")
 
@@ -600,7 +632,7 @@ def cmd_ejecutar(cfg: Config, log, ruta_log: Path | None = None) -> int:
     res_rep = resumen_repartir(repartir_out)
     res_pub = resumen_publicar(publicar_out)
     if res_pub["ciudades"] == 0:
-        log("AVISO (regla 13): publicar --todos no devolvió ninguna ciudad; revisa el log")
+        raise PasoFallido("resumen publicar", 1, "No hay recuento verificable de municipios: no se prepara un resultado vacío")
 
     # 7. Tests de datos (unitarios).
     paso(log, [py, "-m", "unittest", "discover", "-s", "tests", "-v"],
@@ -622,6 +654,9 @@ def cmd_ejecutar(cfg: Config, log, ruta_log: Path | None = None) -> int:
                  cfg.app, titulo="generar-nacional (2ª pasada)")
         else:
             log(f"AVISO: sin caché de geocodificación ({origen_geo}); se salta el paso geo")
+    tests_node = sorted(str(p.relative_to(cfg.app)) for p in (cfg.app / "scripts").rglob("*.test.mjs"))
+    if tests_node:
+        paso(log, [NODO, "--test", *tests_node], cfg.app, titulo="tests Node")
     tsc = cfg.app / "node_modules" / ".bin" / "tsc"
     if not tsc.is_file():
         raise PasoFallido("tsc", 1, "falta node_modules/.bin/tsc tras npm ci")
@@ -660,6 +695,15 @@ def cmd_ejecutar(cfg: Config, log, ruta_log: Path | None = None) -> int:
 # --- Entrada --------------------------------------------------------------------
 
 def _con_log(cfg: Config, nombre: str, funcion) -> int:
+    # Comprobar TODOS los componentes antes de crear logs o ejecutar git/npm:
+    # un staging enlazado no debe convertir una prueba en una escritura real.
+    for destino in (cfg.app, cfg.datos, cfg.logs, cfg.informes):
+        actual = cfg.raiz
+        for parte in destino.relative_to(cfg.raiz).parts:
+            actual = actual / parte
+            if actual.is_symlink():
+                print(f"ERROR (4): ruta de staging enlazada: {actual}", file=sys.stderr)
+                return 4
     cfg.logs.mkdir(parents=True, exist_ok=True)
     ruta_log = cfg.logs / f"{dt.datetime.now():%Y%m%d-%H%M%S}-{nombre}.log"
     with ruta_log.open("w", encoding="utf-8") as h:
