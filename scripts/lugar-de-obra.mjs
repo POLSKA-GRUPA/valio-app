@@ -164,6 +164,7 @@ export function lugarDeEjecucion(lugarEjecucion, municipio) {
  */
 export function opcionesDeObra(ine, obra, municipio) {
   const opciones = [];
+  if (obra?.excluirPuntoAutomatico === true) return opciones;
   const anuncio = obra?.lugarEjecucion;
   // El INE de la obra identifica al órgano. Si el anuncio dice otro lugar,
   // ni siquiera un título homónimo permite situarla en el municipio del órgano.

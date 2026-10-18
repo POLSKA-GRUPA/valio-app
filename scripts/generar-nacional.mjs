@@ -112,6 +112,7 @@ function aObra(ine, o) {
     ...(/lotes|varios adjudicatarios/.test(o.notas || "") ? { aviso: true } : {}),
     url: o.urlOficial,
     ...(lugarEjecucion ? { lugarEjecucion } : {}),
+    ...(o.excluirPuntoAutomatico === true ? { excluirPuntoAutomatico: true } : {}),
   };
 }
 

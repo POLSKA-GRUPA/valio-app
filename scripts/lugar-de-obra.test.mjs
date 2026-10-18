@@ -217,3 +217,7 @@ test("ejecución fuera del municipio invalida también un título homónimo", ()
   }
   assert.equal(opcionesDeObra("03128", { ...obra, lugarEjecucion: EJECUCION("Calle Mayor 12", "Teulada", "ES") }, "Teulada").length, 2);
 });
+
+test("anuncio múltiple o extranjero sin dirección excluye también el título", () => {
+  assert.deepEqual(opcionesDeObra("03128", { id: "prueba", nombre: "Reforma de la calle Mayor", excluirPuntoAutomatico: true }, "Teulada"), []);
+});

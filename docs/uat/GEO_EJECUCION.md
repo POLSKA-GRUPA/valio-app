@@ -108,6 +108,7 @@ El municipio INE de la obra corresponde al órgano, no siempre al lugar de
 los trabajos. Si el campo de ejecución presente declara otro municipio o un
 país extranjero, se descarta también el punto del título, aunque haya una
 calle homónima en el municipio del órgano. Sin metadatos de ejecución no se
-infiere esa contradicción y se conserva la vía antigua por título. El parser
-actual omite ejecuciones extranjeras; ese límite del recorrido antiguo no
-queda resuelto con este cambio. Suite del extractor: 25 tests.
+infiere esa contradicción y se conserva la vía antigua por título. El parser omite la dirección extranjera o múltiple, pero publica
+`excluirPuntoAutomatico: true` cuando esos metadatos impiden atribuir un punto
+único al municipio. La compacta preserva el indicador y la ficha lo explica.
+Suite del extractor: 26 tests.
