@@ -12,8 +12,9 @@
 **commits locales** en ramas `semanal/<fecha>` de staging, un informe y un log.
 
 **Nunca hace**: push, PR, merge, `reset --hard`, despliegue, geocodificación
-online, envíos a organismos, ni escribe en `~/valio-datos` o en la app principal
-(de ahí solo se lee). No usa credenciales.
+online ni envíos a organismos. No modifica archivos versionados ni ramas de
+los repos de origen. Sí escribe sus propios logs, informes y clones bajo
+`.cache/semanal` de la app anfitriona (ignorada por Git). No usa credenciales.
 
 ## Primera vez (bootstrap, ~10-20 min y ~7 GB)
 

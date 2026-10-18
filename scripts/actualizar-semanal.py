@@ -16,8 +16,8 @@ QUÉ HACE
                          de staging para revisión humana.
 
 QUÉ NUNCA HACE
-  - No escribe en ~/valio-datos ni en el worktree principal de la app: de
-    ahí solo se lee (clone y copia de caché).
+  - No modifica archivos versionados ni ramas de los repos de origen.
+    Sus logs, staging e informes viven en .cache/semanal de la app anfitriona.
   - No hay push, PR, merge ni reset --hard: el resultado de cada semana se
     conserva en ramas semanal/* de staging hasta que una persona lo revise.
   - No publica en producción, no activa timers, no toca .github/.
