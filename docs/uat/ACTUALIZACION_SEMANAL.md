@@ -17,6 +17,14 @@ online, envíos a organismos, ni escribe en `~/valio-datos` o en la app principa
 
 ## Primera vez (bootstrap, ~10-20 min y ~7 GB)
 
+Antes de activar nada, integra el parser de lugar de ejecución y reconstruye la
+caché v8. Las referencias de código de app/datos deben corresponder a esa
+versión de caché. Mientras los PR estén abiertos, una UAT aislada puede usar
+`--ref-app feat/geo-ejecucion-publicados --ref-datos feat/lugar-ejecucion`
+en **ambas** órdenes (`--inicializar` y `--ejecutar`). El valor predeterminado
+`main` se usa después de integrar las entregas, no para mezclar código v7 con
+una caché v8. El tamaño real depende también de los ZIP históricos conservados.
+
 Requisitos: `python3`, `git`, `node`+`npm`, como mínimo 12 GiB libres (el runner exige además el tamaño real del baseline y ZIPs más 5 GiB de margen) y la caché
 nacional ya repartida en `~/valio-datos` (la del becario).
 
