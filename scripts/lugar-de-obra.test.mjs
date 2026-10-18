@@ -208,3 +208,12 @@ test("ejecución no admite ningún separador o terminador que truncaría el nomb
     assert.equal(lugarDeEjecucion(EJECUCION(direccion), "Teulada"), null, direccion);
   }
 });
+
+test("ejecución fuera del municipio invalida también un título homónimo", () => {
+  const obra = { id: "prueba", nombre: "Reforma de la calle Mayor" };
+  assert.equal(opcionesDeObra("03128", obra, "Teulada").length, 1);
+  for (const l of [EJECUCION("Calle Mayor 12", "Benissa", "ES"), EJECUCION("Calle Mayor 12", "Teulada/Benissa", "ES"), EJECUCION("Calle Mayor 12", "Teulada", "PL")]) {
+    assert.deepEqual(opcionesDeObra("03128", { ...obra, lugarEjecucion: l }, "Teulada"), []);
+  }
+  assert.equal(opcionesDeObra("03128", { ...obra, lugarEjecucion: EJECUCION("Calle Mayor 12", "Teulada", "ES") }, "Teulada").length, 2);
+});
