@@ -43,7 +43,7 @@ const VACIAS = new Set(
 );
 
 /** Abreviaturas frecuentes dentro del nombre, antes de cortar por los puntos. */
-const ABREVIATURAS = [
+export const ABREVIATURAS = [
   [/\bntra\.?\s*sra\.?/gi, "Nuestra Señora"],
   [/\bdr\.(?=\s)/gi, "Doctor"],
   [/\bdra\.(?=\s)/gi, "Doctora"],
@@ -84,8 +84,10 @@ export const TIPOS = {
 /**
  * Cómo se escribe cada tipo en los títulos. El orden importa: lo más largo
  * primero. «C/» y abreviaturas con punto van sin \b final.
+ * También lo usa scripts/lugar-de-obra.mjs para exigir tipo explícito en las
+ * direcciones de ejecución del anuncio.
  */
-const DISPARADORES = [
+export const DISPARADORES = [
   ["calle", /(?:^|[\s(«"“,;:])(?:calle|carrer|r[uú]a)\s+/i],
   ["calle", /(?:^|[\s(«"“,;:])c\s?\/\.?\s*/i],
   ["avenida", /(?:^|[\s(«"“,;:])(?:avenida|avinguda|avda\.?|avgda\.?|avd\.|av\.)\s*/i],
@@ -103,7 +105,7 @@ const DISPARADORES = [
 ];
 
 /** Dónde acaba el nombre del lugar. */
-const CORTES = [
+export const CORTES = [
   /[,;:()"«»“”\[\]/|]/,
   /\.(?:\s|$)/,
   /\s[-–—]\s/,
@@ -150,8 +152,12 @@ export function fichas(texto) {
     .filter((p) => p && !VACIAS.has(p) && !PALABRAS_TIPO.has(p));
 }
 
-/** Variantes del nombre del municipio para quitarlo del final («… de Benidorm»). */
-function nombresMunicipio(municipio) {
+/**
+ * Variantes del nombre del municipio para quitarlo del final («… de Benidorm»).
+ * También compara el CityName del lugar de ejecución con el municipio de la
+ * obra (scripts/lugar-de-obra.mjs): invertidos («Alqueries, les») y bilingües.
+ */
+export function nombresMunicipio(municipio) {
   const partes = municipio.split("/").map((p) => p.trim());
   const out = new Set();
   for (const p of partes) {

@@ -13,8 +13,13 @@
  *      (los 8.000 y pico municipios de España para el buscador, también los
  *      que aún no tienen obras) y `lib/ids-nacionales.ts` (solo servidor).
  *   4. Si existe `datos-geo/geocodificado.json` (scripts/geocodificar.mjs),
- *      añade a cada obra que CartoCiudad situó por su título un campo
- *      compacto `geo: [lat, lon, "calle"|"lugar"]` (aproximado, sin revisar).
+ *      añade a cada obra que CartoCiudad situó un campo compacto
+ *      `geo: [lat, lon, "calle"|"lugar"]` (aproximado, sin revisar), con un
+ *      cuarto elemento "ejecucion" si el punto viene del lugar de ejecución
+ *      del anuncio y no del título (la elección la hace lugar-de-obra.mjs:
+ *      título primero, anuncio de fallback, conflicto >300 m → no se sitúa).
+ *      La compacta lleva además el lugarEjecucion del anuncio (si el parser
+ *      de valio-datos lo trajo), para que geocodificar.mjs lo lea.
  *   Teulada no se toca: sus obras son las del piloto verificado (lib/obras.ts).
  *   NO editar a mano lo generado: regenerar.
  *
@@ -26,7 +31,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { claveObra, lugarDelTitulo } from "./lugar-del-titulo.mjs";
+import { tipoDe } from "./tipo-obra.mjs";
+import { ejecucionEstaContrastada, elegirUbicacion, opcionesDeObra } from "./lugar-de-obra.mjs";
 
 const RAIZ_APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RAIZ_DATOS = resolve(process.argv[2] ?? "../valio-datos");
@@ -39,6 +45,8 @@ const SALIDA_IDS = resolve(RAIZ_APP, "lib/ids-nacionales.ts");
 const PILOTO = new Set(["03128"]); // Teulada: piloto verificado a mano
 // Obras situadas por el título (scripts/geocodificar.mjs, CartoCiudad). Opcional.
 const GEO = resolve(RAIZ_APP, "datos-geo/geocodificado.json");
+const rutaContrastes = resolve(RAIZ_APP, "datos-geo/ejecuciones-contrastadas.json");
+const contrastesEjecucion = existsSync(rutaContrastes) ? JSON.parse(readFileSync(rutaContrastes, "utf8")) : {};
 
 function fallar(mensaje) {
   console.error(`✗ ${mensaje}`);
@@ -46,24 +54,11 @@ function fallar(mensaje) {
 }
 
 /**
- * Tipo de obra para los chips del mazo, por palabras del objeto. Es una
- * ayuda para filtrar, no un dato oficial: lo que manda es el objeto.
- * El orden importa: lo más específico primero.
+ * Tipo de obra para los chips del mazo. La lógica vive en scripts/tipo-obra.mjs
+ * (módulo compartido, sin dependencias): primero el CPV principal de la
+ * licitación si el código es específico, y si no las palabras del objeto.
+ * Es una ayuda para filtrar, no un dato oficial: lo que manda es el objeto.
  */
-const REGLAS_TIPO = [
-  ["seguridad", /polic[ií]a|bomberos|sem[aá]foro|seguridad|emergencia|videovigilancia|protecci[oó]n civil/i],
-  ["medio ambiente", /residuo|depurad|saneamiento|alcantarill|abastecimiento|agua|contador|pluvial|colector|playa|litoral|medio ambiente|ecopar|vertedero|energ[ií]a|fotovolt/i],
-  ["deporte", /deport|polideport|piscina|pistas? (?:deportiv|de p[aá]del|de tenis|de atletismo|multideport)|campo de f[uú]tbol|estadio|gimnas|front[oó]n|skate|p[aá]del/i],
-  ["educacion", /colegio|escuela|\bc\.?\s?e\.?\s?i\.?\s?p\b|\bi\.e\.s\b|\bies\b|instituto|educa|guarder|escoleta|biblioteca|aulari/i],
-  ["patrimonio", /patrimonio|iglesia|ermita|castillo|muralla|museo|teatro|hist[oó]ric|restauraci[oó]n|monumento|palacio/i],
-  // «parque» sin «de bomberos/contadores/vehículos/maquinaria»: esos no son zonas verdes.
-  ["parques", /parque(?! de (?:bomberos|contadores|veh[ií]culos|maquinaria|m[oó]vil))|jard[ií]n|zona verde|arbolado|juegos infantiles|[aá]rea de juego/i],
-]
-
-function tipoDe(objeto) {
-  for (const [tipo, patron] of REGLAS_TIPO) if (patron.test(objeto)) return tipo;
-  return "urbanismo";
-}
 
 /** «2026-05-12» → «12/05/2026». */
 const fechaEs = (iso) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
@@ -97,10 +92,13 @@ const adjudicada = (o) =>
  */
 function aObra(ine, o) {
   const fecha = o.fechaAdjudicacion || o.fechaPublicacion || o.actualizado;
+  const lugarEjecucion = lugarEjecucionDe(o);
+  const id = idObra(ine, o);
+  const contrastada = ejecucionEstaContrastada({ id, nombre: o.objeto, lugarEjecucion }, contrastesEjecucion);
   return {
-    id: idObra(ine, o),
+    id,
     nombre: o.objeto,
-    categoria: tipoDe(o.objeto),
+    categoria: tipoDe(o.objeto, o.cpv),
     organismo: o.organo,
     anyo: Number(fecha.slice(0, 4)),
     // Cada importe es el suyo: si PLACE no da el presupuesto, «no consta».
@@ -117,7 +115,28 @@ function aObra(ine, o) {
     },
     ...(/lotes|varios adjudicatarios/.test(o.notas || "") ? { aviso: true } : {}),
     url: o.urlOficial,
+    ...(lugarEjecucion ? { lugarEjecucion } : {}),
+    ...(contrastada ? { ejecucionContrastada: true } : {}),
+    ...(o.excluirPuntoAutomatico === true ? { excluirPuntoAutomatico: true } : {}),
   };
+}
+
+/**
+ * lugarEjecucion del anuncio (PLACE), tal como lo trae el parser de
+ * valio-datos: { direccion, municipio, pais } opcional, una sola ubicación,
+ * strings saneados del mismo snapshot que la obra. Solo se copia si llega
+ * con dirección y municipio: sin eso no hay nada honesto que llevar, y lo
+ * lee scripts/geocodificar.mjs (nunca la app: es material de trabajo).
+ */
+function lugarEjecucionDe(o) {
+  const l = o.lugarEjecucion;
+  if (!l || typeof l !== "object") return undefined;
+  const sanea = (s, max) => (typeof s === "string" ? s.trim().slice(0, max) : "");
+  const direccion = sanea(l.direccion, 300);
+  const municipio = sanea(l.municipio, 120);
+  const pais = sanea(l.pais, 60);
+  if (!direccion || !municipio) return undefined;
+  return { direccion, municipio, ...(pais ? { pais } : {}) };
 }
 
 /** CSV sencillo del padrón de valio-datos (sin comillas con comas dentro salvo nombres). */
@@ -155,17 +174,24 @@ const obrasPiloto = (readFileSync(resolve(RAIZ_APP, "lib/obras.ts"), "utf8").mat
 const geo = existsSync(GEO) ? JSON.parse(readFileSync(GEO, "utf8")).obras ?? {} : {};
 const fechasGeo = new Map(); // cp → fecha más reciente de las obras situadas
 let situadas = 0;
+let situadasEjecucion = 0;
 
-/** [lat, lon, nivel] si CartoCiudad situó la obra por su título; si no, null. */
+/**
+ * Punto de la obra si CartoCiudad la situó: [lat, lon, nivel] si el punto
+ * viene del título (como siempre) o [lat, lon, nivel, "ejecucion"] si viene
+ * del lugar de ejecución del anuncio. Manda el título; el anuncio es
+ * fallback; ambos a más de 300 m → conflicto, no se sitúa (lugar-de-obra.mjs).
+ */
 function geoDe(ine, municipio, obra) {
-  const lugar = lugarDelTitulo(obra.nombre, municipio);
-  const r = lugar && geo[claveObra(obra.id, ine, lugar.consulta)];
-  if (!r || r.sinResultado || !Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return null;
-  if (r.precision !== "calle" && r.precision !== "lugar") return null;
+  const porOrigen = Object.fromEntries(opcionesDeObra(ine, obra, municipio).map((o) => [o.origen, geo[o.clave] ?? null]));
+  const elegido = elegirUbicacion(porOrigen.titulo ?? null, porOrigen.ejecucion ?? null);
+  if (!elegido) return null;
   const cp = ine.slice(0, 2);
-  if (!fechasGeo.has(cp) || r.fecha > fechasGeo.get(cp)) fechasGeo.set(cp, r.fecha);
+  if (!fechasGeo.has(cp) || elegido.fecha > fechasGeo.get(cp)) fechasGeo.set(cp, elegido.fecha);
+  situadasEjecucion += elegido.origen === "ejecucion" ? 1 : 0;
   // 5 decimales: ~1 m, de sobra para una ubicación aproximada.
-  return [Math.round(r.lat * 1e5) / 1e5, Math.round(r.lon * 1e5) / 1e5, r.precision];
+  const punto = [Math.round(elegido.lat * 1e5) / 1e5, Math.round(elegido.lon * 1e5) / 1e5, elegido.precision];
+  return elegido.origen === "ejecucion" ? [...punto, "ejecucion"] : punto;
 }
 
 const provincias = new Map(); // cp → { ine → municipio con sus obras }
@@ -294,5 +320,5 @@ for (const [, , viejo] of activar) rmSync(viejo, { recursive: true, force: true 
 console.log(
   `✓ ${numObras.size} municipios con obras (${sinObras} sin adjudicaciones), ${idsPublicados.length} obras, ` +
     `${provincias.size} provincias (${(bytes / 1e6).toFixed(1)} MB) · buscador con ${filasIndice.length} municipios · ` +
-    `${situadas} situadas por el título (CartoCiudad)`,
+    `${situadas} situadas (título o anuncio; ${situadasEjecucion} por lugar de ejecución) con CartoCiudad`,
 );

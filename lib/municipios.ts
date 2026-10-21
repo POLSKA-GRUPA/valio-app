@@ -1,4 +1,4 @@
-import { OBRAS, POBLACION, type Adjudicacion, type Categoria, type Obra, type Ubicacion } from "./obras";
+import { OBRAS, POBLACION, type Adjudicacion, type Categoria, type Obra, type Ubicacion, type UbicacionAproximada } from "./obras";
 
 export interface PoblacionMunicipio {
   municipio: string;
@@ -101,9 +101,15 @@ interface ObraCompacta {
   importeLicitacion: number | null;
   adjudicacion: Adjudicacion;
   aviso?: true;
+  excluirPuntoAutomatico?: true;
+  ejecucionContrastada?: true;
   url: string;
-  /** Situada automáticamente por el título (scripts/geocodificar.mjs): [lat, lon, nivel]. */
-  geo?: [number, number, "calle" | "lugar"];
+  /** Situada automáticamente (título o lugar de ejecución): [lat, lon, nivel],
+   *  con un cuarto elemento "ejecucion" si el punto viene del anuncio. */
+  geo?: [number, number, "calle" | "lugar"] | [number, number, "calle" | "lugar", "ejecucion"];
+  /** Lugar de ejecución declarado en el anuncio (PLACE): material para el
+   *  geocodificador (scripts/geocodificar.mjs), no para la interfaz. */
+  lugarEjecucion?: { direccion: string; municipio: string; pais?: string };
 }
 
 interface MunicipioProvincia {
@@ -128,17 +134,36 @@ const SIN_SITUAR: Ubicacion = {
   motivo: "es un dato cargado automáticamente de la Plataforma de Contratación y aún nadie lo ha situado en el mapa",
 };
 
-/** Ubicación de una obra nacional: la aproximada del título si la hay; si no, solo el municipio. */
+/**
+ * Ubicación aproximada con origen: «titulo» (el título nombra el sitio) o
+ * «ejecucion» (la dirección de ejecución que declara el anuncio). El campo
+ * vive aquí hasta que la plantilla regenere lib/obras.ts con él.
+ */
+export type UbicacionAproximadaConOrigen = UbicacionAproximada & { origen?: "titulo" | "ejecucion" };
+
+const MOTIVO_APROXIMADA: Record<"titulo" | "ejecucion", string> = {
+  titulo: "Situada automáticamente a partir del título (CartoCiudad, IGN); sin revisar a mano",
+  ejecucion: "Situada automáticamente a partir del lugar de ejecución del anuncio (CartoCiudad, IGN); sin revisar a mano",
+};
+
+/** Ubicación de una obra nacional: la aproximada del título o del anuncio si la hay; si no, solo el municipio. */
 function ubicacionDe(o: ObraCompacta, fechaGeo: string): Ubicacion {
+  if (o.excluirPuntoAutomatico) return {
+    precision: "sin_ubicacion",
+    motivo: "El anuncio no permite atribuir un punto único a este municipio",
+  };
   const g = o.geo;
+  if (g?.[3] === "ejecucion" && o.ejecucionContrastada !== true) return SIN_SITUAR;
   if (!g || !Number.isFinite(g[0]) || !Number.isFinite(g[1]) || (g[2] !== "calle" && g[2] !== "lugar")) return SIN_SITUAR;
   const [lat, lon, nivel] = g;
-  return {
+  const origen: "titulo" | "ejecucion" = g[3] === "ejecucion" ? "ejecucion" : "titulo";
+  const u: UbicacionAproximadaConOrigen = {
     precision: "aproximada",
     lat,
     lon,
     nivel,
-    motivo: "Situada automáticamente a partir del título (CartoCiudad, IGN); sin revisar a mano",
+    origen,
+    motivo: MOTIVO_APROXIMADA[origen],
     fuente: {
       tipo: "cartociudad",
       // Reproducible: qué dirección da CartoCiudad en ese punto.
@@ -146,6 +171,7 @@ function ubicacionDe(o: ObraCompacta, fechaGeo: string): Ubicacion {
       fechaConsulta: fechaGeo,
     },
   };
+  return u;
 }
 
 const provincias = new Map<string, Promise<Provincia | null>>();

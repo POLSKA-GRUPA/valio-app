@@ -1,0 +1,6 @@
+# Falsos positivos históricos confirmados: ENVIADO_KEY es el nombre público
+# de una entrada de localStorage, no una credencial. Excepciones por commit,
+# fichero, regla y línea: no se ignoran otras claves ni se desactiva la regla.
+848ffaa1bd6746f87b44c48d6d44dc16d1a5f3f6:lib/useSincronizar.ts:generic-api-key:21
+8d522c61f1dc81628d9a04b01c4c17faf090859e:lib/useSincronizar.ts:generic-api-key:15
+6786df3ec6ee2d70862cb338b9c200ff42fcddc3:lib/useSincronizar.ts:generic-api-key:14

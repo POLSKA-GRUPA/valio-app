@@ -402,6 +402,8 @@ export interface UbicacionAproximada {
   lon: number;
   /** «calle»: un punto de la vía que nombra el título; «lugar»: el sitio con nombre (colegio, parque…). */
   nivel: "calle" | "lugar";
+  /** De dónde salió el punto: el título de la obra o el lugar de ejecución del anuncio. */
+  origen?: "titulo" | "ejecucion";
   /** Cómo se ha situado, en una frase para el vecino. */
   motivo: string;
   fuente: { tipo: "cartociudad"; url: string; fechaConsulta: string };
