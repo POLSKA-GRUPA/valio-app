@@ -25,8 +25,12 @@ antes de improvisar: improvisar es lo único prohibido.
    Si el issue es #12, menciona `#12` en el cuerpo.
 4. **Abre el PR** con título claro y `Closes #12` en la descripción (así el issue
    se cierra solo al fusionar). Un PR = un tema. Nada de PRs de 20 archivos.
-5. **Espera el check de CI** (compila el proyecto). Solo puedes pulsar **Merge**
-   si el check está **verde**. Si está rojo, lee el log, arregla, empuja de nuevo.
+5. **Verifica en local y deja evidencia**: `npm run build`, TypeScript y las
+   regresiones pertinentes deben estar verdes. Otra persona o agente revisa el
+   cambio antes del merge. Por decisión del owner, los checks de GitHub no son
+   el gate de aceptación; no hay que contratar CI ni cambiar protecciones para
+   suplir esa validación. Si GitHub exige una aprobación adicional, el owner
+   resuelve el merge: no se presenta una revisión local como esa aprobación.
 6. **Kenyi revisa por la noche**: dejará comentarios en tus PRs e issues.
    Responde o corrige al día siguiente. Nada de rehacer en silencio.
 
@@ -62,3 +66,24 @@ mismo esta lista:
 
 Primero `git log` y `git diff` para entender qué cambió. Segundo, pregunta.
 Nunca hagas `push --force` ni borres ramas que no son tuyas.
+
+## Publicar sin dejar producción fuera de Git
+
+Sólo el owner publica. El orden es **pruebas y revisión → merge → comprobar
+`origin/main` → publicar → verificar deployment y alias → registrar el cierre**.
+No se publica desde una rama de pruebas dejando su integración para después.
+
+Antes de publicar, ejecuta `git fetch origin`, comprueba que `git status --short`
+está vacío y que `git rev-parse HEAD` coincide con `git rev-parse origin/main`.
+Si no coinciden, no publiques: integra y repite las comprobaciones. Registra
+SHA completo, tag remoto, deployment y rollback en `docs/releases/`. Los tags
+de producción no se fuerzan ni se mueven. No basta con que el código siga sólo
+en el ordenador del owner.
+
+Un merge puede activar la integración Git de Vercel: comprueba su configuración
+y valida el payload antes de fusionar; después confirma qué deployment atiende
+cada alias. No cambies permisos ni ajustes de producción para saltarte un bloqueo.
+
+La reconciliación de la entrega del 18 de octubre está en
+[su registro de anclaje](releases/2026-10-18.md). Estas instrucciones son un
+procedimiento de publicación, no un bloqueo técnico de la CLI de Vercel.
